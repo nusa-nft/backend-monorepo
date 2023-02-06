@@ -1,0 +1,45 @@
+stages:
+   - build
+   - deploy-staging
+
+build_app:
+   image: node:16-bullseye-slim
+   stage: build
+   only:
+      - merge_requests
+   script:
+      - echo "Install openssl for npx"
+      - apk add openssl && \
+      - rm -rf /var/cache/apk/*
+      - echo "Migrate dev"
+      - npx prisma generate
+      - echo "proses build test"
+      - npm install
+      - echo "Install sukses"
+      - npm run build
+      - echo "Build sukses"
+   cache:
+     paths:
+       - node_modules/
+   artifacts:
+      paths:
+         - dist/
+      expire_in: 1 hour
+
+deploy_staging:
+   image : alpine:latest
+   stage: deploy-staging
+   only:
+      - staging
+   before_script:
+      - echo "Install SSH"
+      - apk add --no-cache openssh
+      - echo "Create Key"
+      - mkdir -p ~/.ssh
+      - echo -e "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+      - chmod 600 ~/.ssh/id_rsa
+      - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+
+   script:
+      - echo "pull build and restart"
+      - ssh $HOST "cd $DIR_BE  && git stash  && git checkout staging && git pull && npm install && npx prisma generate && npm run build   && pm2 start"

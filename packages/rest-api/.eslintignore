@@ -1,0 +1,5 @@
+dist/prisma/seed.d.ts
+dist/src/app.controller.d.ts
+dist/src/app.module.d.ts
+dist/src/app.service.d.ts
+dist/src/main.d.ts

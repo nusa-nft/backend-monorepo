@@ -1,0 +1,413 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                             Int                       @unique @default(autoincrement())
+  wallet_address                 String                    @unique
+  collections                    Collection[]
+  assets                         Item[]
+  royalty                        Royalty[]
+  deleted                        Boolean                   @default(false)
+  first_name                     String?
+  last_name                      String?
+  username                       String?                   @unique
+  email                          String?
+  twitter_link                   String?
+  instagram_link                 String?
+  website_link                   String?
+  profile_picture                String?
+  description                    String?
+  cover_picture                  String?
+  createdAt                      DateTime                  @default(now())
+  updatedAt                      DateTime                  @updatedAt
+  ItemLikes                      ItemLikes[]
+  ItemViews                      ItemViews[]
+  WatchList                      WatchList[]
+  NotificationDetailSaleLister   NotificationDetailSale[]  @relation("lister")
+  NotificationDetailSaleBuyer    NotificationDetailSale[]  @relation("buyer")
+  NotificationDetailOfferLister  NotificationDetailOffer[] @relation("lister")
+  NotificationDetailOfferOfferor NotificationDetailOffer[] @relation("offeror")
+
+  @@id([id, wallet_address])
+}
+
+model Category {
+  id          Int          @unique @default(autoincrement())
+  name        String       @unique
+  collections Collection[]
+  deleted     Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Collection {
+  id                 Int                @id @default(autoincrement())
+  logo_image         String?
+  featured_image     String?
+  banner_image       String?
+  name               String
+  slug               String?
+  url                String?
+  description        String?
+  contract_address   String?
+  Creator            User               @relation(fields: [creator_address], references: [wallet_address])
+  Category           Category           @relation(fields: [category_id], references: [id])
+  royalty            Royalty[]
+  items              Item[]
+  website_link       String?
+  discord_link       String?
+  telegram_link      String?
+  medium_link        String?
+  display_theme      Display            @default(COVERED)
+  chainId            Int                @default(0)
+  payment_token      String?
+  creator_address    String
+  category_id        Int
+  explicit_sensitive Boolean            @default(false)
+  deleted            Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  WatchList          WatchList[]
+  watchCount         Int?               @default(0)
+  CuratedCollection  CuratedCollection?
+  isImported         Boolean            @default(false)
+
+  @@index([name], type: Hash)
+}
+
+model Item {
+  id                 Int                  @unique @default(autoincrement())
+  tokenId            Int?                 @default(-1)
+  name               String
+  description        String?
+  external_link      String?
+  image              String?
+  Collection         Collection?          @relation(fields: [collection_id], references: [id])
+  collection_id      Int
+  Creator            User                 @relation(fields: [creator_address], references: [wallet_address])
+  creator_address    String
+  contract_address   String?
+  attributes         Attributes[]
+  metadata           String?
+  unlockable         Boolean?             @default(false)
+  explicit_sensitive Boolean?             @default(false)
+  supply             Int
+  chainId            Int
+  is_metadata_freeze Boolean?             @default(false)
+  quantity_minted    Int                  @default(0)
+  token_standard     String?
+  deleted            Boolean              @default(false)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  ItemLikes          ItemLikes[]
+  itemLikeCount      Int?                 @default(0)
+  ItemViews          ItemViews[]
+  itemViewCount      Int?                 @default(0)
+  LazyMintListing    LazyMintListing[]
+  LazyMintSale       LazyMintSale[]
+  MarketplaceListing MarketplaceListing[]
+
+  @@unique([tokenId, contract_address, chainId])
+  @@index([name], type: Hash)
+}
+
+model Royalty {
+  id             Int        @unique @default(autoincrement())
+  Collection     Collection @relation(fields: [collection_id], references: [id])
+  collection_id  Int
+  deleted        Boolean    @default(false)
+  Wallet_address User       @relation(fields: [wallet_address], references: [wallet_address])
+  wallet_address String
+  percentage     Float
+}
+
+model Attributes {
+  id                   Int            @unique @default(autoincrement())
+  trait_type           String?
+  nusa_attribute_type  AttributeType?
+  value                String?
+  max_value            String?
+  opensea_display_type String?
+  Item                 Item?          @relation(fields: [itemId], references: [id])
+  itemId               Int?
+}
+
+model ItemLikes {
+  id     Int   @unique @default(autoincrement())
+  Item   Item? @relation(fields: [itemId], references: [id])
+  itemId Int?
+  User   User? @relation(fields: [userId], references: [id])
+  userId Int?
+}
+
+model ItemViews {
+  id     Int    @unique @default(autoincrement())
+  Item   Item   @relation(fields: [itemId], references: [id])
+  itemId Int
+  User   User?  @relation(fields: [userId], references: [id])
+  userId Int?
+  ip     String
+}
+
+model WatchList {
+  id           Int         @unique @default(autoincrement())
+  Collection   Collection? @relation(fields: [collectionId], references: [id])
+  collectionId Int?
+  User         User?       @relation(fields: [userId], references: [id])
+  userId       Int?
+}
+
+model LazyMintListing {
+  id                   Int            @unique @default(autoincrement())
+  Item                 Item           @relation(fields: [itemId], references: [id])
+  itemId               Int
+  assetContract        String
+  // tokenId Int
+  startTime            Int
+  endTime              Int
+  quantity             Int
+  currency             String // token address
+  reservePricePerToken Decimal        @db.Decimal(78, 0)
+  buyoutPricePerToken  Decimal        @db.Decimal(78, 0)
+  tokenType            TokenType
+  listingType          ListingType
+  isCancelled          Boolean        @default(false)
+  isFulfilled          Boolean        @default(false)
+  LazyMintSale         LazyMintSale[]
+}
+
+model LazyMintSale {
+  id                Int             @unique @default(autoincrement())
+  Item              Item            @relation(fields: [itemId], references: [id])
+  itemId            Int
+  LazyMintListing   LazyMintListing @relation(fields: [lazyMintListingId], references: [id])
+  lazyMintListingId Int
+  tokenId           Int?
+  tokenType         TokenType
+  listingType       ListingType
+  quantityBought    Int?
+  totalPricePaid    Decimal         @db.Decimal(78, 0)
+  createdAt         Int?
+}
+
+model Notification {
+  id                        Int                      @unique @default(autoincrement())
+  notification_type         NotificationType
+  is_seen                   Boolean                  @default(false)
+  notification_detail_sale  NotificationDetailSale?  @relation("sale")
+  notification_detail_offer NotificationDetailOffer? @relation("offer")
+  createdAt                 DateTime                 @default(now())
+}
+
+model NotificationDetailSale {
+  id                    Int              @unique @default(autoincrement())
+  notification_type     NotificationType @default(Sale)
+  listingId             Int?
+  asset_contract        String
+  lister                User             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
+  lister_wallet_address String
+  buyer                 User             @relation("buyer", fields: [buyer_wallet_address], references: [wallet_address])
+  buyer_wallet_address  String
+  quantity_bought       Int?
+  total_price_paid      Decimal          @db.Decimal(78, 0)
+  createdAt             DateTime         @default(now())
+  createdAt_timestamp   Int?
+  transaction_hash      String
+  Notification          Notification?    @relation("sale", fields: [notification_id], references: [id])
+  notification_id       Int?             @unique
+
+  @@unique([id, notification_type])
+}
+
+model NotificationDetailOffer {
+  id                     Int              @unique @default(autoincrement())
+  notification_type      NotificationType @default(Offer)
+  listingId              Int?
+  lister                 User             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
+  lister_wallet_address  String
+  offeror                User             @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
+  offeror_wallet_address String
+  listing_type           ListingType
+  quantity_wanted        Int?
+  total_offer_ammount    Decimal          @db.Decimal(78, 0)
+  currency               String
+  createdAt              DateTime         @default(now())
+  createdAt_timestamp    Int?
+  expiration_timestamp   Int?
+  transaction_hash       String
+  Notification           Notification?    @relation("offer", fields: [notification_id], references: [id])
+  notification_id        Int?             @unique
+
+  @@unique([id, notification_type])
+}
+
+enum Display {
+  PADDED
+  CONTAINED
+  COVERED
+}
+
+enum AttributeType {
+  PROPERTIES
+  LEVELS
+  STATS
+}
+
+enum TokenType {
+  ERC1155
+  ERC721
+}
+
+enum ListingType {
+  Direct
+  Auction
+}
+
+enum NotificationType {
+  Sale
+  Offer
+}
+
+model Erc1155TransferHistory {
+  id              Int     @unique @default(autoincrement())
+  block           Int?
+  operator        String?
+  from            String?
+  to              String?
+  tokenId         Int?
+  value           Int?
+  createdAt       Int?
+  transactionHash String  @unique
+}
+
+model TokenTransferHistory {
+  id              Int     @unique @default(autoincrement())
+  block           Int?
+  operator        String?
+  from            String?
+  to              String?
+  contractAddress String
+  chainId         Int     @default(0)
+  tokenId         Int?
+  value           Int?
+  createdAt       Int?
+  transactionHash String
+  isBatch         Boolean @default(false)
+  txIndex         Int     @default(0)
+
+  @@unique([transactionHash, chainId, txIndex])
+}
+
+model TokenOwnerships {
+  contractAddress String
+  chainId         Int    @default(0)
+  tokenId         Int
+  ownerAddress    String
+  quantity        Int
+  timestamp       Int
+  transactionHash String
+
+  @@id([contractAddress, chainId, tokenId, ownerAddress])
+}
+
+model MarketplaceListing {
+  id                   Int                @unique @default(autoincrement())
+  listingId            Int?               @unique
+  lister               String?
+  tokenOwner           String?
+  assetContract        String?
+  tokenId              Int?
+  startTime            Int?
+  endTime              Int?
+  quantity             Int?
+  currency             String?
+  chainId              Int                @default(0)
+  reservePricePerToken Decimal            @db.Decimal(78, 0)
+  buyoutPricePerToken  Decimal            @db.Decimal(78, 0)
+  tokenType            TokenType
+  listingType          ListingType
+  createdAt            Int?
+  updatedAt            Int?
+  isCancelled          Boolean            @default(false)
+  MarketplaceSale      MarketplaceSale?
+  isClosedByLister     Boolean?
+  isClosedByBidder     Boolean?
+  MarketplaceOffer     MarketplaceOffer[]
+  RoyaltyPaid          RoyaltyPaid[]
+  Item                 Item?              @relation(fields: [tokenId, assetContract, chainId], references: [tokenId, contract_address, chainId])
+}
+
+model MarketplaceOffer {
+  id                  Int                 @unique @default(autoincrement())
+  listing             MarketplaceListing? @relation(fields: [listingId], references: [listingId])
+  listingId           Int?
+  offeror             String
+  listingType         ListingType
+  quantityWanted      Int?
+  totalOfferAmount    Decimal             @db.Decimal(78, 0)
+  createdAt           Int?
+  currency            String?
+  expirationTimestamp Int
+  transactionHash     String              @unique
+}
+
+model MarketplaceSale {
+  id              Int                 @unique @default(autoincrement())
+  listing         MarketplaceListing? @relation(fields: [listingId], references: [listingId])
+  listingId       Int?                @unique
+  assetContract   String?
+  lister          String?
+  buyer           String?
+  quantityBought  Int?
+  totalPricePaid  Decimal?            @db.Decimal(78, 0)
+  createdAt       Int?
+  transactionHash String              @unique
+}
+
+model RoyaltyPaid {
+  id              Int                 @unique @default(autoincrement())
+  listing         MarketplaceListing? @relation(fields: [listingId], references: [listingId])
+  listingId       Int
+  recipient       String
+  bps             Int
+  amount          Decimal             @db.Decimal(78, 0)
+  createdAt       Int
+  transactionHash String
+}
+
+model IndexerState {
+  lastBlockProcessed Int @unique
+}
+
+model Voucher {
+  id      Int     @unique
+  hash    String
+  expTime Int
+  deleted Boolean @default(false)
+}
+
+model CuratedCollection {
+  id           Int        @unique @default(autoincrement())
+  collectionId Int        @unique
+  Collection   Collection @relation(fields: [collectionId], references: [id])
+}
+
+model ImportedContracts {
+  id              Int       @unique @default(autoincrement())
+  contractAddress String
+  chainId         Int
+  tokenType       TokenType
+  deployedAtBlock Int
+  createdAt       DateTime
+
+  @@unique([contractAddress, chainId])
+}
