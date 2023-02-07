@@ -7,7 +7,8 @@ import keccak256 from 'keccak256';
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Job, Queue } from 'bull';
 import { ClaimDTO, CreateDTO, RegisterDTO } from './voucher.dto';
-import * as AsyncLock from "async-lock";
+import * as AsyncLock from 'async-lock';
+import { BlockchainTxPayload } from '../interfaces';
 
 @Injectable()
 @Processor('blockchain-tx')
@@ -21,8 +22,8 @@ export class VoucherService {
   private logger = new Logger(VoucherService.name);
   constructor(
     private prisma: PrismaService,
-    @InjectQueue('blockchain-tx') private blockchainTxQueue: Queue
-    ) {
+    @InjectQueue('blockchain-tx') private blockchainTxQueue: Queue,
+  ) {
     this.provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
 
     this.wallet = new ethers.Wallet(
@@ -48,8 +49,8 @@ export class VoucherService {
     const payload: BlockchainTxPayload = {
       method: 'registerVoucher',
       args: [tokenId, rootHash],
-      extraData: { leaves: hash, exp: expired }
-    }
+      extraData: { leaves: hash, exp: expired },
+    };
 
     const job = await this.blockchainTxQueue.add('register-voucher', payload);
     return job;
@@ -59,8 +60,8 @@ export class VoucherService {
     const { toAddress, tokenURI } = param;
     const payload: BlockchainTxPayload = {
       method: 'create',
-      args: [toAddress, tokenURI]
-    }
+      args: [toAddress, tokenURI],
+    };
 
     const job = await this.blockchainTxQueue.add('create-nft', payload);
     return job;
@@ -89,15 +90,8 @@ export class VoucherService {
     const proof = tree.getHexProof(hash);
     const payload: BlockchainTxPayload = {
       method: 'claimVoucher',
-      args: [
-        voucher,
-        tokenId,
-        dbVoucher.expTime,
-        toAddress,
-        signature,
-        proof
-      ]
-    }
+      args: [voucher, tokenId, dbVoucher.expTime, toAddress, signature, proof],
+    };
 
     const job = await this.blockchainTxQueue.add('claim-nft', payload);
     return job;
@@ -118,43 +112,50 @@ export class VoucherService {
     });
   }
 
-  processJobWithWallet(jobName: string, job: Job<BlockchainTxPayload>, callback?: Function) {
+  processJobWithWallet(
+    jobName: string,
+    job: Job<BlockchainTxPayload>,
+    callback?: () => any,
+  ) {
     return new Promise((resolve) => {
-      this.walletLock.acquire('wallet-lock', async () => {
-        let nonce = await this.provider.getTransactionCount(this.wallet.address);
-        this.nonce = this.nonce > nonce ? this.nonce : nonce;
-        nonce = this.nonce;
-        this.logger.log(`Sending TX Nonce:${nonce}`);
-        this.nusaNFT[job.data.method](...job.data.args, { nonce })
-          .then(async (tx: ethers.providers.TransactionResponse) => {
-            try {
-              this.logger.log(`processing ${jobName}`, { tx });
-              const minedTx: ethers.providers.TransactionReceipt =
-                await this.provider.waitForTransaction(tx.hash)
-              this.logger.log('transaction processed', job, minedTx)
-              if (callback) {
-                callback();
+      this.walletLock
+        .acquire('wallet-lock', async () => {
+          let nonce = await this.provider.getTransactionCount(
+            this.wallet.address,
+          );
+          this.nonce = this.nonce > nonce ? this.nonce : nonce;
+          nonce = this.nonce;
+          this.logger.log(`Sending TX Nonce:${nonce}`);
+          this.nusaNFT[job.data.method](...job.data.args, { nonce })
+            .then(async (tx: ethers.providers.TransactionResponse) => {
+              try {
+                this.logger.log(`processing ${jobName}`, { tx });
+                const minedTx: ethers.providers.TransactionReceipt =
+                  await this.provider.waitForTransaction(tx.hash);
+                this.logger.log('transaction processed', job, minedTx);
+                if (callback) {
+                  callback();
+                }
+              } catch (err) {
+                this.logger.error(err);
               }
-            } catch (err) {
-              this.logger.error(err)
-            }
-          })
-          .catch(async (error: any) => {
-            this.logger.error(error, 'Requeuing')
-            this.blockchainTxQueue.add(jobName, job.data);
-          })
-        this.nonce++;
-      })
-      .then(() => {
-        // Lock Released
-        resolve(true);
-      })
-      .catch(err => {
-        this.logger.error(err, 'Requeuing')
-        this.blockchainTxQueue.add(jobName, job.data);
-        resolve(true);
-      })
-    })
+            })
+            .catch(async (error: any) => {
+              this.logger.error(error, 'Requeuing');
+              this.blockchainTxQueue.add(jobName, job.data);
+            });
+          this.nonce++;
+        })
+        .then(() => {
+          // Lock Released
+          resolve(true);
+        })
+        .catch((err) => {
+          this.logger.error(err, 'Requeuing');
+          this.blockchainTxQueue.add(jobName, job.data);
+          resolve(true);
+        });
+    });
   }
 
   async registerVoucherToDB(

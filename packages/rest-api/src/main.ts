@@ -10,6 +10,8 @@ import { createBullBoard } from '@bull-board/api';
 import { ExpressAdapter } from '@bull-board/express';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import * as Bull from 'bull';
+import * as dotenv from 'dotenv';
+dotenv.config({ path: '../../../.env' });
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -44,14 +46,19 @@ async function bootstrap() {
   SwaggerModule.setup('swagger', app, document);
 
   const serverAdapter = new ExpressAdapter();
-  serverAdapter.setBasePath("/bull-board");
+  serverAdapter.setBasePath('/bull-board');
   const blockchainTxQueue = app.get<Bull.Queue>(`BullQueue_blockchain-tx`);
-  const importCollectionQueue = app.get<Bull.Queue>(`BullQueue_import-collection`);
+  const importCollectionQueue = app.get<Bull.Queue>(
+    `BullQueue_import-collection`,
+  );
   createBullBoard({
-    queues: [new BullMQAdapter(blockchainTxQueue), new BullMQAdapter(importCollectionQueue)],
+    queues: [
+      new BullMQAdapter(blockchainTxQueue),
+      new BullMQAdapter(importCollectionQueue),
+    ],
     serverAdapter,
-  })
-  app.use("/bull-board", serverAdapter.getRouter())
+  });
+  app.use('/bull-board', serverAdapter.getRouter());
 
   await app.listen(process.env.API_PORT ? process.env.API_PORT : 3000);
 }

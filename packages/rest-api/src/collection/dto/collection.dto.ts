@@ -297,7 +297,7 @@ export class CollectionActivitiesParams {
 export class ImportDto {
   @ApiProperty({
     name: 'contractAddress',
-    required: true
+    required: true,
   })
   contractAddress: string;
 }

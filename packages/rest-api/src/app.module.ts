@@ -26,7 +26,7 @@ import { BullModule } from '@nestjs/bull';
       redis: {
         host: process.env.API_REDIS_HOST,
         port: Number(process.env.API_REDIS_PORT),
-      }
+      },
     }),
     PrismaModule,
     CollectionModule,

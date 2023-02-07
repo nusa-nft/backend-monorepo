@@ -1,18 +1,19 @@
 import { Controller, Body, Post, Get, Param } from '@nestjs/common';
 import { VoucherService } from './voucher.service';
+import { ApiTags } from '@nestjs/swagger';
 import {
-  ApiTags,
-} from '@nestjs/swagger';
-import { CheckDTO, ClaimDTO, CreateDTO, CreateVoucherDTO, RegisterDTO } from './voucher.dto';
-
+  CheckDTO,
+  ClaimDTO,
+  CreateDTO,
+  CreateVoucherDTO,
+  RegisterDTO,
+} from './voucher.dto';
 
 @ApiTags('voucher')
 // @ApiBearerAuth()
 @Controller('voucher')
 export class VoucherController {
-  constructor(
-    private readonly voucherService: VoucherService,
-  ) {}
+  constructor(private readonly voucherService: VoucherService) {}
 
   @Post('claim')
   claim(@Body() param: ClaimDTO) {
