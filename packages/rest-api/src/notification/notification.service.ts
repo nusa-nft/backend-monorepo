@@ -142,7 +142,7 @@ export class NotificationService {
       },
     });
 
-    if (!newNotification) {
+    if (!newNotification.length) {
       return {
         newNotification: false,
       };
