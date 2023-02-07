@@ -9,7 +9,9 @@
     "api:dev": "lerna run start:dev --scope @nusa-nft/rest-api",
     "api:build": "lerna run build --scope @nusa-nft/rest-api",
     "indexer:dev": "lerna run start:dev --scope @nusa-nft/indexer",
-    "worker:dev": "lerna run start:dev --scope @nusa-nft/worker"
+    "indexer:build": "lerna run build --scope @nusa-nft/indexer",
+    "worker:dev": "lerna run start:dev --scope @nusa-nft/worker",
+    "worker:build": "lerna run start:dev --scope @nusa-nft/worker"
   },
   "devDependencies": {
     "lerna": "^6.4.1"
