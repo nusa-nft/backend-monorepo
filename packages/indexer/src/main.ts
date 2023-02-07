@@ -5,6 +5,7 @@ import blocked from 'blocked';
 import { Logger } from '@nestjs/common';
 import { BigIntInterceptor } from './interceptors/big-int.interceptor';
 import { ScientificNumberInterceptor } from './interceptors/scientific-number.interceptor';
+require('dotenv').config({ path: '../../../.env'});
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
