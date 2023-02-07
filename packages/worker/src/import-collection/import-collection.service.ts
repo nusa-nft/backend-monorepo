@@ -28,9 +28,8 @@ export class ImportCollectionService {
    * @param job
    */
   @Process('import-collection')
-  async processImportCollection(job: Job<{ contractAddress: string }>) {
-    console.log(job);
-    const { contractAddress } = job.data;
+  async processImportCollection(job: Job<{ contractAddress: string, categoryId: number }>) {
+    const { contractAddress, categoryId } = job.data;
     const chainId = Number(process.env.CHAIN_ID);
 
     const ERC721_INTERFACE_ID = '0x80ac58cd';
@@ -161,7 +160,7 @@ export class ImportCollectionService {
           },
           Category: {
             connect: {
-              id: Number(4),
+              id: +categoryId,
             },
           },
           royalty: {
