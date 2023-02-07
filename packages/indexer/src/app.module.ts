@@ -13,7 +13,7 @@ import { RoyaltyModule } from './royalty/royalty.module';
   imports: [
     IndexerModule,
     PrismaModule,
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({ envFilePath: '../../../.env' }),
     EventEmitterModule.forRoot(),
     Erc1155Module,
     MarketplaceModule,

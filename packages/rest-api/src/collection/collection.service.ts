@@ -40,7 +40,7 @@ export class CollectionService {
     private itemService: ItemService,
     @InjectQueue('import-collection') private importCollectionQueue: Queue,
   ) {
-    this.provider = new ethers.providers.WebSocketProvider(process.env.RPC_URL_WSS);
+    this.provider = new ethers.providers.WebSocketProvider(process.env.WSS_RPC_URL);
   }
 
   async createCollection(

@@ -53,6 +53,6 @@ async function bootstrap() {
   })
   app.use("/bull-board", serverAdapter.getRouter())
 
-  await app.listen(process.env.PORT ? process.env.PORT : 3000);
+  await app.listen(process.env.API_PORT ? process.env.API_PORT : 3000);
 }
 bootstrap();

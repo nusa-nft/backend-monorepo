@@ -30,7 +30,7 @@ export class SseService implements OnModuleInit {
     const wsProvider = new WsProvider(
       {
         KEEP_ALIVE_CHECK_INTERVAL: 10000,
-        RPC_URL: this.configService.get<string>('RPC_URL_WSS'),
+        RPC_URL: this.configService.get<string>('WSS_RPC_URL'),
       },
       this.eventEmitter,
     );

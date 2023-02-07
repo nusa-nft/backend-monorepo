@@ -29,6 +29,6 @@ async function bootstrap() {
     Logger.error("Blocked");
   }, {threshold:5000, interval: 5000});
 
-  await app.listen(process.env.PORT ? process.env.PORT : 3000);
+  await app.listen(process.env.INDEXER_PORT ? process.env.INDEXER_PORT : 3000);
 }
 bootstrap();

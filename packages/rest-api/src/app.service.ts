@@ -15,7 +15,7 @@ export class AppService {
     private readonly configService: ConfigService,
   ) {
     this.RECAPTCHA_SECRET_KEY = this.configService.get<string>(
-      'RECAPTCHA_SECRET_KEY',
+      'API_RECAPTCHA_SECRET_KEY',
     );
   }
 

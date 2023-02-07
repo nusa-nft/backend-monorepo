@@ -8,7 +8,7 @@ export class IndexerService {
   INDEXER_URL: string;
 
   constructor(private readonly httpService: HttpService) {
-    this.INDEXER_URL = process.env.INDEXER_URL;
+    this.INDEXER_URL = process.env.API_INDEXER_URL;
   }
 
   async getTokenOwners(tokenId: number) {

@@ -21,11 +21,11 @@
     "typescript": "^4.7.4"
   },
   "scripts": {
-    "db:introspect": "dotenv -- prisma introspect",
-    "db:generate": "dotenv -- prisma generate",
+    "db:introspect": "dotenv -e ../../.env -- prisma introspect",
+    "db:generate": "dotenv -e ../../.env -- prisma generate",
     "postinstall": "npx prisma@4.4.0 generate",
-    "db:seed": "npx ts-node ./seed/seed.ts",
-    "db:migrate-dev": "npx prisma migrate dev"
+    "db:seed": "dotenv -e ../../.env npx ts-node ./seed/seed.ts",
+    "db:migrate-dev": "dotenv -e ../../.env npx prisma migrate dev"
   },
   "prisma": {
     "seed": "ts-node ./seed/seed.ts"

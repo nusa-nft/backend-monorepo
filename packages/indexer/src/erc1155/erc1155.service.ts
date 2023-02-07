@@ -16,7 +16,7 @@ export class Erc1155Service {
   async getTokenOwners(tokenId: number) {
     const tokenOwnerships = await this.prisma.tokenOwnerships.findMany({
       where: {
-        contractAddress: process.env.CONTRACT_ADDRESS,
+        contractAddress: process.env.NFT_CONTRACT_ADDRESS,
         tokenId,
       },
     });
@@ -34,7 +34,7 @@ export class Erc1155Service {
   async getOwnedByWallet(walletAddress: string) {
     const tokenOwnerships = await this.prisma.tokenOwnerships.findMany({
       where: {
-        contractAddress: process.env.CONTRACT_ADDRESS,
+        contractAddress: process.env.NFT_CONTRACT_ADDRESS,
         ownerAddress: walletAddress,
       },
     });

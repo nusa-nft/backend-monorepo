@@ -21,11 +21,11 @@ import { BullModule } from '@nestjs/bull';
 @Module({
   imports: [
     AuthModule,
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: '../../../.env' }),
     BullModule.forRoot({
       redis: {
-        host: process.env.REDIS_HOST,
-        port: Number(process.env.REDIS_PORT),
+        host: process.env.API_REDIS_HOST,
+        port: Number(process.env.API_REDIS_PORT),
       }
     }),
     PrismaModule,

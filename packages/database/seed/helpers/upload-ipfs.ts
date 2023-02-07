@@ -2,8 +2,8 @@ import FormData from 'form-data';
 import axios from 'axios';
 import * as fs from 'fs';
 
-const projectId = process.env.IPFS_PROJECT_ID;
-const projectSecret = process.env.API_KEY_SECRET;
+const projectId = process.env.INFURA_IPFS_PROJECT_ID;
+const projectSecret = process.env.INFURA_API_KEY_SECRET;
 const auth = `Basic ${Buffer.from(`${projectId}:${projectSecret}`).toString(
   'base64',
 )}`;

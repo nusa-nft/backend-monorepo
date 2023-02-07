@@ -53,7 +53,7 @@ export class IndexerService implements OnModuleInit {
     const wsProvider = new WsProvider(
       {
         KEEP_ALIVE_CHECK_INTERVAL: 10000,
-        RPC_URL: this.configService.get<string>('RPC_URL'),
+        RPC_URL: this.configService.get<string>('WSS_RPC_URL'),
       },
       this.eventEmitter,
     );
@@ -61,7 +61,7 @@ export class IndexerService implements OnModuleInit {
     this.provider = wsProvider.provider;
 
     this.erc1155 = new ethers.Contract(
-      this.configService.get<string>('CONTRACT_ADDRESS'),
+      this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
       NusaNFT.abi as any,
       this.provider,
     );
@@ -1105,7 +1105,7 @@ export class IndexerService implements OnModuleInit {
   }) {
     const _from = await this.prisma.tokenOwnerships.findFirst({
       where: {
-        contractAddress: this.configService.get<string>('CONTRACT_ADDRESS'),
+        contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
         tokenId,
         ownerAddress: from,
       }
@@ -1113,7 +1113,7 @@ export class IndexerService implements OnModuleInit {
 
     const _to = await this.prisma.tokenOwnerships.findFirst({
       where: {
-        contractAddress: this.configService.get<string>('CONTRACT_ADDRESS'),
+        contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
         tokenId,
         ownerAddress: to,
       }
@@ -1124,14 +1124,14 @@ export class IndexerService implements OnModuleInit {
       await this.prisma.tokenOwnerships.upsert({
         where: {
           contractAddress_chainId_tokenId_ownerAddress: {
-            contractAddress: this.configService.get<string>('CONTRACT_ADDRESS'),
+            contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
             tokenId,
             ownerAddress: from,
             chainId: 80001
           }
         },
         create: {
-          contractAddress: this.configService.get<string>('CONTRACT_ADDRESS'),
+          contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
           tokenId,
           ownerAddress: from,
           quantity: _from ? _from.quantity - quantity : 0,
@@ -1148,14 +1148,14 @@ export class IndexerService implements OnModuleInit {
     await this.prisma.tokenOwnerships.upsert({
       where: {
         contractAddress_chainId_tokenId_ownerAddress: {
-          contractAddress: this.configService.get<string>('CONTRACT_ADDRESS'),
+          contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
           tokenId,
           ownerAddress: to,
           chainId: 80001
         }
       },
       create: {
-        contractAddress: this.configService.get<string>('CONTRACT_ADDRESS'),
+        contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
         tokenId,
         ownerAddress: to,
         quantity: _to ? _to.quantity + quantity : quantity,

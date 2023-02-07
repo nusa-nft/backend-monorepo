@@ -115,8 +115,8 @@ export class ItemService {
       metadata = `ipfs://${ipfsMetadata.Hash}`;
     } else {
       // Save image and metadata as API URL to nusa server
-      image = process.env.IMAGE_SERVE_URL
-        ? process.env.IMAGE_SERVE_URL + '/' + file.filename
+      image = process.env.API_IMAGE_SERVE_URL
+        ? process.env.API_IMAGE_SERVE_URL + '/' + file.filename
         : 'https://nft.nusa.finance/uploads/' + file.filename;
     }
 

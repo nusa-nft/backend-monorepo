@@ -16,7 +16,7 @@ export const mintItem = async (
   const wallet = new ethers.Wallet(testWalletPrivateKeys[toAddress] as string, provider);
 
   const contract = new ethers.Contract(
-    process.env.NFT_CONTRACT_ADDRESS,
+    process.env.NFT_CONTRACT_ADDRESS as string,
     NusaNFTAbi,
     wallet,
   )
