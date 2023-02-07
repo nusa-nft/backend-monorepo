@@ -135,6 +135,24 @@ export class NotificationService {
     });
   }
 
+  async checkNewNotification() {
+    const newNotification = await this.prisma.notification.findMany({
+      where: {
+        is_seen: false,
+      },
+    });
+
+    if (!newNotification) {
+      return {
+        newNotification: false,
+      };
+    }
+
+    return {
+      newNotification: true,
+    };
+  }
+
   async getItemName(listingId: number) {
     const item = await this.prisma.item.findFirst({
       where: {

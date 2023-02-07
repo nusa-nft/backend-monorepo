@@ -21,7 +21,6 @@
     "test:e2e": "jest --runInBand --detectOpenHandles --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@nusa-nft/database": "*",
     "@bull-board/api": "^4.11.0",
     "@bull-board/express": "^4.11.0",
     "@nestjs/axios": "^1.0.0",
@@ -35,6 +34,7 @@
     "@nestjs/platform-express": "^9.0.0",
     "@nestjs/serve-static": "^3.0.0",
     "@nestjs/swagger": "^6.1.2",
+    "@nusa-nft/database": "*",
     "@types/multer": "^1.4.7",
     "@types/passport-jwt": "^3.0.7",
     "@types/ws": "^8.5.4",
@@ -54,6 +54,7 @@
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.0",
     "path": "^0.12.7",
+    "pg": "^8.9.0",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
     "rxjs": "^7.2.0",
