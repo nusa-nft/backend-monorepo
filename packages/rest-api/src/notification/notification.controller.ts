@@ -8,6 +8,11 @@ import { NotificationService } from './notification.service';
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
+  @Get('/check-new-notification')
+  checkNewNotification() {
+    return this.notificationService.checkNewNotification();
+  }
+
   @Get('/:userId')
   getNotification(
     @Param('userId') userId: number,
