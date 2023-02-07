@@ -300,4 +300,10 @@ export class ImportDto {
     required: true,
   })
   contractAddress: string;
+
+  @ApiProperty({
+    name: 'category id',
+    required: true,
+  })
+  categoryId: number;
 }
