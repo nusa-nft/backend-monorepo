@@ -9,7 +9,7 @@ import { BullModule } from '@nestjs/bull';
     PrismaModule,
     BullModule.registerQueue({
       name: 'blockchain-tx',
-      limiter: { max: 10, duration: 10000 }
+      limiter: { max: 10, duration: 10000 },
     }),
   ],
   controllers: [VoucherController],

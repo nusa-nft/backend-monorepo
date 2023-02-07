@@ -826,7 +826,7 @@ export class ItemService {
         where: {
           itemId: itemId,
           ip,
-          userId
+          userId,
         },
       });
       if (view) {
@@ -838,7 +838,7 @@ export class ItemService {
           itemId: itemId,
           ip,
         },
-      })
+      });
       if (view) {
         return view;
       }

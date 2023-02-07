@@ -7,6 +7,7 @@
   "scripts": {
     "db:migrate": "lerna run db:migrate-dev --scope @nusa-nft/database",
     "api:dev": "lerna run start:dev --scope @nusa-nft/rest-api",
+    "api:build": "lerna run build --scope @nusa-nft/rest-api",
     "indexer:dev": "lerna run start:dev --scope @nusa-nft/indexer",
     "worker:dev": "lerna run start:dev --scope @nusa-nft/worker"
   },

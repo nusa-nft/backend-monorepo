@@ -44,14 +44,19 @@ async function bootstrap() {
   SwaggerModule.setup('swagger', app, document);
 
   const serverAdapter = new ExpressAdapter();
-  serverAdapter.setBasePath("/bull-board");
+  serverAdapter.setBasePath('/bull-board');
   const blockchainTxQueue = app.get<Bull.Queue>(`BullQueue_blockchain-tx`);
-  const importCollectionQueue = app.get<Bull.Queue>(`BullQueue_import-collection`);
+  const importCollectionQueue = app.get<Bull.Queue>(
+    `BullQueue_import-collection`,
+  );
   createBullBoard({
-    queues: [new BullMQAdapter(blockchainTxQueue), new BullMQAdapter(importCollectionQueue)],
+    queues: [
+      new BullMQAdapter(blockchainTxQueue),
+      new BullMQAdapter(importCollectionQueue),
+    ],
     serverAdapter,
-  })
-  app.use("/bull-board", serverAdapter.getRouter())
+  });
+  app.use('/bull-board', serverAdapter.getRouter());
 
   await app.listen(process.env.API_PORT ? process.env.API_PORT : 3000);
 }

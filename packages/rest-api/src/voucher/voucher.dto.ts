@@ -1,7 +1,7 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty } from "class-validator";
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty } from 'class-validator';
 
-ApiProperty
+ApiProperty;
 export class RegisterDTO {
   @ApiProperty()
   @IsNotEmpty()

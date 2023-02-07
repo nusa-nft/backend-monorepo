@@ -13,7 +13,7 @@ const excludedModels = [
   'MarketplaceSale',
   'ImportedContracts',
   'TokenOwnerships',
-  'TokenTransferHistory'
+  'TokenTransferHistory',
 ];
 
 export function SoftDeleteMiddleware<
