@@ -8,9 +8,9 @@ import { NotificationService } from './notification.service';
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
-  @Get('/check-new-notification')
-  checkNewNotification() {
-    return this.notificationService.checkNewNotification();
+  @Get('/check-new-notification/:userId')
+  checkNewNotification(@Param('userId') userId: number) {
+    return this.notificationService.checkNewNotification(userId);
   }
 
   @Get('/:userId')

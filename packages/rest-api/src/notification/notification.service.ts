@@ -108,6 +108,10 @@ export class NotificationService {
       }
     }
 
+    for (const notification of notificationData) {
+      await this.setIsSeen(notification.id);
+    }
+
     if (take.toString() == Take.Take_10) {
       return {
         status: HttpStatus.OK,
@@ -125,21 +129,6 @@ export class NotificationService {
     if (take.toString() == Take.Take_3) {
       return notificationData;
     }
-
-    // if (notificationData.length) {
-    //   for (const notification of records) {
-    //     await this.prisma.notification.update({
-    //       where: {
-    //         id: notification.id,
-    //       },
-    //       data: {
-    //         is_seen: true,
-    //       },
-    //     });
-    //   }
-    // }
-
-    // return notificationData;
   }
 
   async setIsSeen(notificationDataId: number) {
@@ -153,13 +142,48 @@ export class NotificationService {
     });
   }
 
-  async checkNewNotification() {
+  async checkNewNotification(userId: number) {
     const newNotification = await this.prisma.notification.findMany({
       where: {
         is_seen: false,
+        OR: [
+          {
+            notification_detail_offer: {
+              OR: [
+                {
+                  lister: {
+                    id: userId,
+                  },
+                },
+                {
+                  offeror: {
+                    id: userId,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            notification_detail_sale: {
+              OR: [
+                {
+                  lister: {
+                    id: userId,
+                  },
+                },
+                {
+                  buyer: {
+                    id: userId,
+                  },
+                },
+              ],
+            },
+          },
+        ],
       },
     });
 
+    console.log(newNotification);
     if (!newNotification.length) {
       return {
         newNotification: false,
