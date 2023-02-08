@@ -443,7 +443,7 @@ export class CollectionService {
       );
     }
 
-    const where: Record<string, any> = {
+    const where: Prisma.CollectionWhereInput = {
       deleted: false,
       name: {
         contains: searchParam.collection_name,
@@ -1097,12 +1097,18 @@ export class CollectionService {
    * This queue is processed by worker package 
    */
   async importQueue({ contractAddress, categoryId }: ImportDto) {
+    console.log({ categoryId });
     await this.prisma.category.findFirstOrThrow({ where: { id: +categoryId }})
       .catch(err => { throw new HttpException("Category not found", HttpStatus.NOT_FOUND) })
     const job = await this.importCollectionQueue.add('import-collection', {
       contractAddress,
       categoryId
     });
+    return job;
+  }
+
+  async getJobStatus(jobId: number) {
+    const job = await this.importCollectionQueue.getJob(jobId)
     return job;
   }
 

@@ -302,7 +302,7 @@ export class ImportDto {
   contractAddress: string;
 
   @ApiProperty({
-    name: 'category id',
+    name: 'categoryId',
     required: true,
   })
   categoryId: number;
