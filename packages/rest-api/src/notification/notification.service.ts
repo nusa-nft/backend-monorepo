@@ -42,40 +42,9 @@ export class NotificationService {
         },
       },
       where: {
-        OR: [
-          {
-            notification_detail_sale: {
-              OR: [
-                {
-                  lister: {
-                    id: userId,
-                  },
-                },
-                {
-                  buyer: {
-                    id: userId,
-                  },
-                },
-              ],
-            },
-          },
-          {
-            notification_detail_offer: {
-              OR: [
-                {
-                  lister: {
-                    id: userId,
-                  },
-                },
-                {
-                  offeror: {
-                    id: userId,
-                  },
-                },
-              ],
-            },
-          },
-        ],
+        user: {
+          id: userId,
+        },
       },
     });
 
@@ -183,7 +152,6 @@ export class NotificationService {
       },
     });
 
-    console.log(newNotification);
     if (!newNotification.length) {
       return {
         newNotification: false,

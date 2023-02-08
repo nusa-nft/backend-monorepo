@@ -375,89 +375,89 @@ async function main() {
     collections.map(c => prisma.collection.create({ data: c }))
   )
 
-  const items: Prisma.ItemCreateInput[] = []
-  for (let cc of createdCollections) {
-    // For each collection create 4 items
-    let counter = 1;
-    while (counter <= 4) {
-      const imageIpfsData = await uploadImageToIpfs(path.join(__dirname, 'helpers/seed-images/' + `image-${counter}.png`))
-      const image = `ipfs://${imageIpfsData.Hash}`;
-      const name = `${cc.name}-item-${counter}`;
-      const description = `${cc.name} description item-${counter}`;
-      const attributes = [
-        {
-          trait_type: "property",
-          nusa_attribute_type: AttributeType.PROPERTIES,
-          value: `variant-${counter}`,
-          opensea_display_type: null,
-        },
-        {
-          trait_type: "level",
-          nusa_attribute_type: AttributeType.LEVELS,
-          value: String(counter),
-          max_value: "",
-          opensea_display_type: "number",
-        },
-        {
-          trait_type: "stat",
-          nusa_attribute_type: AttributeType.STATS,
-          value: String(counter * 2),
-          max_value: "",
-          opensea_display_type: null,
-        }
-      ]
-      const metadataIpfsData = await uploadMetadataToIpfs({ name, description, image, attributes });
-      const metadata = `ipfs://${metadataIpfsData.Hash}`;
-      const supply = 1;
+  // const items: Prisma.ItemCreateInput[] = []
+  // for (let cc of createdCollections) {
+  //   // For each collection create 4 items
+  //   let counter = 1;
+  //   while (counter <= 4) {
+  //     const imageIpfsData = await uploadImageToIpfs(path.join(__dirname, 'helpers/seed-images/' + `image-${counter}.png`))
+  //     const image = `ipfs://${imageIpfsData.Hash}`;
+  //     const name = `${cc.name}-item-${counter}`;
+  //     const description = `${cc.name} description item-${counter}`;
+  //     const attributes = [
+  //       {
+  //         trait_type: "property",
+  //         nusa_attribute_type: AttributeType.PROPERTIES,
+  //         value: `variant-${counter}`,
+  //         opensea_display_type: null,
+  //       },
+  //       {
+  //         trait_type: "level",
+  //         nusa_attribute_type: AttributeType.LEVELS,
+  //         value: String(counter),
+  //         max_value: "",
+  //         opensea_display_type: "number",
+  //       },
+  //       {
+  //         trait_type: "stat",
+  //         nusa_attribute_type: AttributeType.STATS,
+  //         value: String(counter * 2),
+  //         max_value: "",
+  //         opensea_display_type: null,
+  //       }
+  //     ]
+  //     const metadataIpfsData = await uploadMetadataToIpfs({ name, description, image, attributes });
+  //     const metadata = `ipfs://${metadataIpfsData.Hash}`;
+  //     const supply = 1;
 
-      const tokenId = await mintItem(cc.creator_address, metadata, supply)
-      console.log(`minted tokenId ${tokenId}`)
+  //     const tokenId = await mintItem(cc.creator_address, metadata, supply)
+  //     console.log(`minted tokenId ${tokenId}`)
 
-      const createItem = {
-        name,
-        description,
-        Collection: {
-          connect: { id: Number(cc.id) }
-        },
-        external_link: `${cc.name}-item-${counter}.io`,
-        image,
-        Creator: {
-          connect: {
-            id: createdUsers.find(u => u.wallet_address == cc.creator_address)?.id,
-          },
-        },
-        contract_address: cc.contract_address,
-        chainId: cc.chainId,
-        tokenId,
-        supply,
-        unlockable: false,
-        metadata,
-        explicit_sensitive: false,
-        is_metadata_freeze: true,
-        quantity_minted: 1,
-        attributes: {
-          createMany: {
-            data: attributes,
-          }
-        },
-        token_standard: TOKEN_STANDARD,
-      }
+  //     const createItem = {
+  //       name,
+  //       description,
+  //       Collection: {
+  //         connect: { id: Number(cc.id) }
+  //       },
+  //       external_link: `${cc.name}-item-${counter}.io`,
+  //       image,
+  //       Creator: {
+  //         connect: {
+  //           id: createdUsers.find(u => u.wallet_address == cc.creator_address)?.id,
+  //         },
+  //       },
+  //       contract_address: cc.contract_address,
+  //       chainId: cc.chainId,
+  //       tokenId,
+  //       supply,
+  //       unlockable: false,
+  //       metadata,
+  //       explicit_sensitive: false,
+  //       is_metadata_freeze: true,
+  //       quantity_minted: 1,
+  //       attributes: {
+  //         createMany: {
+  //           data: attributes,
+  //         }
+  //       },
+  //       token_standard: TOKEN_STANDARD,
+  //     }
 
-      items.push(createItem);
+  //     items.push(createItem);
 
-      counter++
-    }
-  }
+  //     counter++
+  //   }
+  // }
 
-  const createdItems = await prisma.$transaction(
-    items.map(it => prisma.item.create({ data: it }))
-  )
+  // const createdItems = await prisma.$transaction(
+  //   items.map(it => prisma.item.create({ data: it }))
+  // )
 
   console.log({
     createCategories,
     createdUsers,
     createdCollections,
-    createdItems,
+    // createdItems,
   });
 }
 
