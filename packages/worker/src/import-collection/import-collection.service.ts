@@ -38,6 +38,7 @@ export class ImportCollectionService {
     const abi = [
       'function supportsInterface(bytes4 interfaceID) external view returns (bool)',
       'function name() public view returns (string memory)',
+      'function owner() public view returns (address)',
       // ERC721
       'function tokenURI(uint256 tokenId) public view returns (string memory)',
       'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
@@ -94,8 +95,11 @@ export class ImportCollectionService {
     // Get contract owner
     // If not, get the deployer
     try {
+      console.log('getting contract.owner()');
       contractCreator = await contract.owner();
+      console.log({ contractCreator })
     } catch (err) {
+      console.log({ err })
       const block = await this.provider.getBlockWithTransactions(creationBlock);
       const tx = block.transactions.filter(
         (x: any) =>
@@ -140,37 +144,65 @@ export class ImportCollectionService {
         chainId,
       },
     });
-    if (!collection) {
-      collection = await this.prisma.collection.create({
-        data: {
-          name,
-          slug,
-          logo_image: '',
-          chainId,
-          isImported: true,
-          payment_token: ethers.constants.AddressZero,
-          contract_address: contractAddress,
-          Creator: {
-            connect: {
-              id_wallet_address: {
-                id: user.id,
-                wallet_address: user.wallet_address,
-              },
-            },
-          },
-          Category: {
-            connect: {
-              id: +categoryId,
-            },
-          },
-          royalty: {
-            createMany: {
-              data: [],
+    collection = await this.prisma.collection.upsert({
+      where: {
+        id: collection.id,
+      },
+      create: {
+        name,
+        slug,
+        logo_image: '',
+        chainId,
+        isImported: true,
+        payment_token: ethers.constants.AddressZero,
+        contract_address: contractAddress,
+        Creator: {
+          connect: {
+            id_wallet_address: {
+              id: user.id,
+              wallet_address: user.wallet_address,
             },
           },
         },
-      });
-    }
+        Category: {
+          connect: {
+            id: +categoryId,
+          },
+        },
+        royalty: {
+          createMany: {
+            data: [],
+          },
+        },
+      },
+      update: {
+        name,
+        slug,
+        logo_image: '',
+        chainId,
+        isImported: true,
+        payment_token: ethers.constants.AddressZero,
+        contract_address: contractAddress,
+        Creator: {
+          connect: {
+            id_wallet_address: {
+              id: user.id,
+              wallet_address: user.wallet_address,
+            },
+          },
+        },
+        Category: {
+          connect: {
+            id: +categoryId,
+          },
+        },
+        royalty: {
+          createMany: {
+            data: [],
+          },
+        },
+      }
+    });
 
     let topics = [];
     if (isErc721) {
@@ -230,6 +262,8 @@ export class ImportCollectionService {
         });
       }
     }
+
+    return { collection }
   }
 
   async getContractCreationBlock(
