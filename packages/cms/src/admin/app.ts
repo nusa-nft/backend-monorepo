@@ -133,7 +133,6 @@ export default {
     notifications: { releases: false },
   },
   bootstrap(app) {
-    console.log(app);
     document.title = 'Nusa NFT Admin'
   },
 };
