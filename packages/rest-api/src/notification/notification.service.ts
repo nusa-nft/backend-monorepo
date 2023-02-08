@@ -14,7 +14,6 @@ export class NotificationService {
     const { page, take } = queryParam;
 
     let takeValue;
-    let records;
     if (take.toString() == Take.Take_3) {
       takeValue = 3;
     }
@@ -110,7 +109,6 @@ export class NotificationService {
     }
 
     if (take.toString() == Take.Take_10) {
-      records = notificationData;
       return {
         status: HttpStatus.OK,
         message: 'success',
@@ -124,22 +122,24 @@ export class NotificationService {
       };
     }
 
-    records = notificationData;
-
-    if (notificationData.length) {
-      for (const notification of records) {
-        await this.prisma.notification.update({
-          where: {
-            id: notification.id,
-          },
-          data: {
-            is_seen: true,
-          },
-        });
-      }
+    if (take.toString() == Take.Take_3) {
+      return notificationData;
     }
 
-    return notificationData;
+    // if (notificationData.length) {
+    //   for (const notification of records) {
+    //     await this.prisma.notification.update({
+    //       where: {
+    //         id: notification.id,
+    //       },
+    //       data: {
+    //         is_seen: true,
+    //       },
+    //     });
+    //   }
+    // }
+
+    // return notificationData;
   }
 
   async setIsSeen(notificationDataId: number) {

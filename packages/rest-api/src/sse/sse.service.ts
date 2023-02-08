@@ -77,7 +77,7 @@ export class SseService implements OnModuleInit {
           },
         });
 
-        await this.prisma.notificationDetailSale.create({
+        const saleData = await this.prisma.notificationDetailSale.create({
           data: {
             listingId: parseInt(_listingId._hex),
             asset_contract: _assetContract,
@@ -90,6 +90,8 @@ export class SseService implements OnModuleInit {
             createdAt_timestamp: timestamp,
           },
         });
+
+        return saleData;
       },
     );
   }
@@ -120,7 +122,7 @@ export class SseService implements OnModuleInit {
           },
         });
 
-        await this.prisma.notificationDetailOffer.create({
+        const offerData = await this.prisma.notificationDetailOffer.create({
           data: {
             listingId: listingIdData,
             lister_wallet_address: listerAddress,
@@ -135,6 +137,8 @@ export class SseService implements OnModuleInit {
             createdAt_timestamp: timestamp,
           },
         });
+
+        return offerData;
       },
     );
   }
