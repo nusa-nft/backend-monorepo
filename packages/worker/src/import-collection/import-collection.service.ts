@@ -146,7 +146,7 @@ export class ImportCollectionService {
     });
     collection = await this.prisma.collection.upsert({
       where: {
-        id: collection.id,
+        id: collection ? collection.id : 0,
       },
       create: {
         name,
@@ -690,6 +690,7 @@ export class ImportCollectionService {
 
   validateMetadataAttributes(attributes: object[]) {
     let isValid = false;
+    if (!attributes) return isValid;
     attributes.forEach((x: object) => {
       if (
         !Object.prototype.hasOwnProperty.call(x, 'trait_type') &&
