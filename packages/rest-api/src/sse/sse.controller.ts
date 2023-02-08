@@ -13,40 +13,40 @@ interface MessageEvent {
 export class SseController {
   constructor(private readonly eventService: EventEmitter2) {}
 
-  @Sse('/event/:walletAddress')
-  sse(@Param('walletAddress') walletAddress: string): Observable<MessageEvent> {
-    const subject$ = new Subject();
-    this.eventService.on('marketplaceSale', (eventData) => {
-      if (
-        walletAddress !=
-          eventData.notificationData.saleData.lister.wallet_address &&
-        walletAddress !=
-          eventData.notificationData.saleData.buyer.wallet_address
-      )
-        return;
-      const data = eventData.notificationData;
-      subject$.next({ data });
-    });
+  // @Sse('/event/:walletAddress')
+  // sse(@Param('walletAddress') walletAddress: string): Observable<MessageEvent> {
+  //   const subject$ = new Subject();
+  //   this.eventService.on('marketplaceSale', (eventData) => {
+  //     if (
+  //       walletAddress !=
+  //         eventData.notificationData.saleData.lister.wallet_address &&
+  //       walletAddress !=
+  //         eventData.notificationData.saleData.buyer.wallet_address
+  //     )
+  //       return;
+  //     const data = eventData.notificationData;
+  //     subject$.next({ data });
+  //   });
 
-    this.eventService.on('marketplaceOffer', (eventData) => {
-      if (
-        walletAddress !=
-          eventData.notificationData.offerData.lister.wallet_address &&
-        walletAddress !=
-          eventData.notificationData.offerData.offeror.wallet_address
-      )
-        return;
-      const data = eventData.notificationData;
+  //   this.eventService.on('marketplaceOffer', (eventData) => {
+  //     if (
+  //       walletAddress !=
+  //         eventData.notificationData.offerData.lister.wallet_address &&
+  //       walletAddress !=
+  //         eventData.notificationData.offerData.offeror.wallet_address
+  //     )
+  //       return;
+  //     const data = eventData.notificationData;
 
-      subject$.next({ data });
-    });
+  //     subject$.next({ data });
+  //   });
 
-    return subject$.pipe(
-      map(
-        (data: MessageEvent): MessageEvent => ({
-          data,
-        }),
-      ),
-    );
-  }
+  //   return subject$.pipe(
+  //     map(
+  //       (data: MessageEvent): MessageEvent => ({
+  //         data,
+  //       }),
+  //     ),
+  //   );
+  // }
 }

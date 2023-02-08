@@ -10,7 +10,7 @@ import { IndexerService } from 'src/indexer/indexer.service';
 import { UsersService } from 'src/users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationType } from '@prisma/client';
-import { formatDistance } from 'date-fns';
+import { events } from 'src/lib/newEventEmitter';
 
 @Injectable()
 export class SseService implements OnModuleInit {
@@ -53,6 +53,7 @@ export class SseService implements OnModuleInit {
   async onModuleInit() {
     this.handleMarketplaceNewSale();
     this.handleMarketplaceNewOffer();
+    this.handleLazyMintedSale();
   }
 
   async handleMarketplaceNewSale() {
@@ -69,12 +70,6 @@ export class SseService implements OnModuleInit {
       ) => {
         const { blockNumber, transactionHash } = log;
         const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-
-        const lister = await this.checkUserDataExist(listerAddress);
-        const buyer = await this.checkUserDataExist(buyerAddress);
-
-        const itemName = await this.getItemName(parseInt(_listingId._hex));
-
         const notificationData = await this.prisma.notification.create({
           data: {
             notification_type: NotificationType.Sale,
@@ -95,25 +90,6 @@ export class SseService implements OnModuleInit {
             createdAt_timestamp: timestamp,
           },
         });
-
-        const createdAt = `${formatDistance(Date.now(), timestamp * 1000)} ago`;
-
-        const saleData = {
-          listingId: parseInt(_listingId._hex),
-          assetContract: _assetContract,
-          lister,
-          buyer,
-          quantityBought: parseInt(quantityBought._hex),
-          totalPricePaid: parseInt(totalPricePaid._hex),
-          createdAt,
-          transactionHash,
-        };
-
-        Object.assign(notificationData, { saleData, itemName });
-
-        if (saleData) {
-          this.eventEmitter.emit('marketplaceSale', { notificationData });
-        }
       },
     );
   }
@@ -136,10 +112,6 @@ export class SseService implements OnModuleInit {
         const listingIdData = parseInt(listingId._hex);
         const listerAddress =
           await this.indexerService.getMarketplaceListerAddress(listingIdData);
-        const lister = await this.checkUserDataExist(listerAddress);
-        const offeror = await this.checkUserDataExist(offerorAddress);
-
-        const itemName = await this.getItemName(listingIdData);
 
         const notificationData = await this.prisma.notification.create({
           data: {
@@ -163,31 +135,67 @@ export class SseService implements OnModuleInit {
             createdAt_timestamp: timestamp,
           },
         });
-
-        const createdAt = `${formatDistance(Date.now(), timestamp * 1000)} ago`;
-        const expirationTimestamp =
-          parseInt(offer.expirationTimestamp._hex) * 1000;
-
-        const offerData = {
-          listingId: listingIdData,
-          lister,
-          offeror,
-          listingType: parseListingType(listingType),
-          quantityWanted: parseInt(quantityWanted._hex),
-          totalOfferAmount: parseInt(totalOfferAmount._hex),
-          currency,
-          createdAt,
-          expirationTimestamp,
-          transactionHash,
-        };
-        Object.assign(notificationData, { offerData, itemName });
-        if (notificationData) {
-          this.eventEmitter.emit('marketplaceOffer', {
-            notificationData,
-          });
-        }
       },
     );
+  }
+
+  async handleLazyMintedSale() {
+    events.on('notification', async (eventData) => {
+      if (eventData.notification) {
+        const data = eventData.data;
+        const tokenId = data.tokenId;
+        const lazyMintListing =
+          await this.prisma.lazyMintListing.findUniqueOrThrow({
+            where: {
+              id: +data.lazyMintListingId,
+            },
+          });
+
+        const listerData = await this.prisma.user.findFirst({
+          where: {
+            assets: {
+              some: {
+                tokenId,
+              },
+            },
+          },
+        });
+
+        const transferHistory =
+          await this.prisma.erc1155TransferHistory.findFirst({
+            where: {
+              tokenId,
+            },
+          });
+
+        const buyerDataWallet = transferHistory.to;
+        console.log(lazyMintListing, listerData, buyerDataWallet);
+
+        const notificationData = await this.prisma.notification.create({
+          data: {
+            notification_type: NotificationType.Sale,
+            is_seen: false,
+          },
+        });
+
+        const total_price_paid =
+          +lazyMintListing.buyoutPricePerToken * lazyMintListing.quantity;
+
+        await this.prisma.notificationDetailSale.create({
+          data: {
+            listingId: +data.lazyMintListingId,
+            asset_contract: lazyMintListing.assetContract,
+            lister_wallet_address: listerData.wallet_address,
+            buyer_wallet_address: buyerDataWallet,
+            quantity_bought: lazyMintListing.quantity,
+            total_price_paid,
+            transaction_hash: transferHistory.transactionHash,
+            notification_id: +notificationData.id,
+            createdAt_timestamp: transferHistory.createdAt,
+          },
+        });
+      }
+    });
   }
 
   async checkUserDataExist(wallet_address: string) {

@@ -801,7 +801,7 @@ export class ItemServiceV2 {
     const listingType = ListingType.Direct;
     const quantityBought = quantity;
     const totalPricePaid = ethers.BigNumber.from(
-      lazyMintListing.buyoutPricePerToken,
+      lazyMintListing.buyoutPricePerToken.toString(),
     )
       .mul(quantity)
       .toString();
