@@ -190,7 +190,7 @@ export class IndexerService implements OnModuleInit {
           tokenId: parseInt(tokenId),
           quantity: parseInt(value),
           timestamp,
-          transactionHash
+          transactionHash,
         });
         if (this.INDEX_OLD_BLOCKS_FINISHED)
           await this.updateLatestBlock(blockNumber);
@@ -1121,13 +1121,18 @@ export class IndexerService implements OnModuleInit {
 
     // Upsert From
     if (_from && _from.ownerAddress != ethers.constants.AddressZero) {
+      console.log(
+        this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
+        tokenId,
+        from,
+      )
       await this.prisma.tokenOwnerships.upsert({
         where: {
           contractAddress_chainId_tokenId_ownerAddress: {
             contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
             tokenId,
             ownerAddress: from,
-            chainId: 80001
+            chainId: +this.configService.get<number>('CHAIN_ID')
           }
         },
         create: {
@@ -1136,7 +1141,8 @@ export class IndexerService implements OnModuleInit {
           ownerAddress: from,
           quantity: _from ? _from.quantity - quantity : 0,
           timestamp,
-          transactionHash
+          transactionHash,
+          chainId: +this.configService.get<number>('CHAIN_ID'),
         },
         update: {
           quantity: _from ? _from?.quantity - quantity : 0
@@ -1151,7 +1157,7 @@ export class IndexerService implements OnModuleInit {
           contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
           tokenId,
           ownerAddress: to,
-          chainId: 80001
+          chainId: +this.configService.get<number>('CHAIN_ID'),
         }
       },
       create: {
@@ -1160,7 +1166,8 @@ export class IndexerService implements OnModuleInit {
         ownerAddress: to,
         quantity: _to ? _to.quantity + quantity : quantity,
         timestamp,
-        transactionHash
+        transactionHash,
+        chainId: +this.configService.get<number>('CHAIN_ID')
       },
       update: {
         quantity: _to ? _to?.quantity + quantity : quantity
