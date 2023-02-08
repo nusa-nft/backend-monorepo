@@ -7,13 +7,13 @@ export enum PriceHistorySortBy {
   LAST_30_DAYS = 'LAST_30_DAYS',
   LAST_60_DAYS = 'LAST_60_DAYS',
   LAST_90_DAYS = 'LAST_90_DAYS',
-  LAST_24_HOURS = 'LAST_90_DAYS',
+  LAST_24_HOURS = 'LAST_24_HOURS',
 }
 
 export enum SortBy {
-  VOLUME,
-  PERCENT_CHANGES,
-  FLOOR_PRICE,
+  VOLUME = 'VOLUME',
+  PERCENT_CHANGES = 'PERCENT_CHANGES',
+  FLOOR_PRICE = 'FLOOR_PRICE',
 }
 
 export class Royalty {

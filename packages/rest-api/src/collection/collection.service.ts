@@ -1009,13 +1009,13 @@ export class CollectionService {
 
     let sortByData: string;
     const sortData = sortBy.sortBy.toString();
-    if (sortData == SortBy[0]) {
+    if (sortData == SortBy.VOLUME) {
       sortByData = 'totalVolumeNow';
     }
-    if (sortData == SortBy[1]) {
+    if (sortData == SortBy.PERCENT_CHANGES) {
       sortByData = 'percentChanges';
     }
-    if (sortData == SortBy[2]) {
+    if (sortData == SortBy.FLOOR_PRICE) {
       sortByData = 'floorPrice';
     }
     collectionData.sort((a, b) => b[sortByData] - a[sortByData]);
