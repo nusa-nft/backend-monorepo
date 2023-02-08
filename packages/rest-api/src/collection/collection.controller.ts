@@ -268,6 +268,11 @@ export class CollectionController {
   import(@Body() payload: ImportDto) {
     return this.collectionService.importQueue(payload);
   }
+
+  @Get('import-queue/status/:jobId')
+  getImportQueueStatus(@Param('jobId') jobId: number) {
+    return this.collectionService.getJobStatus(jobId);
+  }
 }
 
 export function fileMimetypeFilter(...mimetypes: string[]) {
