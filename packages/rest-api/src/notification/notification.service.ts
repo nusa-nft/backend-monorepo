@@ -115,40 +115,9 @@ export class NotificationService {
     const newNotification = await this.prisma.notification.findMany({
       where: {
         is_seen: false,
-        OR: [
-          {
-            notification_detail_offer: {
-              OR: [
-                {
-                  lister: {
-                    id: userId,
-                  },
-                },
-                {
-                  offeror: {
-                    id: userId,
-                  },
-                },
-              ],
-            },
-          },
-          {
-            notification_detail_sale: {
-              OR: [
-                {
-                  lister: {
-                    id: userId,
-                  },
-                },
-                {
-                  buyer: {
-                    id: userId,
-                  },
-                },
-              ],
-            },
-          },
-        ],
+        user: {
+          id: userId,
+        },
       },
     });
 
