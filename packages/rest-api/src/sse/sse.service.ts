@@ -70,10 +70,27 @@ export class SseService implements OnModuleInit {
       ) => {
         const { blockNumber, transactionHash } = log;
         const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-        const notificationData = await this.prisma.notification.create({
+        const notificationDataLister = await this.prisma.notification.create({
           data: {
             notification_type: NotificationType.Sale,
             is_seen: false,
+            user: {
+              connect: {
+                wallet_address: listerAddress,
+              },
+            },
+          },
+        });
+
+        const notificationDataBuyer = await this.prisma.notification.create({
+          data: {
+            notification_type: NotificationType.Sale,
+            is_seen: false,
+            user: {
+              connect: {
+                wallet_address: buyerAddress,
+              },
+            },
           },
         });
 
@@ -86,7 +103,12 @@ export class SseService implements OnModuleInit {
             quantity_bought: parseInt(quantityBought._hex),
             total_price_paid: parseInt(totalPricePaid._hex),
             transaction_hash: transactionHash,
-            notification_id: +notificationData.id,
+            Notification: {
+              connect: [
+                { id: notificationDataBuyer.id },
+                { id: notificationDataLister.id },
+              ],
+            },
             createdAt_timestamp: timestamp,
           },
         });
@@ -115,10 +137,27 @@ export class SseService implements OnModuleInit {
         const listerAddress =
           await this.indexerService.getMarketplaceListerAddress(listingIdData);
 
-        const notificationData = await this.prisma.notification.create({
+        const notificationDataLister = await this.prisma.notification.create({
           data: {
             notification_type: NotificationType.Offer,
             is_seen: false,
+            user: {
+              connect: {
+                wallet_address: listerAddress,
+              },
+            },
+          },
+        });
+
+        const notificationDataOfferor = await this.prisma.notification.create({
+          data: {
+            notification_type: NotificationType.Offer,
+            is_seen: false,
+            user: {
+              connect: {
+                wallet_address: offerorAddress,
+              },
+            },
           },
         });
 
@@ -133,7 +172,12 @@ export class SseService implements OnModuleInit {
             currency,
             expiration_timestamp: parseInt(offer.expirationTimestamp._hex),
             transaction_hash: transactionHash,
-            notification_id: +notificationData.id,
+            Notification: {
+              connect: [
+                { id: notificationDataOfferor.id },
+                { id: notificationDataLister.id },
+              ],
+            },
             createdAt_timestamp: timestamp,
           },
         });
@@ -175,10 +219,27 @@ export class SseService implements OnModuleInit {
         const buyerDataWallet = transferHistory.to;
         console.log(lazyMintListing, listerData, buyerDataWallet);
 
-        const notificationData = await this.prisma.notification.create({
+        const notificationDataLister = await this.prisma.notification.create({
           data: {
             notification_type: NotificationType.Sale,
             is_seen: false,
+            user: {
+              connect: {
+                wallet_address: listerData.wallet_address,
+              },
+            },
+          },
+        });
+
+        const notificationDataBuyer = await this.prisma.notification.create({
+          data: {
+            notification_type: NotificationType.Sale,
+            is_seen: false,
+            user: {
+              connect: {
+                wallet_address: buyerDataWallet,
+              },
+            },
           },
         });
 
@@ -194,7 +255,12 @@ export class SseService implements OnModuleInit {
             quantity_bought: lazyMintListing.quantity,
             total_price_paid,
             transaction_hash: transferHistory.transactionHash,
-            notification_id: +notificationData.id,
+            Notification: {
+              connect: [
+                { id: notificationDataBuyer.id },
+                { id: notificationDataLister.id },
+              ],
+            },
             createdAt_timestamp: transferHistory.createdAt,
           },
         });

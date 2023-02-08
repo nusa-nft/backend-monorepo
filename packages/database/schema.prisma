@@ -36,6 +36,7 @@ model User {
   NotificationDetailSaleBuyer    NotificationDetailSale[]  @relation("buyer")
   NotificationDetailOfferLister  NotificationDetailOffer[] @relation("lister")
   NotificationDetailOfferOfferor NotificationDetailOffer[] @relation("offeror")
+  Notification                   Notification[]
 
   @@id([id, wallet_address])
 }
@@ -203,8 +204,12 @@ model Notification {
   id                        Int                      @unique @default(autoincrement())
   notification_type         NotificationType
   is_seen                   Boolean                  @default(false)
-  notification_detail_sale  NotificationDetailSale?  @relation("sale")
-  notification_detail_offer NotificationDetailOffer? @relation("offer")
+  user                      User                     @relation(fields: [wallet_address], references: [wallet_address])
+  wallet_address            String
+  notification_detail_sale  NotificationDetailSale?  @relation("sale", fields: [sale_id], references: [id])
+  sale_id                   Int?
+  notification_detail_offer NotificationDetailOffer? @relation("offer", fields: [offer_id], references: [id])
+  offer_id                  Int?
   createdAt                 DateTime                 @default(now())
 }
 
@@ -222,8 +227,7 @@ model NotificationDetailSale {
   createdAt             DateTime         @default(now())
   createdAt_timestamp   Int?
   transaction_hash      String
-  Notification          Notification?    @relation("sale", fields: [notification_id], references: [id])
-  notification_id       Int?             @unique
+  Notification          Notification[]   @relation("sale")
 
   @@unique([id, notification_type])
 }
@@ -244,8 +248,7 @@ model NotificationDetailOffer {
   createdAt_timestamp    Int?
   expiration_timestamp   Int?
   transaction_hash       String
-  Notification           Notification?    @relation("offer", fields: [notification_id], references: [id])
-  notification_id        Int?             @unique
+  Notification           Notification[]   @relation("offer")
 
   @@unique([id, notification_type])
 }
