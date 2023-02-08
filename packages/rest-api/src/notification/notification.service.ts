@@ -112,6 +112,11 @@ export class NotificationService {
   }
 
   async checkNewNotification(userId: number) {
+    if (!userId) {
+      return {
+        newNotification: false,
+      };
+    }
     const newNotification = await this.prisma.notification.findMany({
       where: {
         is_seen: false,

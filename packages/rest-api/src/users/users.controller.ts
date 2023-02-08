@@ -26,7 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 
 const maxFileSize = 5 * 1000 * 1000;
 @ApiTags('Users')
@@ -69,7 +69,7 @@ export class UsersController {
       ],
       {
         storage: diskStorage({
-          destination: './uploads',
+          destination: join(__dirname, '../../uploads'),
           filename: (req, file, cb) => {
             // Generating a 32 random chars long string
             const randomName = Array(32)

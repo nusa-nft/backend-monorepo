@@ -1094,22 +1094,24 @@ export class CollectionService {
   }
 
   /**
-   * This queue is processed by worker package 
+   * This queue is processed by worker package
    */
   async importQueue({ contractAddress, categoryId }: ImportDto) {
     console.log({ categoryId });
-    await this.prisma.category.findFirstOrThrow({ where: { id: +categoryId }})
-      .catch(err => { throw new HttpException("Category not found", HttpStatus.NOT_FOUND) })
+    await this.prisma.category
+      .findFirstOrThrow({ where: { id: +categoryId } })
+      .catch((err) => {
+        throw new HttpException('Category not found', HttpStatus.NOT_FOUND);
+      });
     const job = await this.importCollectionQueue.add('import-collection', {
       contractAddress,
-      categoryId
+      categoryId,
     });
     return job;
   }
 
   async getJobStatus(jobId: number) {
-    const job = await this.importCollectionQueue.getJob(jobId)
+    const job = await this.importCollectionQueue.getJob(jobId);
     return job;
   }
-
 }
