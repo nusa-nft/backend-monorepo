@@ -3,11 +3,11 @@ import { Display } from '@prisma/client';
 import { ToBoolean } from '../../lib/toBoolean';
 
 export enum PriceHistorySortBy {
-  LAST_7_DAYS,
-  LAST_30_DAYS,
-  LAST_60_DAYS,
-  LAST_90_DAYS,
-  LAST_24_HOURS,
+  LAST_7_DAYS = 'LAST_7_DAYS',
+  LAST_30_DAYS = 'LAST_30_DAYS',
+  LAST_60_DAYS = 'LAST_60_DAYS',
+  LAST_90_DAYS = 'LAST_90_DAYS',
+  LAST_24_HOURS = 'LAST_90_DAYS',
 }
 
 export enum SortBy {

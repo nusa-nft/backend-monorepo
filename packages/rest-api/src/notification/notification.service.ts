@@ -14,15 +14,15 @@ export class NotificationService {
     const { page, take } = queryParam;
 
     let takeValue;
-    if (take.toString() == Take[0]) {
+    if (take.toString() == Take.Take_3) {
       takeValue = 3;
     }
-    if (take.toString() == Take[1]) {
+    if (take.toString() == Take.Take_10) {
       takeValue = 10;
     }
 
     const notificationData = await this.prisma.notification.findMany({
-      skip: takeValue * (page ? page - 1 : take - 1),
+      skip: +takeValue * (+page - 1),
       take: takeValue,
       orderBy: {
         id: 'desc',
@@ -108,7 +108,7 @@ export class NotificationService {
       }
     }
 
-    if (take.toString() == Take[1]) {
+    if (take.toString() == Take.Take_10) {
       return {
         status: HttpStatus.OK,
         message: 'success',
@@ -121,7 +121,25 @@ export class NotificationService {
         records: notificationData,
       };
     }
-    return notificationData;
+
+    if (take.toString() == Take.Take_3) {
+      return notificationData;
+    }
+
+    // if (notificationData.length) {
+    //   for (const notification of records) {
+    //     await this.prisma.notification.update({
+    //       where: {
+    //         id: notification.id,
+    //       },
+    //       data: {
+    //         is_seen: true,
+    //       },
+    //     });
+    //   }
+    // }
+
+    // return notificationData;
   }
 
   async setIsSeen(notificationDataId: number) {
@@ -156,11 +174,22 @@ export class NotificationService {
   async getItemName(listingId: number) {
     const item = await this.prisma.item.findFirst({
       where: {
-        MarketplaceListing: {
-          some: {
-            listingId,
+        OR: [
+          {
+            MarketplaceListing: {
+              some: {
+                listingId,
+              },
+            },
           },
-        },
+          {
+            LazyMintListing: {
+              some: {
+                id: listingId,
+              },
+            },
+          },
+        ],
       },
     });
 
