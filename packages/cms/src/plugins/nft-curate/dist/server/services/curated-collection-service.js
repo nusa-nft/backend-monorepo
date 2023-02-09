@@ -15,7 +15,7 @@ exports.default = ({ strapi }) => ({
             include: {
                 CuratedCollection: true,
                 Creator: true,
-            }
+            },
         };
         if (name) {
             query = {
@@ -25,6 +25,7 @@ exports.default = ({ strapi }) => ({
                 }
             };
         }
+        console.log(process.env);
         let collections = await prisma.collection.findMany(query);
         collections = collections.map((col) => ({
             ...col,
@@ -34,7 +35,7 @@ exports.default = ({ strapi }) => ({
             isCurated: !!col.CuratedCollection,
             viewLink: `${process.env.NUSA_FRONTEND_URL}/collection/${col.slug}`
         }));
-        const dataCount = await prisma.item.aggregate({
+        const dataCount = await prisma.collection.aggregate({
             _count: true,
             where: query.where,
         });

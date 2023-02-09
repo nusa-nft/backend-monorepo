@@ -13,7 +13,7 @@ export default ({ strapi }: { strapi: Strapi }) => ({
       include: {
         CuratedCollection: true,
         Creator: true,
-      }
+      },
     }
 
     if (name) {
@@ -25,6 +25,8 @@ export default ({ strapi }: { strapi: Strapi }) => ({
       }
     }
 
+    console.log(process.env);
+
     let collections = await prisma.collection.findMany(query);
     collections = collections.map((col: Collection & { CuratedCollection }) => ({
       ...col,
@@ -35,11 +37,11 @@ export default ({ strapi }: { strapi: Strapi }) => ({
       viewLink: `${process.env.NUSA_FRONTEND_URL}/collection/${col.slug}` 
     }))
 
-    const dataCount = await prisma.item.aggregate({
+    const dataCount = await prisma.collection.aggregate({
       _count: true,
       where: query.where,
     });
-    
+
     await prisma.$disconnect();
 
     return {

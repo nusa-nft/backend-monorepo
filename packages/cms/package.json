@@ -7,21 +7,23 @@
     "develop": "strapi develop",
     "start": "strapi start",
     "build": "strapi build",
-    "strapi": "strapi"
+    "strapi": "strapi",
+    "plugins:build": "cd src/plugins/nft-curate && yarn build"
   },
   "devDependencies": {},
   "dependencies": {
     "@ckeditor/strapi-plugin-ckeditor": "^0.0.7",
-    "@strapi/plugin-i18n": "4.6.0",
-    "@strapi/plugin-users-permissions": "4.6.0",
-    "@strapi/strapi": "4.6.0",
-    "pg": "8.6.0"
+    "@strapi/plugin-i18n": "4.6.1",
+    "@strapi/plugin-seo": "^1.7.7",
+    "@strapi/plugin-users-permissions": "4.6.1",
+    "@strapi/strapi": "4.6.1",
+    "pg": "8.8.0"
   },
   "author": {
     "name": "A Strapi developer"
   },
   "strapi": {
-    "uuid": "3292a0fe-baf4-434f-a61f-d6d703a300b3"
+    "uuid": "f5670731-307c-4da1-acbf-c2939e2f79db"
   },
   "engines": {
     "node": ">=14.19.1 <=18.x.x",
