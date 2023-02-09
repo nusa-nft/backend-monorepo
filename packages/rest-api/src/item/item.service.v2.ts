@@ -1194,4 +1194,50 @@ export class ItemServiceV2 {
       signature,
     };
   }
+
+  async getRecentlySold(page: number) {
+    const limit = 10;
+    const offset = limit * (page - 1);
+    const query = Prisma.sql`
+    select
+      "Item"."id" as "itemId",
+      "Item"."name" as "name",
+      "Item"."image" as "image",
+      "MarketplaceSale"."totalPricePaid" as "pricePaid",
+      "MarketplaceSale"."createdAt" as "createdAt"
+    from 
+      "MarketplaceSale"
+    inner join "MarketplaceListing" 
+      on "MarketplaceSale"."listingId" = "MarketplaceListing"."listingId"
+      inner join "Item"
+      on "MarketplaceListing"."tokenId" = "Item"."tokenId"
+    union
+    select 
+      "Item"."id" as "itemId",
+      "Item"."name" as "name",
+      "Item"."image" as "image",
+      "LazyMintSale"."totalPricePaid" as "pricePaid",
+      "LazyMintSale"."createdAt" as "createdAt"
+    from
+      "LazyMintSale"
+      inner join "Item"
+      on "LazyMintSale"."tokenId" = "Item"."tokenId"
+    order by "createdAt" desc
+    limit ${limit}
+    offset ${offset}`;
+    const sale = await this.prisma.$queryRaw(query);
+    const data = [];
+
+    return {
+      status: HttpStatus.OK,
+      message: 'success',
+      metadata: {
+        page: page,
+        perPage: 10,
+        pageCount: Math.ceil(data[0].length / 10),
+        totalCount: data[0].length,
+      },
+      records: sale,
+    };
+  }
 }

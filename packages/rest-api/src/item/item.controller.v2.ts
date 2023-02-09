@@ -37,6 +37,12 @@ export class ItemControllerV2 {
   }
 
   @Version('2')
+  @Get('recently-sold')
+  getRecentlySoldItem(@Query('page') page: number) {
+    return this.itemService.getRecentlySold(page);
+  }
+
+  @Version('2')
   @Get(':id')
   getItem(@Param('id') id: number, @Headers() headers: any) {
     const authorization = headers.authorization;
