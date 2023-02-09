@@ -1196,20 +1196,37 @@ export class ItemServiceV2 {
   }
 
   async getRecentlySold(page: number) {
-    const sales = await this.prisma.marketplaceSale.findMany({
-      take: 10,
-      skip: 10 * (page - 1),
-      orderBy: {
-        id: 'desc',
-      },
-      include: {
-        listing: {
-          select: {
-            Item: true,
-          },
-        },
-      },
-    });
+    const limit = 10;
+    const offset = limit * (page - 1);
+    const query = Prisma.sql`
+    select
+      "Item"."id" as "itemId",
+      "Item"."name" as "name",
+      "Item"."image" as "image",
+      "MarketplaceSale"."totalPricePaid" as "pricePaid",
+      "MarketplaceSale"."createdAt" as "createdAt"
+    from 
+      "MarketplaceSale"
+    inner join "MarketplaceListing" 
+      on "MarketplaceSale"."listingId" = "MarketplaceListing"."listingId"
+      inner join "Item"
+      on "MarketplaceListing"."tokenId" = "Item"."tokenId"
+    union
+    select 
+      "Item"."id" as "itemId",
+      "Item"."name" as "name",
+      "Item"."image" as "image",
+      "LazyMintSale"."totalPricePaid" as "pricePaid",
+      "LazyMintSale"."createdAt" as "createdAt"
+    from
+      "LazyMintSale"
+      inner join "Item"
+      on "LazyMintSale"."tokenId" = "Item"."tokenId"
+    order by "createdAt" desc
+    limit ${limit}
+    offset ${offset}`;
+    const sale = await this.prisma.$queryRaw(query);
+    const data = [];
 
     return {
       status: HttpStatus.OK,
@@ -1217,10 +1234,10 @@ export class ItemServiceV2 {
       metadata: {
         page: page,
         perPage: 10,
-        pageCount: Math.ceil(sales.length / 10),
-        totalCount: sales.length,
+        pageCount: Math.ceil(data[0].length / 10),
+        totalCount: data[0].length,
       },
-      records: sales,
+      records: sale,
     };
   }
 }
