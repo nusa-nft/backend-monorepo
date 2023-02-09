@@ -3,3 +3,11 @@ export interface BlockchainTxPayload {
   args: any[];
   extraData?: any;
 }
+
+export interface RecentlySoldItem {
+  itemId: number;
+  name: string;
+  image: string;
+  pricePaid: string;
+  createdAt: number;
+}
