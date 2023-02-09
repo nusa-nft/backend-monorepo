@@ -31,5 +31,15 @@ module.exports = {
           NODE_ENV: "development"
       }
     },
+    {
+      name: "@nusa-nft/cms",
+      script : "cd ./packages/cms && yarn start",
+      env_production: {
+        NODE_ENV: "production"
+      },
+      env_development: {
+          NODE_ENV: "development"
+      }
+    }
   ]
 }

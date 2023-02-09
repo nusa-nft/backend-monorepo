@@ -34,18 +34,6 @@ yarn build
 
 ## ⚙️ Deployment
 
-### Setup CMS env variables
-- Generate 7 random base64 strings [here](https://onlinebase64tools.com/generate-random-base64)
-- Create the file ./packages/cms/.env and add the base64 strings like the following example:
-  ```
-  HOST=0.0.0.0
-  PORT=1337
-  APP_KEYS=ZlZuXDAsWEVXd3dqWiFKZT5h,bG1cJ2swb0xJfHdsQixDJg==,JW0jSTVeTCJJb2FLLmpbMUI=,V2Vncy92LWJhTTs4IlNPSSA1
-  API_TOKEN_SALT=Nmc6Y2VjPjZxRERFKVZgRmI=
-  ADMIN_JWT_SECRET=VT5YLzJPa01OJTFfMEAnM1c=
-  JWT_SECRET=ImAhOV9PIGFDLE1hQyw9M21d
-  ```
-
 Strapi gives you many possible deployment options for your project. Find the one that suits you on the [deployment section of the documentation](https://docs.strapi.io/developer-docs/latest/setup-deployment-guides/deployment.html).
 
 ## 📚 Learn more
