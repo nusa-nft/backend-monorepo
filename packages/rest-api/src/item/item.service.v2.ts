@@ -369,13 +369,24 @@ export class ItemServiceV2 {
     return {
       ...filter,
       where: {
-        MarketplaceListing: {
-          some: {
-            MarketplaceSale: {
-              id: { gte: 0 },
+        OR: [
+          {
+            MarketplaceListing: {
+              some: {
+                MarketplaceSale: {
+                  id: { gte: 0 },
+                },
+              },
             },
           },
-        },
+          {
+            LazyMintSale: {
+              some: {
+                id: { gte: 0 },
+              },
+            },
+          },
+        ],
       },
       orderBy: { id: 'desc' },
       take: 10,
@@ -386,6 +397,7 @@ export class ItemServiceV2 {
             MarketplaceSale: true,
           },
         },
+        LazyMintSale: true,
       },
     };
   }
