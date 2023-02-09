@@ -6,6 +6,7 @@ import { Collection, Prisma, TokenType, User } from '@nusa-nft/database';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { slugify } from '../lib/slugify';
 import axios from 'axios';
+import { base64 } from 'ethers/lib/utils';
 
 @Injectable()
 @Processor('import-collection')
@@ -303,12 +304,24 @@ export class ImportCollectionService {
           },
         },
       );
-      return res.data;
+      return this.parseJson(res.data);
     }
     const res = await axios.get(uri, {
       headers: { Accept: 'application/json', 'Accept-Encoding': 'identity' },
     });
-    return res.data;
+    return this.parseJson(res.data);
+  }
+
+  parseJson(maybeJson: any) {
+    if (Buffer.isBuffer(maybeJson)) {
+      try {
+        const decoded = JSON.parse(maybeJson.toString());
+        return decoded;
+      } catch (err) {
+        return {};
+      }
+    }
+    return maybeJson;
   }
 
   async handleERC721Transfer({
