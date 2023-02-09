@@ -1194,4 +1194,33 @@ export class ItemServiceV2 {
       signature,
     };
   }
+
+  async getRecentlySold(page: number) {
+    const sales = await this.prisma.marketplaceSale.findMany({
+      take: 10,
+      skip: 10 * (page - 1),
+      orderBy: {
+        id: 'desc',
+      },
+      include: {
+        listing: {
+          select: {
+            Item: true,
+          },
+        },
+      },
+    });
+
+    return {
+      status: HttpStatus.OK,
+      message: 'success',
+      metadata: {
+        page: page,
+        perPage: 10,
+        pageCount: Math.ceil(sales.length / 10),
+        totalCount: sales.length,
+      },
+      records: sales,
+    };
+  }
 }
