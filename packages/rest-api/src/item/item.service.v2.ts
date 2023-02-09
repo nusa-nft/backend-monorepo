@@ -36,6 +36,7 @@ import {
 } from './item.interface';
 import { HttpStatusCode } from 'axios';
 import { ItemQueryParamsV2 } from './dto/item.dto';
+import { RecentlySoldItem } from 'src/interfaces';
 
 @Injectable()
 export class ItemServiceV2 {
@@ -1225,8 +1226,8 @@ export class ItemServiceV2 {
     order by "createdAt" desc
     limit ${limit}
     offset ${offset}`;
-    const sale = await this.prisma.$queryRaw(query);
-    const data = [];
+
+    const sale: RecentlySoldItem[] = await this.prisma.$queryRaw(query);
 
     return {
       status: HttpStatus.OK,
@@ -1234,8 +1235,8 @@ export class ItemServiceV2 {
       metadata: {
         page: page,
         perPage: 10,
-        pageCount: Math.ceil(data[0].length / 10),
-        totalCount: data[0].length,
+        pageCount: Math.ceil(sale.length / 10),
+        totalCount: sale.length,
       },
       records: sale,
     };
