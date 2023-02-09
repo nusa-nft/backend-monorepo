@@ -22,7 +22,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CollectionService } from './collection.service';
 import {
@@ -58,7 +58,7 @@ export class CollectionController {
       ],
       {
         storage: diskStorage({
-          destination: './uploads',
+          destination: join(__dirname, '../../uploads'),
           filename: (req, file, cb) => {
             // Generating a 32 random chars long string
             const randomName = Array(32)
@@ -114,7 +114,7 @@ export class CollectionController {
       ],
       {
         storage: diskStorage({
-          destination: './uploads',
+          destination: join(__dirname, '../../uploads'),
           filename: (req, file, cb) => {
             // Generating a 32 random chars long string
             const randomName = Array(32)

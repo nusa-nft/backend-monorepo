@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import pluginId from '../../pluginId';
 import axiosInstance from '../../utils/axiosInstance';
-import { Main } from '@strapi/design-system/Main';
+import { Main } from '@strapi/design-system';
 import {
   Tbody,
   Tr,
