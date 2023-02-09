@@ -374,7 +374,7 @@ export class ItemServiceV2 {
             MarketplaceListing: {
               some: {
                 MarketplaceSale: {
-                  id: { gte: 0 },
+                  id: { gt: 0 },
                 },
               },
             },
@@ -382,7 +382,7 @@ export class ItemServiceV2 {
           {
             LazyMintSale: {
               some: {
-                id: { gte: 0 },
+                id: { gt: 0 },
               },
             },
           },
@@ -393,7 +393,7 @@ export class ItemServiceV2 {
       include: {
         ...filter.include,
         MarketplaceListing: {
-          include: {
+          select: {
             MarketplaceSale: true,
           },
         },
