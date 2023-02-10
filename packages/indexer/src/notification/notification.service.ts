@@ -19,11 +19,15 @@ export class NotificationService {
   async handleMarketplaceNotification() {
     events.on('notification', async (eventData) => {
       const data = eventData.data;
+      console.log('event masuk', data);
+
       const listingData = await this.prisma.marketplaceListing.findFirst({
         where: {
           listingId: +data.listingId,
         },
       });
+
+      console.log('listing', listingData);
 
       if (eventData.notification == 'offer') {
         const offerData = await this.prisma.marketplaceOffer.findFirst({
@@ -107,6 +111,7 @@ export class NotificationService {
       },
     });
 
+    console.log('offer notif data', offerNotification);
     return offerNotification;
   }
 
@@ -163,6 +168,8 @@ export class NotificationService {
         createdAt_timestamp: createdAt,
       },
     });
+
+    console.log('sale notif data', saleNotification);
 
     return saleNotification;
   }
