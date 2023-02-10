@@ -382,9 +382,27 @@ export class ImportCollectionService {
 
   async getMetadata(uri: string, timeout: number = 5000) {
     Logger.log('fetching metadata', uri);
+    await new Promise(resolve => setTimeout(resolve, 3000));
     if (uri.startsWith('ipfs://')) {
       const res = await axios.get(
         `${process.env.IPFS_GATEWAY}/${uri.replace('ipfs://', '')}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Accept-Encoding': 'identity',
+          },
+          timeout
+        },
+      );
+      return this.parseJson(res.data);
+    }
+    if (uri.includes('ipfs')) {
+      let ipfsPath = uri.split('ipfs')[1];
+      console.log({ ipfsPath });
+      const metadataUri = `${process.env.IPFS_GATEWAY}${ipfsPath}`;
+      console.log({ metadataUri })
+      const res = await axios.get(
+        metadataUri,
         {
           headers: {
             Accept: 'application/json',
@@ -408,6 +426,7 @@ export class ImportCollectionService {
         const decoded = JSON.parse(maybeJson.toString());
         return decoded;
       } catch (err) {
+        Logger.error(`Failed parseJson`, err);
         return {};
       }
     }
@@ -502,18 +521,18 @@ export class ImportCollectionService {
       txIndex: 0,
     });
     // If tokenOwnerships has not changed && transfer is not mint return
-    if (tokenOwnershipWrite.length == 0 && from != ethers.constants.AddressZero)
-      return;
-    await this.createItemIfNotExists({
-      contract,
-      collection,
-      tokenId: id,
-      chainId,
-      tokenType,
-      contractAddress,
-      user,
-      amount: value,
-    });
+    if (from == ethers.constants.AddressZero) {
+      await this.createItemIfNotExists({
+        contract,
+        collection,
+        tokenId: id,
+        chainId,
+        tokenType,
+        contractAddress,
+        user,
+        amount: value,
+      });
+    }
   }
 
   async handleERC1155TransferBatch({
@@ -559,21 +578,18 @@ export class ImportCollectionService {
         txIndex: i,
       });
       // If tokenOwnerships has not changed && transfer is not mint return
-      if (
-        tokenOwnershipWrite.length == 0 &&
-        from != ethers.constants.AddressZero
-      )
-        return;
-      await this.createItemIfNotExists({
-        contract,
-        collection,
-        tokenId: ids[i].toString(),
-        chainId,
-        tokenType,
-        contractAddress,
-        user,
-        amount: values[i].toNumber(),
-      });
+      if (from == ethers.constants.AddressZero) {
+        await this.createItemIfNotExists({
+          contract,
+          collection,
+          tokenId: ids[i].toString(),
+          chainId,
+          tokenType,
+          contractAddress,
+          user,
+          amount: values[i].toNumber(),
+        });
+      }
     }
   }
 
@@ -747,8 +763,9 @@ export class ImportCollectionService {
     let attributes;
     let description;
     let image;
-    if (!item || !item.image) {
-      const metadata = await this.extractMetadata(contract, collection, tokenId);
+    if (!item || !item.image || !item.name) {
+      const metadata = await this.extractMetadata(contract, collection, tokenId, tokenType);
+      console.log({ metadata })
       name = metadata.name;
       metadataUri = metadata.metadataUri;
       attributes = metadata.attributes;
@@ -839,6 +856,7 @@ export class ImportCollectionService {
     contract: ethers.Contract,
     collection: Collection,
     tokenId: Prisma.Decimal,
+    tokenType: TokenType
   ) {
     let name = '';
     let description = '';
@@ -846,14 +864,21 @@ export class ImportCollectionService {
     let metadataUri = '';
     let attributes = [];
     try {
-      metadataUri = await contract.tokenURI(tokenId);
+      if (tokenType == TokenType.ERC721) {
+        metadataUri = await contract.tokenURI(tokenId);
+      }
+      if (tokenType == TokenType.ERC1155) {
+        metadataUri = await contract.uri(tokenId);
+      }
       const metadata = await this.getMetadata(metadataUri);
+      Logger.log({ metadata });
       name = metadata.name;
       image = metadata.image;
       if (!name) throw new Error();
       attributes = metadata.attributes;
       description = metadata.description;
     } catch (err) {
+      Logger.error(`error fetching metadata`, err)
       name = `${collection.name}-${tokenId}`;
     }
     return { name, description, image, metadataUri, attributes };

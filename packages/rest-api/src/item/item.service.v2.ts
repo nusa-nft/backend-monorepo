@@ -37,6 +37,7 @@ import {
 import { HttpStatusCode } from 'axios';
 import { ItemQueryParamsV2 } from './dto/item.dto';
 import { RecentlySoldItem } from 'src/interfaces';
+import { toString } from 'src/lib/toString';
 
 @Injectable()
 export class ItemServiceV2 {
@@ -193,6 +194,7 @@ export class ItemServiceV2 {
           );
           return {
             ...item,
+            tokenId: toString(item.tokenId),
             isLiked,
             owners,
             relatedItems,
