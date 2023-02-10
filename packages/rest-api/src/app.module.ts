@@ -12,7 +12,6 @@ import { ItemModule } from './item/item.module';
 import { HttpModule } from '@nestjs/axios';
 import { IndexerModule } from './indexer/indexer.module';
 import { RoyaltyModule } from './royalty/royalty.module';
-import { SseModule } from './sse/sse.module';
 import { NotificationModule } from './notification/notification.module';
 import { SearchModule } from './search/search.module';
 import { VoucherModule } from './voucher/voucher.module';
@@ -37,7 +36,6 @@ import { BullModule } from '@nestjs/bull';
     HttpModule,
     IndexerModule,
     RoyaltyModule,
-    SseModule,
     NotificationModule,
     SearchModule,
     VoucherModule,
