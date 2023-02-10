@@ -7,6 +7,7 @@ import {
   MarketplaceOffer,
   MarketplaceSale,
 } from '@prisma/client';
+import retry from 'async-retry';
 
 @Injectable()
 export class NotificationService {
@@ -27,29 +28,46 @@ export class NotificationService {
         },
       });
 
-      console.log('listing', listingData);
-
+      const dataOfListing = listingData;
       if (eventData.notification == 'offer') {
-        const offerData = await this.prisma.marketplaceOffer.findFirst({
-          where: {
-            listingId: +listingData.listingId,
+        let marketplaceOffer;
+        await retry(
+          async () => {
+            marketplaceOffer =
+              await this.prisma.marketplaceOffer.findFirstOrThrow({
+                where: {
+                  listingId: +dataOfListing.listingId,
+                  createdAt: +data.createdAt,
+                },
+              });
+            return marketplaceOffer;
           },
-          orderBy: {
-            id: 'desc',
+          {
+            forever: true,
           },
-        });
+        );
 
-        this.newOfferNotification(listingData, offerData);
+        this.newOfferNotification(dataOfListing, marketplaceOffer);
       }
 
       if (eventData.notification == 'sale') {
-        const saleData = await this.prisma.marketplaceSale.findFirst({
-          where: {
-            listingId: +listingData.listingId,
+        let marketplaceSale;
+        await retry(
+          async () => {
+            marketplaceSale =
+              await this.prisma.marketplaceSale.findFirstOrThrow({
+                where: {
+                  listingId: +listingData.listingId,
+                },
+              });
+            return marketplaceSale;
           },
-        });
+          {
+            forever: true,
+          },
+        );
 
-        this.newSaleNotification(saleData);
+        this.newSaleNotification(marketplaceSale);
       }
     });
   }

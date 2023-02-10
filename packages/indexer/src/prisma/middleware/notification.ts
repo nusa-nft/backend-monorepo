@@ -18,7 +18,6 @@ export function NotificationMiddleware<
       }
 
       if (params.model == 'MarketplaceSale') {
-        console.log('middleware', data);
         events.emit('notification', { notification: 'sale', data });
       }
 
