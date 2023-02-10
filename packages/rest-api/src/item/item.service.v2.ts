@@ -809,7 +809,7 @@ export class ItemServiceV2 {
 
     const lazyMintListingId = listingId;
     const itemId = lazyMintListing.itemId as number;
-    const tokenId = item.tokenId as number;
+    const tokenId = item.tokenId;
     const tokenType = TokenType.ERC1155;
     const listingType = ListingType.Direct;
     const quantityBought = quantity;
