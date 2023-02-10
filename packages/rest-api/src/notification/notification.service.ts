@@ -4,6 +4,7 @@ import { formatDistance } from 'date-fns';
 import { NotificationQueryParam, Take } from './dto/notification.dto';
 import { events } from 'src/lib/newEventEmitter';
 import { NotificationType } from '@prisma/client';
+import retry from 'async-retry';
 
 @Injectable()
 export class NotificationService {
@@ -167,15 +168,24 @@ export class NotificationService {
           },
         });
 
-        const transferHistory =
-          await this.prisma.erc1155TransferHistory.findFirst({
-            where: {
-              tokenId,
-            },
-          });
+        let transferHistory;
+
+        await retry(
+          async () => {
+            transferHistory =
+              await this.prisma.erc1155TransferHistory.findFirst({
+                where: {
+                  tokenId,
+                },
+              });
+            return transferHistory;
+          },
+          {
+            forever: true,
+          },
+        );
 
         const buyerDataWallet = transferHistory.to;
-        console.log(lazyMintListing, listerData, buyerDataWallet);
 
         const notificationDataLister = await this.prisma.notification.create({
           data: {
