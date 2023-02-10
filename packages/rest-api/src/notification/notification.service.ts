@@ -4,7 +4,7 @@ import { formatDistance } from 'date-fns';
 import { NotificationQueryParam, Take } from './dto/notification.dto';
 import { events } from 'src/lib/newEventEmitter';
 import { NotificationType } from '@prisma/client';
-import retry from 'async-retry';
+import * as retry from 'async-retry';
 
 @Injectable()
 export class NotificationService {
