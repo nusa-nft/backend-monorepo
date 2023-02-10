@@ -7,6 +7,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { slugify } from '../lib/slugify';
 import axios from 'axios';
 import { base64 } from 'ethers/lib/utils';
+import { normalizeIpfsUri, nusaIpfsGateway } from 'src/lib/ipfs-uri';
 
 interface ImportCollectionJob {
   contractAddress: string;
@@ -397,10 +398,7 @@ export class ImportCollectionService {
       return this.parseJson(res.data);
     }
     if (uri.includes('ipfs')) {
-      let ipfsPath = uri.split('ipfs')[1];
-      console.log({ ipfsPath });
-      const metadataUri = `${process.env.IPFS_GATEWAY}${ipfsPath}`;
-      console.log({ metadataUri })
+      const metadataUri = nusaIpfsGateway(uri);
       const res = await axios.get(
         metadataUri,
         {
@@ -870,10 +868,15 @@ export class ImportCollectionService {
       if (tokenType == TokenType.ERC1155) {
         metadataUri = await contract.uri(tokenId);
       }
-      const metadata = await this.getMetadata(metadataUri);
+      const metadata = await this.getMetadata(
+        normalizeIpfsUri(metadataUri)
+      );
       Logger.log({ metadata });
       name = metadata.name;
       image = metadata.image;
+      if (image.includes('ipfs')) {
+        image = normalizeIpfsUri(image);
+      }
       if (!name) throw new Error();
       attributes = metadata.attributes;
       description = metadata.description;

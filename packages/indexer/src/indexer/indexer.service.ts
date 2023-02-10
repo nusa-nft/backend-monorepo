@@ -10,6 +10,7 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { ListingType, TokenType } from '@prisma/client';
 import { MarkeplaceListing, MarketplaceNewOffer } from './interfaces';
 import { WsProvider } from './ws-provider';
+import { check } from 'prettier';
 
 const parseListingType = (listingTypeNumber: number) => {
   if (listingTypeNumber == 0) {
@@ -924,7 +925,13 @@ export class IndexerService implements OnModuleInit {
         listingId: parseInt(listingId._hex),
       },
     });
-    const item = await this.prisma.item.findFirst({ where: { tokenId: tokenId.toNumber() }})
+    const item = await this.prisma.item.findFirst({
+      where: {
+        tokenId: tokenId.toString(),
+        chainId: Number(process.env.CHAIN_ID),
+        contract_address: assetContract,
+      }
+    })
 
     if (checkListingId || !item) return;
     else {
@@ -935,7 +942,7 @@ export class IndexerService implements OnModuleInit {
           tokenOwner,
           assetContract,
           chainId: Number(process.env.CHAIN_ID),
-          tokenId: parseInt(tokenId._hex),
+          tokenId: tokenId.toString(),
           startTime: parseInt(startTime._hex),
           endTime: _endTime,
           quantity: parseInt(quantity._hex),
