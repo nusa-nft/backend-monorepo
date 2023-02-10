@@ -435,7 +435,7 @@ export class ImportCollectionService {
   }) {
     const from = event.args[0];
     const to = event.args[1];
-    const tokenId = event.args[2].toNumber();
+    const tokenId = event.args[2].toString();
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     await this.createUpdateTokenOwnership({
@@ -485,7 +485,7 @@ export class ImportCollectionService {
     const operator = event.args[0];
     const from = event.args[1];
     const to = event.args[2];
-    const id = event.args[3].toNumber();
+    const id = event.args[3].toString();
     const value = event.args[4].toNumber();
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
@@ -550,7 +550,7 @@ export class ImportCollectionService {
         contractAddress,
         from,
         to,
-        tokenId: ids[i].toNumber(),
+        tokenId: ids[i].toString(),
         quantity: values[i].toNumber(),
         timestamp: timestamp,
         chainId,
@@ -567,7 +567,7 @@ export class ImportCollectionService {
       await this.createItemIfNotExists({
         contract,
         collection,
-        tokenId: ids[i].toNumber(),
+        tokenId: ids[i].toString(),
         chainId,
         tokenType,
         contractAddress,
@@ -592,7 +592,7 @@ export class ImportCollectionService {
     contractAddress: string;
     from: string;
     to: string;
-    tokenId: number;
+    tokenId: Prisma.Decimal;
     quantity: number;
     timestamp: number;
     chainId: number;
@@ -725,7 +725,7 @@ export class ImportCollectionService {
   }: {
     contract: ethers.Contract;
     collection: Collection;
-    tokenId: number;
+    tokenId: Prisma.Decimal;
     chainId: number;
     tokenType: TokenType;
     contractAddress: string;
@@ -838,7 +838,7 @@ export class ImportCollectionService {
   async extractMetadata(
     contract: ethers.Contract,
     collection: Collection,
-    tokenId: number,
+    tokenId: Prisma.Decimal,
   ) {
     let name = '';
     let description = '';
