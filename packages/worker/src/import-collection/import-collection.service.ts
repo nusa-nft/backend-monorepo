@@ -46,15 +46,18 @@ export class ImportCollectionService {
   @OnQueueStalled({ name: 'import-collection' })
   onImportCollectionStalled(job: Job<ImportCollectionJob>) {
     Logger.log('Job stalled, requeuing', JSON.stringify(job));
-    this.importCollectionQueue.add('import-collection', job.data);
+    // this.importCollectionQueue.add('import-collection', job.data);
+    job.retry();
     // Restart should be handled by PM2
     process.exit(1)
   }
 
   @OnQueueFailed({ name: 'import-collection' })
   onImportCollectionFailed(job: Job<ImportCollectionJob>) {
-    Logger.log('Job failed, requeuing', JSON.stringify(job));
-    this.importCollectionQueue.add('import-collection', job.data);
+    Logger.log('Job failed, requeuing', JSON.stringify(job.failedReason));
+    if (job.attemptsMade < 3) {
+      job.retry();
+    }
   }
 
   @OnQueueResumed({ name: 'import-collection' })
@@ -541,6 +544,8 @@ export class ImportCollectionService {
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     for (let i = 0; i < ids.length; i++) {
+      console.log({ tokenId: ids[i].toString() });
+      console.log({ quantity: values[i].toString() });
       const tokenOwnershipWrite = await this.createUpdateTokenOwnership({
         contractAddress,
         from,

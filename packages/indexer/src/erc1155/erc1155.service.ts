@@ -38,11 +38,11 @@ export class Erc1155Service {
         ownerAddress: walletAddress,
       },
     });
-    const tokenIdValue: Record<number, number> = {};
+    const tokenIdValue: Record<number | string, number> = {};
 
     for (let x of tokenOwnerships) {
       if (x.quantity == 0) continue;
-      tokenIdValue[x.tokenId] = x.quantity;
+      tokenIdValue[x.tokenId.toString()] = x.quantity;
     }
 
     return tokenIdValue;
