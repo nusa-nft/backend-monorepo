@@ -1098,15 +1098,17 @@ export class CollectionService {
    * This queue is processed by worker package
    */
   async importQueue({ contractAddress, categoryId }: ImportDto) {
-    console.log({ categoryId });
     await this.prisma.category
       .findFirstOrThrow({ where: { id: +categoryId } })
       .catch((err) => {
         throw new HttpException('Category not found', HttpStatus.NOT_FOUND);
       });
+    const TEN_MINUTES = 600000;
     const job = await this.importCollectionQueue.add('import-collection', {
       contractAddress,
       categoryId,
+    }, {
+      timeout: TEN_MINUTES,
     });
     return job;
   }
