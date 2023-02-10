@@ -969,8 +969,9 @@ export class CollectionService {
     if (totalVolumeNow == 0 || totalVolumePrevious == 0) {
       percentChanges = 0;
     } else {
-      percentChanges =
-        ((+totalVolumeNow - +totalVolumePrevious) / +totalVolumePrevious) * 100;
+      percentChanges = Math.ceil(
+        ((+totalVolumeNow - +totalVolumePrevious) / +totalVolumePrevious) * 100,
+      );
     }
 
     aggregatedArray.push({

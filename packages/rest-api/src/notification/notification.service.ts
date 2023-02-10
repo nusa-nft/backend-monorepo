@@ -2,15 +2,23 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { formatDistance } from 'date-fns';
 import { NotificationQueryParam, Take } from './dto/notification.dto';
+import { events } from 'src/lib/newEventEmitter';
+import { NotificationType } from '@prisma/client';
 
 @Injectable()
 export class NotificationService {
   constructor(private prisma: PrismaService) {}
 
+  async onModuleInit() {
+    this.handleLazyMintedSale();
+  }
+
   async getNotificationData(
     userId: number,
     queryParam: NotificationQueryParam,
   ) {
+    if (!userId) return;
+
     const { page, take } = queryParam;
 
     let takeValue;
@@ -135,6 +143,87 @@ export class NotificationService {
     return {
       newNotification: true,
     };
+  }
+
+  async handleLazyMintedSale() {
+    events.on('notification', async (eventData) => {
+      if (eventData.notification) {
+        const data = eventData.data;
+        const tokenId = data.tokenId;
+        const lazyMintListing =
+          await this.prisma.lazyMintListing.findUniqueOrThrow({
+            where: {
+              id: +data.lazyMintListingId,
+            },
+          });
+
+        const listerData = await this.prisma.user.findFirst({
+          where: {
+            assets: {
+              some: {
+                tokenId,
+              },
+            },
+          },
+        });
+
+        const transferHistory =
+          await this.prisma.erc1155TransferHistory.findFirst({
+            where: {
+              tokenId,
+            },
+          });
+
+        const buyerDataWallet = transferHistory.to;
+        console.log(lazyMintListing, listerData, buyerDataWallet);
+
+        const notificationDataLister = await this.prisma.notification.create({
+          data: {
+            notification_type: NotificationType.Sale,
+            is_seen: false,
+            user: {
+              connect: {
+                wallet_address: listerData.wallet_address,
+              },
+            },
+          },
+        });
+
+        const notificationDataBuyer = await this.prisma.notification.create({
+          data: {
+            notification_type: NotificationType.Sale,
+            is_seen: false,
+            user: {
+              connect: {
+                wallet_address: buyerDataWallet,
+              },
+            },
+          },
+        });
+
+        const total_price_paid =
+          +lazyMintListing.buyoutPricePerToken * lazyMintListing.quantity;
+
+        await this.prisma.notificationDetailSale.create({
+          data: {
+            listingId: +data.lazyMintListingId,
+            asset_contract: lazyMintListing.assetContract,
+            lister_wallet_address: listerData.wallet_address,
+            buyer_wallet_address: buyerDataWallet,
+            quantity_bought: lazyMintListing.quantity,
+            total_price_paid,
+            transaction_hash: transferHistory.transactionHash,
+            Notification: {
+              connect: [
+                { id: notificationDataBuyer.id },
+                { id: notificationDataLister.id },
+              ],
+            },
+            createdAt_timestamp: transferHistory.createdAt,
+          },
+        });
+      }
+    });
   }
 
   async getItemName(listingId: number) {

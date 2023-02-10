@@ -8,6 +8,7 @@ import { Erc1155Module } from './erc1155/erc1155.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RoyaltyModule } from './royalty/royalty.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { RoyaltyModule } from './royalty/royalty.module';
     Erc1155Module,
     MarketplaceModule,
     RoyaltyModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
