@@ -25,7 +25,8 @@
     "db:generate": "dotenv -e ../../.env -- prisma generate",
     "postinstall": "npx prisma@4.4.0 generate",
     "db:seed": "dotenv -e ../../.env npx ts-node ./seed/seed.ts",
-    "db:migrate-dev": "dotenv -e ../../.env npx prisma migrate dev"
+    "db:migrate-dev": "dotenv -e ../../.env npx prisma migrate dev",
+    "db:migrate-reset": "dotenv -e ../../.env npx prisma migrate reset"
   },
   "prisma": {
     "seed": "ts-node ./seed/seed.ts"
