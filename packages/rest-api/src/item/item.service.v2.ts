@@ -37,6 +37,7 @@ import {
 import { HttpStatusCode } from 'axios';
 import { ItemQueryParamsV2 } from './dto/item.dto';
 import { RecentlySoldItem } from 'src/interfaces';
+import { toString } from 'src/lib/toString';
 
 @Injectable()
 export class ItemServiceV2 {
@@ -193,6 +194,7 @@ export class ItemServiceV2 {
           );
           return {
             ...item,
+            tokenId: toString(item.tokenId),
             isLiked,
             owners,
             relatedItems,
@@ -809,7 +811,7 @@ export class ItemServiceV2 {
 
     const lazyMintListingId = listingId;
     const itemId = lazyMintListing.itemId as number;
-    const tokenId = item.tokenId as number;
+    const tokenId = item.tokenId;
     const tokenType = TokenType.ERC1155;
     const listingType = ListingType.Direct;
     const quantityBought = quantity;

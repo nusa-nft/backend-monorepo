@@ -7,6 +7,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { slugify } from '../lib/slugify';
 import axios from 'axios';
 import { base64 } from 'ethers/lib/utils';
+import { normalizeIpfsUri, nusaIpfsGateway } from 'src/lib/ipfs-uri';
 
 interface ImportCollectionJob {
   contractAddress: string;
@@ -46,15 +47,18 @@ export class ImportCollectionService {
   @OnQueueStalled({ name: 'import-collection' })
   onImportCollectionStalled(job: Job<ImportCollectionJob>) {
     Logger.log('Job stalled, requeuing', JSON.stringify(job));
-    this.importCollectionQueue.add('import-collection', job.data);
+    // this.importCollectionQueue.add('import-collection', job.data);
+    job.retry();
     // Restart should be handled by PM2
     process.exit(1)
   }
 
   @OnQueueFailed({ name: 'import-collection' })
   onImportCollectionFailed(job: Job<ImportCollectionJob>) {
-    Logger.log('Job failed, requeuing', JSON.stringify(job));
-    this.importCollectionQueue.add('import-collection', job.data);
+    Logger.log('Job failed, requeuing', JSON.stringify(job.failedReason));
+    if (job.attemptsMade < 3) {
+      job.retry();
+    }
   }
 
   @OnQueueResumed({ name: 'import-collection' })
@@ -379,9 +383,24 @@ export class ImportCollectionService {
 
   async getMetadata(uri: string, timeout: number = 5000) {
     Logger.log('fetching metadata', uri);
+    await new Promise(resolve => setTimeout(resolve, 3000));
     if (uri.startsWith('ipfs://')) {
       const res = await axios.get(
         `${process.env.IPFS_GATEWAY}/${uri.replace('ipfs://', '')}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Accept-Encoding': 'identity',
+          },
+          timeout
+        },
+      );
+      return this.parseJson(res.data);
+    }
+    if (uri.includes('ipfs')) {
+      const metadataUri = nusaIpfsGateway(uri);
+      const res = await axios.get(
+        metadataUri,
         {
           headers: {
             Accept: 'application/json',
@@ -405,6 +424,7 @@ export class ImportCollectionService {
         const decoded = JSON.parse(maybeJson.toString());
         return decoded;
       } catch (err) {
+        Logger.error(`Failed parseJson`, err);
         return {};
       }
     }
@@ -432,7 +452,7 @@ export class ImportCollectionService {
   }) {
     const from = event.args[0];
     const to = event.args[1];
-    const tokenId = event.args[2].toNumber();
+    const tokenId = event.args[2].toString();
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     await this.createUpdateTokenOwnership({
@@ -482,7 +502,7 @@ export class ImportCollectionService {
     const operator = event.args[0];
     const from = event.args[1];
     const to = event.args[2];
-    const id = event.args[3].toNumber();
+    const id = event.args[3].toString();
     const value = event.args[4].toNumber();
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
@@ -499,18 +519,18 @@ export class ImportCollectionService {
       txIndex: 0,
     });
     // If tokenOwnerships has not changed && transfer is not mint return
-    if (tokenOwnershipWrite.length == 0 && from != ethers.constants.AddressZero)
-      return;
-    await this.createItemIfNotExists({
-      contract,
-      collection,
-      tokenId: id,
-      chainId,
-      tokenType,
-      contractAddress,
-      user,
-      amount: value,
-    });
+    if (from == ethers.constants.AddressZero) {
+      await this.createItemIfNotExists({
+        contract,
+        collection,
+        tokenId: id,
+        chainId,
+        tokenType,
+        contractAddress,
+        user,
+        amount: value,
+      });
+    }
   }
 
   async handleERC1155TransferBatch({
@@ -541,11 +561,13 @@ export class ImportCollectionService {
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     for (let i = 0; i < ids.length; i++) {
+      console.log({ tokenId: ids[i].toString() });
+      console.log({ quantity: values[i].toString() });
       const tokenOwnershipWrite = await this.createUpdateTokenOwnership({
         contractAddress,
         from,
         to,
-        tokenId: ids[i].toNumber(),
+        tokenId: ids[i].toString(),
         quantity: values[i].toNumber(),
         timestamp: timestamp,
         chainId,
@@ -554,21 +576,18 @@ export class ImportCollectionService {
         txIndex: i,
       });
       // If tokenOwnerships has not changed && transfer is not mint return
-      if (
-        tokenOwnershipWrite.length == 0 &&
-        from != ethers.constants.AddressZero
-      )
-        return;
-      await this.createItemIfNotExists({
-        contract,
-        collection,
-        tokenId: ids[i].toNumber(),
-        chainId,
-        tokenType,
-        contractAddress,
-        user,
-        amount: values[i].toNumber(),
-      });
+      if (from == ethers.constants.AddressZero) {
+        await this.createItemIfNotExists({
+          contract,
+          collection,
+          tokenId: ids[i].toString(),
+          chainId,
+          tokenType,
+          contractAddress,
+          user,
+          amount: values[i].toNumber(),
+        });
+      }
     }
   }
 
@@ -587,7 +606,7 @@ export class ImportCollectionService {
     contractAddress: string;
     from: string;
     to: string;
-    tokenId: number;
+    tokenId: Prisma.Decimal;
     quantity: number;
     timestamp: number;
     chainId: number;
@@ -720,7 +739,7 @@ export class ImportCollectionService {
   }: {
     contract: ethers.Contract;
     collection: Collection;
-    tokenId: number;
+    tokenId: Prisma.Decimal;
     chainId: number;
     tokenType: TokenType;
     contractAddress: string;
@@ -742,8 +761,9 @@ export class ImportCollectionService {
     let attributes;
     let description;
     let image;
-    if (!item || !item.image) {
-      const metadata = await this.extractMetadata(contract, collection, tokenId);
+    if (!item || !item.image || !item.name) {
+      const metadata = await this.extractMetadata(contract, collection, tokenId, tokenType);
+      console.log({ metadata })
       name = metadata.name;
       metadataUri = metadata.metadataUri;
       attributes = metadata.attributes;
@@ -833,7 +853,8 @@ export class ImportCollectionService {
   async extractMetadata(
     contract: ethers.Contract,
     collection: Collection,
-    tokenId: number,
+    tokenId: Prisma.Decimal,
+    tokenType: TokenType
   ) {
     let name = '';
     let description = '';
@@ -841,14 +862,26 @@ export class ImportCollectionService {
     let metadataUri = '';
     let attributes = [];
     try {
-      metadataUri = await contract.tokenURI(tokenId);
-      const metadata = await this.getMetadata(metadataUri);
+      if (tokenType == TokenType.ERC721) {
+        metadataUri = await contract.tokenURI(tokenId);
+      }
+      if (tokenType == TokenType.ERC1155) {
+        metadataUri = await contract.uri(tokenId);
+      }
+      const metadata = await this.getMetadata(
+        normalizeIpfsUri(metadataUri)
+      );
+      Logger.log({ metadata });
       name = metadata.name;
       image = metadata.image;
+      if (image.includes('ipfs')) {
+        image = normalizeIpfsUri(image);
+      }
       if (!name) throw new Error();
       attributes = metadata.attributes;
       description = metadata.description;
     } catch (err) {
+      Logger.error(`error fetching metadata`, err)
       name = `${collection.name}-${tokenId}`;
     }
     return { name, description, image, metadataUri, attributes };

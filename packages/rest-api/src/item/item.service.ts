@@ -16,7 +16,7 @@ import {
 } from './dto/item.dto';
 import { IpfsService } from '../ipfs/ipfs.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { AttributeType, Item, ItemViews, TokenType } from '@prisma/client';
+import { AttributeType, Item, ItemViews, Prisma, TokenType } from '@prisma/client';
 import standardizeMetadataAttribute from '../lib/standardizeMetadataAttributes';
 import { isArray, isObject } from 'class-validator';
 import { JwtService } from '@nestjs/jwt';
@@ -343,7 +343,7 @@ export class ItemService {
     return ret;
   }
 
-  async getTokenOwners(tokenId: number) {
+  async getTokenOwners(tokenId: number | Prisma.Decimal) {
     const ownersMap = await this.indexerService.getTokenOwners(tokenId);
     const owners = [];
     for (const [walletAddress, quantity] of Object.entries(ownersMap)) {

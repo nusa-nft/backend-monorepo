@@ -1,7 +1,8 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
-import { ListingType } from '@prisma/client';
+import { ListingType, Prisma } from '@prisma/client';
 import { SaleHistoryQueryParams } from 'src/item/dto/item.dto';
+import { toString } from 'src/lib/toString';
 
 @Injectable()
 export class IndexerService {
@@ -11,10 +12,10 @@ export class IndexerService {
     this.INDEXER_URL = process.env.API_INDEXER_URL;
   }
 
-  async getTokenOwners(tokenId: number) {
+  async getTokenOwners(tokenId: number | Prisma.Decimal) {
     try {
       const resp = await this.httpService.axiosRef.get(
-        `${this.INDEXER_URL}/erc1155/token-owner?tokenId=${tokenId}`,
+        `${this.INDEXER_URL}/erc1155/token-owner?tokenId=${toString(tokenId)}`,
       );
       return resp.data;
     } catch (err) {
@@ -23,10 +24,10 @@ export class IndexerService {
     }
   }
 
-  async getItemActiveListing(assetContract: string, tokenId: number) {
+  async getItemActiveListing(assetContract: string, tokenId: number | Prisma.Decimal) {
     try {
       const resp = await this.httpService.axiosRef.get(
-        `${this.INDEXER_URL}/marketplace/active-listing?assetContractAddress=${assetContract}&tokenId=${tokenId}`,
+        `${this.INDEXER_URL}/marketplace/active-listing?assetContractAddress=${assetContract}&tokenId=${toString(tokenId)}`,
       );
       return resp.data;
     } catch (err) {
@@ -105,7 +106,7 @@ export class IndexerService {
     }
   }
 
-  async getRoyaltyReceivedHistory(tokenIds: number[], page: number) {
+  async getRoyaltyReceivedHistory(tokenIds: number[] | Prisma.Decimal[], page: number) {
     try {
       const resp = await this.httpService.axiosRef.get(
         `${this.INDEXER_URL}/royalty?${tokenIds
@@ -121,12 +122,12 @@ export class IndexerService {
     }
   }
 
-  async getItemActivities(tokenId: number, page: number, event: string) {
+  async getItemActivities(tokenId: number | Prisma.Decimal, page: number, event: string) {
     try {
       const resp = await this.httpService.axiosRef.get(
         `${
           this.INDEXER_URL
-        }/erc1155/activities?tokenId=${tokenId}&page=${page}${
+        }/erc1155/activities?tokenId=${tokenId.toString()}&page=${page}${
           event ? `&event=${event}` : ''
         }`,
       );
@@ -136,10 +137,10 @@ export class IndexerService {
     }
   }
 
-  async getItemSaleHistory(tokenId: number, sortBy: SaleHistoryQueryParams) {
+  async getItemSaleHistory(tokenId: number | Prisma.Decimal, sortBy: SaleHistoryQueryParams) {
     try {
       const resp = await this.httpService.axiosRef.get(
-        `${this.INDEXER_URL}/marketplace/sale-history/${tokenId}?&sortRange=${sortBy.sortRange}`,
+        `${this.INDEXER_URL}/marketplace/sale-history/${tokenId.toString()}?&sortRange=${sortBy.sortRange}`,
       );
       return resp.data;
     } catch (err) {
