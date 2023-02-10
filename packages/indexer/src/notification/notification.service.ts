@@ -33,7 +33,9 @@ export class NotificationService {
         const offerData = await this.prisma.marketplaceOffer.findFirst({
           where: {
             listingId: +listingData.listingId,
-            createdAt: +data.createdAt,
+          },
+          orderBy: {
+            id: 'desc',
           },
         });
 
