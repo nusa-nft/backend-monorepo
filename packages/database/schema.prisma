@@ -410,6 +410,7 @@ model ImportedContracts {
   chainId         Int
   tokenType       TokenType
   deployedAtBlock Int
+  lastIndexedBlock Int @default(0)
   createdAt       DateTime
 
   @@unique([contractAddress, chainId])

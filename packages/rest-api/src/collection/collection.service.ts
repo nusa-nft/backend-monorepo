@@ -1103,13 +1103,10 @@ export class CollectionService {
       .catch((err) => {
         throw new HttpException('Category not found', HttpStatus.NOT_FOUND);
       });
-    const TEN_MINUTES = 600000;
     const job = await this.importCollectionQueue.add('import-collection', {
       contractAddress,
       categoryId,
-    }, {
-      timeout: TEN_MINUTES,
-    });
+    }, {});
     return job;
   }
 
