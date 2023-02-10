@@ -2,6 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { ListingType, Prisma } from '@prisma/client';
 import { SaleHistoryQueryParams } from 'src/item/dto/item.dto';
+import { toString } from 'src/lib/toString';
 
 @Injectable()
 export class IndexerService {
@@ -14,7 +15,7 @@ export class IndexerService {
   async getTokenOwners(tokenId: number | Prisma.Decimal) {
     try {
       const resp = await this.httpService.axiosRef.get(
-        `${this.INDEXER_URL}/erc1155/token-owner?tokenId=${tokenId.toString()}`,
+        `${this.INDEXER_URL}/erc1155/token-owner?tokenId=${toString(tokenId)}`,
       );
       return resp.data;
     } catch (err) {
@@ -26,7 +27,7 @@ export class IndexerService {
   async getItemActiveListing(assetContract: string, tokenId: number | Prisma.Decimal) {
     try {
       const resp = await this.httpService.axiosRef.get(
-        `${this.INDEXER_URL}/marketplace/active-listing?assetContractAddress=${assetContract}&tokenId=${tokenId.toString()}`,
+        `${this.INDEXER_URL}/marketplace/active-listing?assetContractAddress=${assetContract}&tokenId=${toString(tokenId)}`,
       );
       return resp.data;
     } catch (err) {
