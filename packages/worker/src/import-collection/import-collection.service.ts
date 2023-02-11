@@ -2,12 +2,13 @@ import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectQueue, OnQueueFailed, OnQueueResumed, OnQueueStalled, Process, Processor } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
 import { ethers } from 'ethers';
-import { Collection, Prisma, TokenType, User } from '@nusa-nft/database';
+import { AttributeType, Collection, Prisma, TokenType, User } from '@nusa-nft/database';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { slugify } from '../lib/slugify';
 import axios from 'axios';
 import { base64 } from 'ethers/lib/utils';
 import { normalizeIpfsUri, nusaIpfsGateway } from 'src/lib/ipfs-uri';
+import * as _ from 'lodash';
 
 interface ImportCollectionJob {
   contractAddress: string;
@@ -49,8 +50,6 @@ export class ImportCollectionService {
     Logger.log('Job stalled, requeuing', JSON.stringify(job));
     // this.importCollectionQueue.add('import-collection', job.data);
     job.retry();
-    // Restart should be handled by PM2
-    process.exit(1)
   }
 
   @OnQueueFailed({ name: 'import-collection' })
@@ -85,8 +84,8 @@ export class ImportCollectionService {
     const contract = new ethers.Contract(contractAddress, this.abi, this.provider);
     const isErc721 = await contract.supportsInterface(this.ERC721_INTERFACE_ID);
     const isErc1155 = await contract.supportsInterface(this.ERC1155_INTERFACE_ID);
-    const startBlock = 10000000;
-    const latestBlock = await this.provider.getBlockNumber();
+    let startBlock = 10000000;
+    let latestBlock = await this.provider.getBlockNumber();
 
     let creationBlock;
     let tokenType;
@@ -120,6 +119,7 @@ export class ImportCollectionService {
           tokenType,
           createdAt: new Date(),
           deployedAtBlock: creationBlock,
+          lastIndexedBlock: creationBlock
         },
       });
     } else {
@@ -185,66 +185,99 @@ export class ImportCollectionService {
         ],
       ];
     }
-    // TODO: chunk blocks like in indexer package
+    console.log({ isErc1155, isErc721 });
+
     let queryStartBlock = imported.lastIndexedBlock > creationBlock
       ? imported.lastIndexedBlock
       : creationBlock;
-    const logs = await contract.queryFilter(
-      { topics },
-      queryStartBlock,
-      latestBlock,
-    );
-    console.log({ isErc1155, isErc721 });
 
-    for (const log of logs) {
-      const event = iface.parseLog(log);
-      Logger.log('processing event', JSON.stringify(event));
-      if (event.name == 'Transfer') {
-        await this.handleERC721Transfer({
-          event,
-          contractAddress,
-          log,
-          contract,
-          collection,
-          user,
-          tokenType,
-          chainId,
-        });
+    let latestBlockIndexed = false;
+
+    while (!latestBlockIndexed) {
+      let blockRangeChunks = this.getBlockRangeChunks({
+        startBlock: queryStartBlock,
+        endBlock: latestBlock,
+        chunkSize: 1000 
+      });
+
+      for (let {fromBlock, toBlock} of blockRangeChunks) {
+        const logs = await contract.queryFilter(
+          { topics },
+          fromBlock,
+          toBlock,
+        );
+    
+        for (const log of logs) {
+          const event = iface.parseLog(log);
+          Logger.log('processing event', JSON.stringify(event));
+          if (event.name == 'Transfer') {
+            await this.handleERC721Transfer({
+              event,
+              contractAddress,
+              log,
+              contract,
+              collection,
+              user,
+              tokenType,
+              chainId,
+            });
+          }
+          if (event.name == 'TransferSingle') {
+            await this.handleERC1155TransferSingle({
+              event,
+              contractAddress,
+              log,
+              contract,
+              collection,
+              user,
+              tokenType,
+              chainId,
+            });
+          }
+          if (event.name == 'TransferBatch') {
+            await this.handleERC1155TransferBatch({
+              event,
+              contractAddress,
+              log,
+              contract,
+              collection,
+              user,
+              tokenType,
+              chainId,
+            });
+          }
+        }
       }
-      if (event.name == 'TransferSingle') {
-        await this.handleERC1155TransferSingle({
-          event,
-          contractAddress,
-          log,
-          contract,
-          collection,
-          user,
-          tokenType,
-          chainId,
-        });
-      }
-      if (event.name == 'TransferBatch') {
-        await this.handleERC1155TransferBatch({
-          event,
-          contractAddress,
-          log,
-          contract,
-          collection,
-          user,
-          tokenType,
-          chainId,
-        });
-      }
+
       await this.prisma.importedContracts.update({
         where: { contractAddress_chainId: {
           contractAddress, chainId
           }
         },
         data: {
-          lastIndexedBlock: log.blockNumber,
+          lastIndexedBlock: latestBlock,
         }
       })
+
+      const currentBlock = await this.provider.getBlockNumber();
+      if (latestBlock != currentBlock) {
+        queryStartBlock = latestBlock + 1;
+        latestBlock = currentBlock;
+      } else {
+        latestBlockIndexed = true;
+
+        await this.prisma.importedContracts.update({
+          where: { contractAddress_chainId: {
+            contractAddress, chainId
+            }
+          },
+          data: {
+            isImportFinish: true,
+          }
+        })
+      }
     }
+
 
     return { collection }
   }
@@ -387,20 +420,6 @@ export class ImportCollectionService {
     if (uri.startsWith('ipfs://')) {
       const res = await axios.get(
         `${process.env.IPFS_GATEWAY}/${uri.replace('ipfs://', '')}`,
-        {
-          headers: {
-            Accept: 'application/json',
-            'Accept-Encoding': 'identity',
-          },
-          timeout
-        },
-      );
-      return this.parseJson(res.data);
-    }
-    if (uri.includes('ipfs')) {
-      const metadataUri = nusaIpfsGateway(uri);
-      const res = await axios.get(
-        metadataUri,
         {
           headers: {
             Accept: 'application/json',
@@ -773,7 +792,11 @@ export class ImportCollectionService {
       name = item.name;
       metadataUri = item.metadata;
       description = item.description;
-      attributes = item.attributes.map(x => ({ trait_type: x.trait_type, value: x.value }));
+      attributes = item.attributes.map(x => ({
+        trait_type: x.trait_type,
+        opensea_display_type: x.opensea_display_type,
+        value: x.value
+      }));
     }
     let itemData: Prisma.ItemCreateInput = {
       chainId,
@@ -812,11 +835,12 @@ export class ImportCollectionService {
       };
     }
     if (this.validateMetadataAttributes(attributes)) {
+      const parsedAttributes = this.parseAttributes(attributes);
       itemData = {
         ...itemData,
         attributes: {
           createMany: {
-            data: attributes.map((x) => ({ ...x, value: String(x.value) })),
+            data: parsedAttributes,
           },
         },
       };
@@ -850,6 +874,21 @@ export class ImportCollectionService {
     return isValid;
   }
 
+  parseAttributes(attributes: any[]) {
+    return attributes.map((x) => {
+      let nusa_attribute_type: AttributeType = AttributeType.PROPERTIES;
+      if (x.display_type && (x.display_type as string).includes('number')) {
+        nusa_attribute_type = AttributeType.STATS;
+      }
+      return {
+        ...x,
+        value: String(x.value),
+        opensea_display_type: x.display_type || null,
+        nusa_attribute_type
+      };
+    })
+  }
+
   async extractMetadata(
     contract: ethers.Contract,
     collection: Collection,
@@ -864,13 +903,14 @@ export class ImportCollectionService {
     try {
       if (tokenType == TokenType.ERC721) {
         metadataUri = await contract.tokenURI(tokenId);
+        Logger.log({ metadataUri });
+        metadataUri = normalizeIpfsUri(metadataUri);
       }
       if (tokenType == TokenType.ERC1155) {
         metadataUri = await contract.uri(tokenId);
+        metadataUri = normalizeIpfsUri(metadataUri);
       }
-      const metadata = await this.getMetadata(
-        normalizeIpfsUri(metadataUri)
-      );
+      const metadata = await this.getMetadata(metadataUri);
       Logger.log({ metadata });
       name = metadata.name;
       image = metadata.image;
@@ -915,5 +955,29 @@ export class ImportCollectionService {
       message: 'success',
       slug,
     };
+  }
+
+  getBlockRangeChunks({
+    startBlock,
+    endBlock,
+    chunkSize
+  }: {
+    startBlock: number,
+    endBlock: number,
+    chunkSize: number
+  }) {
+    const blockArray = [];
+    for (let i = startBlock; i <= endBlock; i++) {
+      blockArray.push(i);
+    }
+    const blockChunks = _.chunk(blockArray, chunkSize);
+    // make array of object fromBlock and toBlock value
+    const blockRanges = blockChunks.map((arr) => {
+      const toBlock = arr.slice(-1)[0];
+      const fromBlock = arr.slice(0, 1)[0];
+      return { fromBlock, toBlock };
+    });
+
+    return blockRanges;
   }
 }

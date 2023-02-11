@@ -12,6 +12,7 @@ import {
   UploadedFiles,
   Request,
   Headers,
+  Delete,
 } from '@nestjs/common';
 import { diskStorage } from 'multer';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -272,6 +273,16 @@ export class CollectionController {
   @Get('import-queue/status/:jobId')
   getImportQueueStatus(@Param('jobId') jobId: number) {
     return this.collectionService.getJobStatus(jobId);
+  }
+
+  @Get('import-queue/delete/:jobId')
+  deleteImportQueueJob(@Param('jobId') jobId: number) {
+    return this.collectionService.deleteImportJob(jobId);
+  }
+
+  @Delete('imported-collection/:collectionId')
+  deleteImportedCollection(@Param('collectionId') collectionId: number) {
+    return this.collectionService.deleteImportedCollection(collectionId);
   }
 }
 

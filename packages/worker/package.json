@@ -30,6 +30,7 @@
     "bull": "^4.10.3",
     "dotenv": "^16.0.3",
     "ethers": "^5.7.1",
+    "lodash": "^4.17.21",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
     "rxjs": "^7.2.0"

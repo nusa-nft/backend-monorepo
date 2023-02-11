@@ -1114,4 +1114,26 @@ export class CollectionService {
     const job = await this.importCollectionQueue.getJob(jobId);
     return job;
   }
+
+  async deleteImportJob(jobId: number) {
+    const job = await this.importCollectionQueue.getJob(jobId);
+    await job.moveToFailed({ message: 'Deliberately stopped' }, true);
+    // await job.releaseLock();
+    await job.remove();
+    return job;
+  }
+
+  async deleteImportedCollection(collectionId: number) {
+    await this.prisma.importedContracts.delete({ where: { id: collectionId }});
+    
+    const itemsByCollection = await this.prisma.item.findMany({ where: { collection_id: collectionId }});
+    await this.prisma.itemViews.deleteMany({ where: {
+      itemId: {
+        in: itemsByCollection.map(it => (it.id)),
+      }
+    }});
+    const deleted = await this.prisma.collection.delete({ where: { id: collectionId }});
+
+    return deleted;
+  }
 }

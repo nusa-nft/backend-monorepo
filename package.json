@@ -6,7 +6,7 @@
     "packages/cms/src/plugins/*"
   ],
   "scripts": {
-    "db:migrate": "lerna run db:migrate-dev --scope @nusa-nft/database",
+    "db:migrate-dev": "lerna run db:migrate-dev --scope @nusa-nft/database",
     "db:migrate-reset": "lerna run db:migrate-reset --scope @nusa-nft/database",
     "api:dev": "lerna run start:dev --scope @nusa-nft/rest-api",
     "api:build": "lerna run build --scope @nusa-nft/rest-api",
