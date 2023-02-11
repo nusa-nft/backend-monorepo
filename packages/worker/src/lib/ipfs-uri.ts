@@ -6,7 +6,7 @@ export const nusaIpfsGateway = (uri) => {
 }
 
 export const normalizeIpfsUri = (uri: string) => {
-  if (uri.includes('ipfs')) {
+  if (uri.includes('/ipfs/')) {
     let ipfsPath = uri.split('ipfs')[1];
     console.log({ ipfsPath });
     const ipfsUri = `ipfs:/${ipfsPath}`;
