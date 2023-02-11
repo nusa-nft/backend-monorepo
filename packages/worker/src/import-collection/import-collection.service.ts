@@ -397,20 +397,6 @@ export class ImportCollectionService {
       );
       return this.parseJson(res.data);
     }
-    if (uri.includes('ipfs')) {
-      const metadataUri = nusaIpfsGateway(uri);
-      const res = await axios.get(
-        metadataUri,
-        {
-          headers: {
-            Accept: 'application/json',
-            'Accept-Encoding': 'identity',
-          },
-          timeout
-        },
-      );
-      return this.parseJson(res.data);
-    }
     const res = await axios.get(uri, {
       headers: { Accept: 'application/json', 'Accept-Encoding': 'identity' },
       timeout,
@@ -773,7 +759,11 @@ export class ImportCollectionService {
       name = item.name;
       metadataUri = item.metadata;
       description = item.description;
-      attributes = item.attributes.map(x => ({ trait_type: x.trait_type, value: x.value }));
+      attributes = item.attributes.map(x => ({
+        trait_type: x.trait_type,
+        opensea_display_type: x.opensea_display_type,
+        value: x.value
+      }));
     }
     let itemData: Prisma.ItemCreateInput = {
       chainId,
@@ -864,13 +854,13 @@ export class ImportCollectionService {
     try {
       if (tokenType == TokenType.ERC721) {
         metadataUri = await contract.tokenURI(tokenId);
+        metadataUri = normalizeIpfsUri(metadataUri);
       }
       if (tokenType == TokenType.ERC1155) {
         metadataUri = await contract.uri(tokenId);
+        metadataUri = normalizeIpfsUri(metadataUri);
       }
-      const metadata = await this.getMetadata(
-        normalizeIpfsUri(metadataUri)
-      );
+      const metadata = await this.getMetadata(metadataUri);
       Logger.log({ metadata });
       name = metadata.name;
       image = metadata.image;
