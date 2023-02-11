@@ -392,10 +392,18 @@ model IndexerState {
 }
 
 model Voucher {
-  id      Int     @unique
-  hash    String
-  expTime Int
-  deleted Boolean @default(false)
+  id         Int     @unique @default(autoincrement())
+  tokenId    Int     @default(0)
+  rootHash   String
+  deleted    Boolean @default(false)
+}
+
+model VoucherLeaf {
+  id         Int        @unique @default(autoincrement())
+  hash       String     
+  num        Int        @default(0)
+  tokenId    Int 
+  deleted    Boolean @default(false)
 }
 
 model CuratedCollection {

@@ -19,7 +19,6 @@ export class VoucherController {
   claim(@Body() param: ClaimDTO) {
     return this.voucherService.claim(
       param.voucher,
-      param.tokenId,
       param.toAddress,
       param.signature,
     );
@@ -47,11 +46,7 @@ export class VoucherController {
 
   @Post('create-voucher')
   createVoucher(@Body() param: CreateVoucherDTO) {
-    return this.voucherService.createVoucher(
-      param.tokenId,
-      param.voucher,
-      param.exp,
-    );
+    return this.voucherService.createVoucher(param.voucher);
   }
 
   @Post('register-voucher-queue')
