@@ -12,8 +12,10 @@ import {
   CollectionDto,
   CollectionSortBy,
   ImportDto,
+  RefreshMetadataDto,
   SaleHistoryQueryParams,
   SortBy,
+  SyncOwnershipDto,
   UpdateCollectionDto,
 } from './dto/collection.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1135,5 +1137,13 @@ export class CollectionService {
     const deleted = await this.prisma.collection.delete({ where: { id: collectionId }});
 
     return deleted;
+  }
+
+  async refreshMetadataQueue({}: RefreshMetadataDto) {
+    // TODO:
+  }
+
+  async syncOwnershipQueue({}: SyncOwnershipDto) {
+    // TODO:
   }
 }

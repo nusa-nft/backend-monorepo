@@ -307,3 +307,11 @@ export class ImportDto {
   })
   categoryId: number;
 }
+
+export class RefreshMetadataDto {
+  // TODO:
+}
+
+export class SyncOwnershipDto {
+  // TODO:
+}

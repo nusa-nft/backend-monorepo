@@ -29,11 +29,9 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ItemService } from './item.service';
 import {
   ItemDto,
-  ItemQueryParams,
   SetItemMintedDto,
   PaginationQueryParams,
   LazyMintListingDto,
-  OnSaleQueryParams,
   ActivitiesParams,
   SaleHistoryQueryParams,
 } from './dto/item.dto';
@@ -92,25 +90,6 @@ export class ItemController {
   }
 
   @ApiBearerAuth('jwt')
-  @Get('on-sale')
-  getOnsaleListings(
-    @Headers() headers: any,
-    @Query() onSaleQueryParams: OnSaleQueryParams,
-  ) {
-    const authorization = headers.authorization;
-    const token = extractJwt(authorization);
-    return this.itemService.getActiveOnsaleItems(onSaleQueryParams, token);
-  }
-
-  @ApiBearerAuth('jwt')
-  @Get(':id')
-  getItem(@Param('id') id: number, @Headers() headers: any) {
-    const authorization = headers.authorization;
-    const token = extractJwt(authorization);
-    return this.itemService.getItem(+id, token);
-  }
-
-  @ApiBearerAuth('jwt')
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   deleteItem(@Param('id') id: number, @Request() req: any) {
@@ -125,40 +104,6 @@ export class ItemController {
     @Body() { tokenId }: SetItemMintedDto,
   ) {
     return this.itemService.setMinted(+itemId, tokenId);
-  }
-
-  @ApiBearerAuth('jwt')
-  @UseGuards(JwtAuthGuard)
-  @Get('favorited/:userId')
-  getFavorite(
-    @Query() pagination: PaginationQueryParams,
-    @Param('userId') userId: number,
-  ) {
-    return this.itemService.getFavorite(+userId, pagination);
-  }
-
-  @Get('created/:userId')
-  getCreatedByUser(
-    @Query() pagination: PaginationQueryParams,
-    @Param('userId') userId: number,
-  ) {
-    return this.itemService.getCreatedByUser(+userId, pagination);
-  }
-
-  @Get('owned/:userId')
-  getOwnedByUser(
-    @Query() pagination: PaginationQueryParams,
-    @Param('userId') userId: number,
-  ) {
-    return this.itemService.getOwnedByUser(+userId, pagination);
-  }
-
-  @ApiBearerAuth('jwt')
-  @Get()
-  getItems(@Query() filter: ItemQueryParams, @Headers() headers: any) {
-    const authorization = headers.authorization;
-    const token = extractJwt(authorization);
-    return this.itemService.getItems(filter, token);
   }
 
   @Get('filter-data/:collectionId')
