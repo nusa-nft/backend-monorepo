@@ -420,6 +420,7 @@ model ImportedContracts {
   deployedAtBlock Int
   lastIndexedBlock Int @default(0)
   createdAt       DateTime
+  isImportFinish  Boolean @default(false)
 
   @@unique([contractAddress, chainId])
 }
