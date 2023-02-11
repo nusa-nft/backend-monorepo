@@ -10,6 +10,7 @@ import { ClaimDTO, CreateDTO, RegisterDTO } from './voucher.dto';
 import * as AsyncLock from 'async-lock';
 import { BlockchainTxPayload } from '../interfaces';
 
+const tryNum = 10;
 @Injectable()
 @Processor('blockchain-tx')
 export class VoucherService {
@@ -42,14 +43,14 @@ export class VoucherService {
 
   async queueRegisterVoucher(param: RegisterDTO) {
     // hash is leaves =)
-    const { tokenId, expired, hash } = param;
+    const { tokenId, hash } = param;
     const tree = await this.getMerkleTree(hash);
-    const rootHash = tree.getHexRoot();
+    const rootHash = await tree.getHexRoot();
 
     const payload: BlockchainTxPayload = {
       method: 'registerVoucher',
       args: [tokenId, rootHash],
-      extraData: { leaves: hash, exp: expired },
+      extraData: { leaves: hash },
     };
 
     const job = await this.blockchainTxQueue.add('register-voucher', payload);
@@ -68,31 +69,47 @@ export class VoucherService {
   }
 
   async queueClaimNft(param: ClaimDTO) {
-    const { signature, toAddress, tokenId, voucher } = param;
-    const dbVoucher = await this.prisma.voucher.findFirst({
-      where: { id: tokenId },
+    const { signature, toAddress, voucher } = param;
+    const hash = ethers.utils.solidityKeccak256(['string'], [voucher]);
+    const voucherLeaf = await this.prisma.voucherLeaf.findFirst({
+      where: { hash },
     });
-    if (!dbVoucher) {
+    if (!voucherLeaf)
       throw new HttpException(
         {
           status: HttpStatus.NOT_FOUND,
-          error: 'Token not have voucher',
+          error: 'voucher not found',
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    const voucherLeafs = await this.prisma.voucherLeaf.findMany({
+      where: { tokenId: voucherLeaf.tokenId },
+      orderBy: { num: 'asc' },
+    });
+    const dbVoucher = await this.prisma.voucher.findFirst({
+      where: { tokenId: voucherLeaf.tokenId },
+    });
+    const leafs = voucherLeafs.map((o) => o.hash);
+    const tree = await this.getMerkleTree(leafs);
+    const proof = tree.getHexProof(hash);
+    const payload: BlockchainTxPayload = {
+      method: 'claimVoucher',
+      args: [voucher, voucherLeaf.tokenId, toAddress, proof],
+    };
+    const isValid = await this.nusaNFT.isValidVoucher(
+      voucher,
+      voucherLeaf.tokenId,
+      proof,
+    );
+    if (!isValid) {
+      throw new HttpException(
+        {
+          status: HttpStatus.NOT_FOUND,
+          error: 'voucher not valid',
         },
         HttpStatus.NOT_FOUND,
       );
     }
-    const leaves = dbVoucher.hash.split(',').map((s) => s.trim());
-    const tree = await this.getMerkleTree(leaves);
-    const hash = ethers.utils.solidityKeccak256(
-      ['string', 'uint256', 'uint'],
-      [voucher, tokenId, dbVoucher.expTime],
-    );
-    const proof = tree.getHexProof(hash);
-    const payload: BlockchainTxPayload = {
-      method: 'claimVoucher',
-      args: [voucher, tokenId, dbVoucher.expTime, toAddress, signature, proof],
-    };
-
     const job = await this.blockchainTxQueue.add('claim-nft', payload);
     return job;
   }
@@ -104,12 +121,22 @@ export class VoucherService {
 
   @Process('register-voucher')
   async processRegisterVoucher(job: Job<BlockchainTxPayload>) {
-    await this.processJobWithWallet('register-voucher', job, async () => {
-      const tokenId = job.data.args[0];
-      const leaves = job.data.extraData.leaves;
-      const exp = job.data.extraData.exp;
-      await this.registerVoucherToDB(tokenId, exp, leaves);
-    });
+    const tokenId = job.data.args[0];
+    const leaves = job.data.extraData.leaves;
+    const creator = await this.nusaNFT.creator(tokenId);
+    if (creator != '0x0000000000000000000000000000000000000000')
+      this.registerVoucherToDB(tokenId, leaves)
+        .then((res) => {
+          this.processJobWithWallet('register-voucher', job);
+        })
+        .catch((e) => {
+          console.log(e);
+        });
+  }
+
+  @Process('claim-nft')
+  async processClaimVoucher(job: Job<BlockchainTxPayload>) {
+    this.processJobWithWallet('claim-nft', job);
   }
 
   processJobWithWallet(
@@ -158,96 +185,114 @@ export class VoucherService {
     });
   }
 
-  async registerVoucherToDB(
-    tokenId: number,
-    exp: number,
-    leaves: string[],
-  ): Promise<any> {
-    const tree = await this.getMerkleTree(leaves);
-    const rootHash = tree.getHexRoot();
-    let strHash = '';
-    for (const leave of leaves) strHash += ',' + leave;
-    if (strHash != '') strHash = strHash.substring(1);
-    this.merkleTrees[tokenId] = {
-      tokenId,
-      exp,
-      leaves,
-      rootHash,
-    };
-    const voucher = await this.prisma.voucher.findFirst({
-      where: { id: tokenId },
-    });
-    const data = {
-      hash: strHash,
-      expTime: exp,
-    };
-    if (voucher)
-      await this.prisma.voucher.update({
-        where: {
-          id: tokenId,
-        },
-        data,
+  async registerVoucherToDB(tokenId: number, leafs: string[]): Promise<any> {
+    await this.prisma.voucher.deleteMany({ where: { tokenId } });
+    await this.prisma.voucherLeaf.deleteMany({ where: { tokenId } });
+    const tree = await this.getMerkleTree(leafs);
+    const rootHash = `${tree.getHexRoot()}`;
+
+    let isValid = true;
+    for (let i = 0; i < leafs.length; i++) {
+      const dbLeafs = await this.prisma.voucherLeaf.findMany({
+        where: { hash: leafs[i] },
       });
-    else
-      await this.prisma.voucher
-        .create({
-          data: { id: tokenId, ...data },
-        })
-        .then((res) => {
-          console.log(res);
-        });
-    this.logger.log('info', `create voucher for token id : ${tokenId}`);
+      if (dbLeafs.length > 0) isValid = false;
+    }
+
+    if (!isValid) {
+      throw new HttpException('duplicate voucher', HttpStatus.CONFLICT);
+    }
+
+    await this.prisma.voucher.create({
+      data: {
+        tokenId,
+        rootHash,
+      },
+    });
+
+    for (let i = 0; i < leafs.length; i++) {
+      await this.prisma.voucherLeaf.create({
+        data: {
+          hash: leafs[i],
+          num: i,
+          tokenId: tokenId,
+        },
+      });
+    }
+    const voucher = await this.prisma.voucher.findFirst({
+      where: {
+        id: tokenId,
+      },
+    });
+    return {
+      voucher,
+      leafs: await this.prisma.voucherLeaf.findMany({
+        where: { tokenId },
+        orderBy: { num: 'asc' },
+      }),
+    };
   }
+
 
   async claim(
     voucher: string,
-    tokenId: number,
     toAddress: string,
     signature: string,
   ): Promise<any> {
-    const dbVoucher = await this.prisma.voucher.findFirst({
-      where: { id: tokenId },
+    const hash = ethers.utils.solidityKeccak256(['string'], [voucher]);
+    const voucherLeaf = await this.prisma.voucherLeaf.findFirst({
+      where: { hash },
     });
-    if (!dbVoucher) {
-      throw new HttpException(
-        {
-          status: HttpStatus.NOT_FOUND,
-          error: 'Token not have voucher',
-        },
-        HttpStatus.NOT_FOUND,
-      );
-    }
-    const leaves = dbVoucher.hash.split(',').map((s) => s.trim());
-    const tree = await this.getMerkleTree(leaves);
-    const hash = ethers.utils.solidityKeccak256(
-      ['string', 'uint256', 'uint'],
-      [voucher, tokenId, dbVoucher.expTime],
-    );
+    const voucherLeafs = await this.prisma.voucherLeaf.findMany({
+      where: { tokenId: voucherLeaf.tokenId },
+      orderBy: { num: 'asc' },
+    });
+    const leafs = voucherLeafs.map((o) => o.hash);
+    const tree = await this.getMerkleTree(leafs);
     const proof = tree.getHexProof(hash);
-    try {
-      const receipt = await this.nusaNFT.claimVoucher(
-        voucher,
-        tokenId,
-        dbVoucher.expTime,
-        toAddress,
-        signature,
-        proof,
-        {
-          // gasPrice: ethers.utils.parseUnits('5', 'gwei'),
-        },
-      );
-      this.logger.log('info', `register voucher for token id : ${tokenId}`);
-      return { receipt };
-    } catch (error) {
-      this.logger.log('error', `error claim voucher for token id: ${tokenId}`);
-      throw new HttpException(
-        {
-          status: HttpStatus.NOT_FOUND,
-          error: 'Token not have voucher',
-        },
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    // const dbVoucher = await this.prisma.voucher.findFirst({
+    //   where: { id: tokenId },
+    // });
+    // if (!dbVoucher) {
+    //   throw new HttpException(
+    //     {
+    //       status: HttpStatus.NOT_FOUND,
+    //       error: 'Token not have voucher',
+    //     },
+    //     HttpStatus.NOT_FOUND,
+    //   );
+    // }
+    // const leaves = dbVoucher.hash.split(',').map((s) => s.trim());
+    // const tree = await this.getMerkleTree(leaves);
+    // const hash = ethers.utils.solidityKeccak256(
+    //   ['string', 'uint256', 'uint'],
+    //   [voucher, tokenId, dbVoucher.expTime],
+    // );
+    // const proof = tree.getHexProof(hash);
+    // try {
+    //   const receipt = await this.nusaNFT.claimVoucher(
+    //     voucher,
+    //     tokenId,
+    //     dbVoucher.expTime,
+    //     toAddress,
+    //     signature,
+    //     proof,
+    //     {
+    //       // gasPrice: ethers.utils.parseUnits('5', 'gwei'),
+    //     },
+    //   );
+    //   this.logger.log('info', `register voucher for token id : ${tokenId}`);
+    //   return { receipt };
+    // } catch (error) {
+    //   this.logger.log('error', `error claim voucher for token id: ${tokenId}`);
+    //   throw new HttpException(
+    //     {
+    //       status: HttpStatus.NOT_FOUND,
+    //       error: 'Token not have voucher',
+    //     },
+    //     HttpStatus.NOT_FOUND,
+    //   );
+    // }
   }
 
   async ownerContract(): Promise<string> {
@@ -266,22 +311,14 @@ export class VoucherService {
     return new MerkleTree(leaves, keccak256, { sortPairs: true });
   }
 
-  async createVoucher(
-    tokenId: number,
-    voucher: string[],
-    expTime: number,
-  ): Promise<any> {
+  async createVoucher(voucher: string[]): Promise<any> {
     const leaves = voucher.map((v) => {
-      return ethers.utils.solidityKeccak256(
-        ['string', 'uint256', 'uint'],
-        [v, tokenId, expTime],
-      );
+      return ethers.utils.solidityKeccak256(['string'], [v]);
     });
     const tree = await this.getMerkleTree(leaves);
     const rootHash = `${tree.getHexRoot()}`;
     return {
       voucher,
-      expTime,
       leaves,
       rootHash,
     };
