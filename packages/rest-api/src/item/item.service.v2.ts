@@ -570,15 +570,31 @@ export class ItemServiceV2 {
     owner: string,
     filter: Prisma.ItemFindManyArgs,
   ): Promise<Prisma.ItemFindManyArgs> {
-    const tokens: { tokenId: number; tokenOwner: string }[] =
-      await this.getTokensByOwner(owner);
+
+    const tokenOwnerships = await this.prisma.tokenOwnerships.findMany({
+      where: {
+        ownerAddress: owner,
+      }
+    })
 
     const itemsOwnedOnChain = await this.prisma.item.findMany({
       where: {
-        tokenId: { in: tokens.map((t) => t.tokenId) },
-        quantity_minted: { gt: 0 },
-      },
-    });
+        OR: tokenOwnerships.map(to => ({
+          contract_address: to.contractAddress,
+          chainId: to.chainId,
+          tokenId: to.tokenId
+        }))
+      }
+    })
+
+    // const tokens: { tokenId: number; tokenOwner: string }[] =
+    //   await this.getTokensByOwner(owner);
+    // const itemsOwnedOnChain = await this.prisma.item.findMany({
+    //   where: {
+    //     tokenId: { in: tokens.map((t) => t.tokenId) },
+    //     quantity_minted: { gt: 0 },
+    //   },
+    // });
     const itemIdsOwnedOnChain = itemsOwnedOnChain
       .map((item) => item.id)
       .sort((a: number, b: number) => a - b);
@@ -881,8 +897,33 @@ export class ItemServiceV2 {
   async getItemOwners(item: Item & any): Promise<ItemOwner[]> {
     let owners: ItemOwner[] = [];
     if (item.quantity_minted > 0) {
-      const _owners = await this.getTokenOwners(item.tokenId);
-      owners = [..._owners];
+      const ownerships = await this.prisma.tokenOwnerships.findMany({
+        where: {
+          contractAddress: item.contract_address,
+          chainId: item.chainId,
+          tokenId: item.tokenId
+        }
+      })
+      for (let own of ownerships) {
+        const user = await this.prisma.user.findFirst({
+          where: {
+            wallet_address: own.ownerAddress
+          }
+        })
+        if (user) {
+          owners.push({
+            wallet_address: own.ownerAddress,
+            username: user.username,
+            profile_picture: user.profile_picture,
+            quantity: own.quantity,
+          })
+        } else {
+          owners.push({
+            wallet_address: own.ownerAddress,
+            quantity: own.quantity,
+          });
+        }
+      }
     }
     const quantityNotMinted = item.supply - item.quantity_minted;
     if (quantityNotMinted > 0) {
