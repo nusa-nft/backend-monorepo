@@ -921,7 +921,7 @@ export class ImportCollectionService {
       attributes = metadata.attributes;
       description = metadata.description;
     } catch (err) {
-      Logger.error(`error fetching metadata`, err)
+      Logger.error(`error fetching metadata`, err);
       name = `${collection.name}-${tokenId}`;
     }
     return { name, description, image, metadataUri, attributes };

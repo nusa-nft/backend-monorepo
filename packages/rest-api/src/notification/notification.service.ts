@@ -170,12 +170,15 @@ export class NotificationService {
 
         let transferHistory;
 
+        const contractAddress = process.env.NFT_CONTRACT_ADDRESS;
+
         await retry(
           async () => {
             transferHistory =
-              await this.prisma.erc1155TransferHistory.findFirst({
+              await this.prisma.tokenTransferHistory.findFirstOrThrow({
                 where: {
                   tokenId,
+                  contractAddress,
                 },
               });
             return transferHistory;

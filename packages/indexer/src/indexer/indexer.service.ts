@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, ethers, logger } from 'ethers';
 import { PrismaService } from 'src/prisma/prisma.service';
 import * as NusaNFT from '../contract/NusaNFT.json';
 import MarketplaceAbi from '../contract/Marketplace.json';
@@ -13,6 +13,7 @@ import { WsProvider } from './ws-provider';
 import { Collection, Prisma, User } from '@nusa-nft/database';
 import { normalizeIpfsUri, nusaIpfsGateway } from 'src/lib/ipfs-uri';
 import axios from 'axios';
+import retry from 'async-retry';
 
 const parseListingType = (listingTypeNumber: number) => {
   if (listingTypeNumber == 0) {
@@ -138,7 +139,13 @@ export class IndexerService implements OnModuleInit {
 
     for (const range of blockRange) {
       const { fromBlock, toBlock } = range;
-      await this.queryFilterErc1155(Number(fromBlock), Number(toBlock));
+      const hexFromBlock = ethers.BigNumber.from(
+        fromBlock.toString(),
+      ).toHexString();
+      const hexToBlock = ethers.BigNumber.from(
+        toBlock.toString(),
+      ).toHexString();
+      await this.handleIndexing(hexFromBlock, hexToBlock);
       await this.queryFilterMarketplace(Number(fromBlock), Number(toBlock));
       await this.queryFilterRoyaltyDistributor(
         Number(fromBlock),
@@ -152,60 +159,63 @@ export class IndexerService implements OnModuleInit {
   }
 
   async indexOldImportedBlocks() {
-    if ((this.INDEX_OLD_BLOCKS_FINISHED = true)) {
-      const blockNumbers = [];
-      let fromBlock;
-      let blockRange = [];
+    const blockNumbers = [];
+    let fromBlock;
+    let blockRange = [];
 
-      const indexerState = await this.prisma.importedContracts.findFirst({
-        where: {
-          isImportFinish: true,
-        }
-        orderBy: {
-          lastIndexedBlock: 'desc',
+    const indexerState = await this.prisma.importedContracts.findFirst({
+      where: {
+        isImportFinish: true,
+      },
+      orderBy: {
+        lastIndexedBlock: 'desc',
+      },
+    });
+
+    if (indexerState) {
+      fromBlock = indexerState.lastIndexedBlock;
+    } else {
+      fromBlock = Number(this.configService.get<string>('FROM_BLOCK'));
+    }
+    // ethers get latest block
+    const latestBlockNumber = await this.provider.getBlockNumber();
+    for (let i = fromBlock; i <= latestBlockNumber; i++) {
+      blockNumbers.push(i);
+    }
+    // make chunk of per 3500 block range from previously determined block
+    const chunk = _.chunk(blockNumbers, 1000);
+    // make array of object fromBlock and toBlock value
+    blockRange = chunk.map((arr) => {
+      const toBlock = arr.slice(-1);
+      const fromBlock = arr.slice(0, 1);
+      return { fromBlock, toBlock };
+    });
+
+    for (const range of blockRange) {
+      const { fromBlock, toBlock } = range;
+      const hexFromBlock = ethers.BigNumber.from(
+        fromBlock.toString(),
+      ).toHexString();
+      const hexToBlock = ethers.BigNumber.from(
+        toBlock.toString(),
+      ).toHexString();
+      await this.handleIndexing(hexFromBlock, hexToBlock);
+      await this.prisma.importedContracts.updateMany({
+        data: {
+          lastIndexedBlock: +toBlock,
         },
       });
-
-      if (indexerState) {
-        fromBlock = indexerState.lastIndexedBlock;
-      } else {
-        fromBlock = Number(this.configService.get<string>('FROM_BLOCK'));
-      }
-      // ethers get latest block
-      const latestBlockNumber = await this.provider.getBlockNumber();
-      for (let i = fromBlock; i <= latestBlockNumber; i++) {
-        blockNumbers.push(i);
-      }
-      console.log({ latestBlockNumber });
-      // make chunk of per 3500 block range from previously determined block
-      const chunk = _.chunk(blockNumbers, 1000);
-      // make array of object fromBlock and toBlock value
-      blockRange = chunk.map((arr) => {
-        const toBlock = arr.slice(-1);
-        const fromBlock = arr.slice(0, 1);
-        return { fromBlock, toBlock };
-      });
-
-      for (const range of blockRange) {
-        const { fromBlock, toBlock } = range;
-        await this.queryFilterErc1155(Number(fromBlock), Number(toBlock));
-        await this.queryFilterMarketplace(Number(fromBlock), Number(toBlock));
-        await this.queryFilterRoyaltyDistributor(
-          Number(fromBlock),
-          Number(toBlock),
-        );
-        await this.updateLatestBlock(Number(toBlock));
-      }
-      this.INDEX_OLD_IMPORTED_CONTRACTS_BLOCK = true;
-      Logger.log('INDEX OLD IMPORTED CONTRACTS BLOCK DONE');
-      return;
+      console.log('imported contract block updated');
     }
+    this.INDEX_OLD_IMPORTED_CONTRACTS_BLOCK = true;
+    Logger.log('INDEX OLD IMPORTED CONTRACTS BLOCK DONE');
+    return;
   }
 
   async onModuleInit() {
     this.indexOldBlocks();
-
-    this.handleErc1155TransferSingle();
+    this.indexOldImportedBlocks();
+    // this.handleErc1155TransferSingle();
 
     this.handleMarketplaceListingAdded();
     this.handleMarketplaceListingRemoved();
@@ -222,38 +232,38 @@ export class IndexerService implements OnModuleInit {
     process.exit(1);
   }
 
-  async handleErc1155TransferSingle() {
-    // listen to new transfer transaction
-    this.erc1155.on(
-      'TransferSingle',
-      async (operator, from, to, tokenId, value, log) => {
-        const { blockNumber, transactionHash } = log;
-        const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-        await this.prisma.erc1155TransferHistory.create({
-          data: {
-            operator,
-            from,
-            to,
-            tokenId: parseInt(tokenId),
-            block: blockNumber,
-            value: parseInt(value),
-            createdAt: timestamp,
-            transactionHash,
-          },
-        });
-        await this.createUpdateTokenOwnership({
-          from: log.args.from,
-          to: log.args.to,
-          tokenId: parseInt(tokenId),
-          quantity: parseInt(value),
-          timestamp,
-          transactionHash,
-        });
-        if (this.INDEX_OLD_BLOCKS_FINISHED)
-          await this.updateLatestBlock(blockNumber);
-      },
-    );
-  }
+  // async handleErc1155TransferSingle() {
+  //   // listen to new transfer transaction
+  //   this.erc1155.on(
+  //     'TransferSingle',
+  //     async (operator, from, to, tokenId, value, log) => {
+  //       const { blockNumber, transactionHash } = log;
+  //       const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
+  //       await this.prisma.erc1155TransferHistory.create({
+  //         data: {
+  //           operator,
+  //           from,
+  //           to,
+  //           tokenId: parseInt(tokenId),
+  //           block: blockNumber,
+  //           value: parseInt(value),
+  //           createdAt: timestamp,
+  //           transactionHash,
+  //         },
+  //       });
+  //       await this.createUpdateTokenOwnership({
+  //         from: log.args.from,
+  //         to: log.args.to,
+  //         tokenId: parseInt(tokenId),
+  //         quantity: parseInt(value),
+  //         timestamp,
+  //         transactionHash,
+  //       });
+  //       if (this.INDEX_OLD_BLOCKS_FINISHED)
+  //         await this.updateLatestBlock(blockNumber);
+  //     },
+  //   );
+  // }
 
   async handleMarketplaceListingAdded() {
     this.marketplace.on(
@@ -536,6 +546,7 @@ export class IndexerService implements OnModuleInit {
   }
 
   async updateLatestBlock(blockNumber: number) {
+    console.log('contract block updated');
     const indexerState = await this.prisma.indexerState.findFirst();
     if (!indexerState) {
       await this.prisma.indexerState.create({
@@ -569,48 +580,48 @@ export class IndexerService implements OnModuleInit {
     }
   }
 
-  async queryFilterErc1155(fromBlock: number, toBlock: number) {
-    Logger.log(`queryFilterErc1155(${fromBlock}, ${toBlock})`);
-    const logs = await this.erc1155.queryFilter(
-      this.filterTransferSingle,
-      Number(fromBlock),
-      Number(toBlock),
-    );
-    for (const log of logs) {
-      Logger.log('ERC1155#TransferSingle');
-      const entry = await this.prisma.erc1155TransferHistory.findFirst({
-        where: {
-          transactionHash: log.transactionHash,
-        },
-      });
-      if (!entry) {
-        const tokenId = parseInt(log.args.id);
-        const value = parseInt(log.args.value);
-        const timestamp = (await this.provider.getBlock(log.blockNumber))
-          .timestamp;
-        await this.prisma.erc1155TransferHistory.create({
-          data: {
-            operator: log.args.operator,
-            from: log.args.from,
-            to: log.args.to,
-            tokenId: tokenId,
-            block: log.blockNumber,
-            value: value,
-            createdAt: timestamp,
-            transactionHash: log.transactionHash,
-          },
-        });
-        await this.createUpdateTokenOwnership({
-          from: log.args.from,
-          to: log.args.to,
-          tokenId,
-          quantity: value,
-          timestamp,
-          transactionHash: log.transactionHash,
-        });
-      }
-    }
-  }
+  // async queryFilterErc1155(fromBlock: number, toBlock: number) {
+  //   Logger.log(`queryFilterErc1155(${fromBlock}, ${toBlock})`);
+  //   const logs = await this.erc1155.queryFilter(
+  //     this.filterTransferSingle,
+  //     Number(fromBlock),
+  //     Number(toBlock),
+  //   );
+  //   for (const log of logs) {
+  //     Logger.log('ERC1155#TransferSingle');
+  //     const entry = await this.prisma.erc1155TransferHistory.findFirst({
+  //       where: {
+  //         transactionHash: log.transactionHash,
+  //       },
+  //     });
+  //     if (!entry) {
+  //       const tokenId = parseInt(log.args.id);
+  //       const value = parseInt(log.args.value);
+  //       const timestamp = (await this.provider.getBlock(log.blockNumber))
+  //         .timestamp;
+  //       await this.prisma.erc1155TransferHistory.create({
+  //         data: {
+  //           operator: log.args.operator,
+  //           from: log.args.from,
+  //           to: log.args.to,
+  //           tokenId: tokenId,
+  //           block: log.blockNumber,
+  //           value: value,
+  //           createdAt: timestamp,
+  //           transactionHash: log.transactionHash,
+  //         },
+  //       });
+  //       await this.createUpdateTokenOwnership({
+  //         from: log.args.from,
+  //         to: log.args.to,
+  //         tokenId,
+  //         quantity: value,
+  //         timestamp,
+  //         transactionHash: log.transactionHash,
+  //       });
+  //     }
+  //   }
+  // }
 
   async queryFilterMarketplace(fromBlock: number, toBlock: number) {
     Logger.log(`queryFilterMarketplace(${fromBlock}, ${toBlock})`);
@@ -1151,119 +1162,38 @@ export class IndexerService implements OnModuleInit {
     });
   }
 
-  async createUpdateTokenOwnership({
-    from,
-    to,
-    tokenId,
-    quantity,
-    timestamp,
-    transactionHash,
-  }: {
-    from: string;
-    to: string;
-    tokenId: number;
-    quantity: number;
-    timestamp: number;
-    transactionHash: string;
-  }) {
-    const _from = await this.prisma.tokenOwnerships.findFirst({
-      where: {
-        contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-        tokenId,
-        ownerAddress: from,
-      },
-    });
-
-    const _to = await this.prisma.tokenOwnerships.findFirst({
-      where: {
-        contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-        tokenId,
-        ownerAddress: to,
-      },
-    });
-
-    // Upsert From
-    if (_from && _from.ownerAddress != ethers.constants.AddressZero) {
-      console.log(
-        this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-        tokenId,
-        from,
-      );
-      await this.prisma.tokenOwnerships.upsert({
-        where: {
-          contractAddress_chainId_tokenId_ownerAddress: {
-            contractAddress: this.configService.get<string>(
-              'NFT_CONTRACT_ADDRESS',
-            ),
-            tokenId,
-            ownerAddress: from,
-            chainId: +this.configService.get<number>('CHAIN_ID'),
-          },
-        },
-        create: {
-          contractAddress: this.configService.get<string>(
-            'NFT_CONTRACT_ADDRESS',
-          ),
-          tokenId,
-          ownerAddress: from,
-          quantity: _from ? _from.quantity - quantity : 0,
-          timestamp,
-          transactionHash,
-          chainId: +this.configService.get<number>('CHAIN_ID'),
-        },
-        update: {
-          quantity: _from ? _from?.quantity - quantity : 0,
-        },
-      });
-    }
-
-    // Upsert To
-    await this.prisma.tokenOwnerships.upsert({
-      where: {
-        contractAddress_chainId_tokenId_ownerAddress: {
-          contractAddress: this.configService.get<string>(
-            'NFT_CONTRACT_ADDRESS',
-          ),
-          tokenId,
-          ownerAddress: to,
-          chainId: +this.configService.get<number>('CHAIN_ID'),
-        },
-      },
-      create: {
-        contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-        tokenId,
-        ownerAddress: to,
-        quantity: _to ? _to.quantity + quantity : quantity,
-        timestamp,
-        transactionHash,
-        chainId: +this.configService.get<number>('CHAIN_ID'),
-      },
-      update: {
-        quantity: _to ? _to?.quantity + quantity : quantity,
-      },
-    });
-  }
-
   async queryFilterNftContracts() {
     // query new blocks
     this.provider.on('block', async (blockNumber: number) => {
-      console.log(blockNumber);
       const blockNumberString =
         ethers.BigNumber.from(blockNumber).toHexString();
       this.handleIndexing(blockNumberString, blockNumberString);
     });
   }
 
-  // async queryFilterNftContractsOldBlocks(fromBlock: string, toBlock: string) {
-  //   if(fromBlock)
-  // }
-
   async handleIndexing(fromBlock: string, toBlock: string) {
-    const addresses = [
-      '0xb766df797cC46cC5538E067a314Ffb8537684785',
-      '0x0C800E1955a9eA2deE3Fb82A3b2515BE99458Fa1',
-      '0x7506D448382085801c4806CFF2eCbE5263E79B13',
-    ];
+    const importedContracts = await this.prisma.importedContracts.findMany({
+      select: {
+        contractAddress: true,
+      },
+      where: {
+        isImportFinish: true,
+      },
+    });
+
+    // to get array of contracts
+    const contractAdresses = importedContracts.map(
+      (contract) => contract.contractAddress,
+    );
+
+    // get nusaConctract and push to contract array
+    const nusaContractAddress = this.configService.get<string>(
+      'NFT_CONTRACT_ADDRESS',
+    );
+
+    contractAdresses.push(nusaContractAddress);
+
+    if (contractAdresses.length < 1) return;
 
     const topics = [
       'TransferSingle(address,address,address,uint256,uint256)',
@@ -1272,7 +1202,14 @@ export class IndexerService implements OnModuleInit {
     ];
 
     const abi = [
+      'function supportsInterface(bytes4 interfaceID) external view returns (bool)',
+      'function name() public view returns (string memory)',
+      'function owner() public view returns (address)',
+      // ERC721
+      'function tokenURI(uint256 tokenId) public view returns (string memory)',
       'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
+      // ERC1155
+      'function uri(uint256 _id) external view returns (string memory)',
       'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
       'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)',
     ];
@@ -1283,40 +1220,61 @@ export class IndexerService implements OnModuleInit {
     }
     const logs = await this.provider.send('eth_getLogs', [
       {
-        address: addresses,
+        address: contractAdresses,
         fromBlock: fromBlock,
         toBlock: toBlock,
         topics: [arrayOfTopics],
       },
     ]);
 
-    console.log('test event data', logs);
     const iface = new ethers.utils.Interface(abi);
     for (const log of logs) {
       const event = iface.parseLog(log);
+      const { blockNumber } = log;
+      const blockNumberParsed = parseInt(blockNumber.toString());
       Logger.log('processing event', JSON.stringify(event));
-
       const contractAddress = log.address;
 
       const contract = new ethers.Contract(contractAddress, abi, this.provider);
 
-      const tokenId = event.args[2].toString();
+      let tokenId;
+      if (event.name == 'Transfer') {
+        tokenId = parseInt(event.args[2]._hex);
+      }
+      if (event.name == 'TransferBatch') {
+        const ids = event.args[3];
+        tokenId = ids[0].toString();
+      }
+      if (event.name == 'TransferSingle') {
+        tokenId = parseInt(event.args[3]._hex);
+      }
 
-      const collection = await this.prisma.collection.findFirst({
-        where: {
-          items: {
-            some: {
-              tokenId,
+      let collection;
+      await retry(
+        async () => {
+          collection = await this.prisma.collection.findFirstOrThrow({
+            where: {
+              items: {
+                some: {
+                  tokenId,
+                },
+              },
             },
-          },
+          });
+          return collection;
         },
-      });
+        {
+          forever: true,
+        },
+      );
+
+      const collectionId = +collection.id;
 
       const user = await this.prisma.user.findFirst({
         where: {
           collections: {
             some: {
-              id: +collection.id,
+              id: collectionId,
             },
           },
         },
@@ -1361,17 +1319,30 @@ export class IndexerService implements OnModuleInit {
         });
       }
 
-      await this.prisma.importedContracts.update({
-        where: {
-          contractAddress_chainId: {
-            contractAddress,
-            chainId: this.chainId,
-          },
-        },
-        data: {
-          lastIndexedBlock: log.blockNumber,
-        },
-      });
+      if (
+        fromBlock == toBlock &&
+        this.INDEX_OLD_IMPORTED_CONTRACTS_BLOCK &&
+        this.INDEX_OLD_BLOCKS_FINISHED
+      ) {
+        if (contractAddress == nusaContractAddress) {
+          await this.updateLatestBlock(blockNumberParsed);
+        } else {
+          console.log(contractAddress, this.chainId)
+          await this.prisma.importedContracts.update({
+            where: {
+              contractAddress_chainId: {
+                contractAddress,
+                chainId: this.chainId,
+              },
+              
+            },
+            data: {
+              lastIndexedBlock: blockNumberParsed,
+            },
+          });
+          console.log('imported contract block updated');
+        }
+      }
     }
   }
 
@@ -1399,7 +1370,9 @@ export class IndexerService implements OnModuleInit {
     const tokenId = event.args[2].toString();
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-    await this.createUpdateMultipleTokenOwnership({
+    const blockNumberHashed = parseInt(blockNumber.toString());
+
+    await this.createUpdateImportedContractTokenOwnership({
       contractAddress,
       from,
       to,
@@ -1408,7 +1381,7 @@ export class IndexerService implements OnModuleInit {
       timestamp,
       chainId,
       transactionHash,
-      blockNumber,
+      blockNumber: blockNumberHashed,
       txIndex: 0,
     });
     if (from == ethers.constants.AddressZero) {
@@ -1446,28 +1419,31 @@ export class IndexerService implements OnModuleInit {
     const operator = event.args[0];
     const from = event.args[1];
     const to = event.args[2];
-    const id = event.args[3].toString();
+    const tokenId = event.args[3].toString();
     const value = event.args[4].toNumber();
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-    const tokenOwnershipWrite = await this.createUpdateMultipleTokenOwnership({
-      contractAddress,
-      from,
-      to,
-      tokenId: id,
-      quantity: value,
-      timestamp: timestamp,
-      chainId,
-      transactionHash,
-      blockNumber,
-      txIndex: 0,
-    });
+    const blockNumberHashed = parseInt(blockNumber.toString());
+
+    const tokenOwnershipWrite =
+      await this.createUpdateImportedContractTokenOwnership({
+        contractAddress,
+        from,
+        to,
+        tokenId,
+        quantity: value,
+        timestamp: timestamp,
+        chainId,
+        transactionHash,
+        blockNumber: blockNumberHashed,
+        txIndex: 0,
+      });
     // If tokenOwnerships has not changed && transfer is not mint return
     if (from == ethers.constants.AddressZero) {
       await this.createItemIfNotExists({
         contract,
         collection,
-        tokenId: id,
+        tokenId,
         chainId,
         tokenType,
         contractAddress,
@@ -1503,24 +1479,28 @@ export class IndexerService implements OnModuleInit {
     const ids = event.args[3];
     const values = event.args[4];
     const { blockNumber, transactionHash } = log;
+    const blockNumberHashed = parseInt(blockNumber.toString());
+
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     for (let i = 0; i < ids.length; i++) {
       console.log({ tokenId: ids[i].toString() });
       console.log({ quantity: values[i].toString() });
-      const tokenOwnershipWrite = await this.createUpdateMultipleTokenOwnership(
-        {
+      const tokenId = ids[i].toString();
+      const quantity = values[i].toNumber();
+
+      const tokenOwnershipWrite =
+        await this.createUpdateImportedContractTokenOwnership({
           contractAddress,
           from,
           to,
-          tokenId: ids[i].toString(),
-          quantity: values[i].toNumber(),
+          tokenId,
+          quantity,
           timestamp: timestamp,
           chainId,
           transactionHash,
-          blockNumber,
+          blockNumber: blockNumberHashed,
           txIndex: i,
-        },
-      );
+        });
       // If tokenOwnerships has not changed && transfer is not mint return
       if (from == ethers.constants.AddressZero) {
         await this.createItemIfNotExists({
@@ -1537,7 +1517,7 @@ export class IndexerService implements OnModuleInit {
     }
   }
 
-  async createUpdateMultipleTokenOwnership({
+  async createUpdateImportedContractTokenOwnership({
     contractAddress,
     from,
     to,
@@ -1802,11 +1782,14 @@ export class IndexerService implements OnModuleInit {
     try {
       if (tokenType == TokenType.ERC721) {
         metadataUri = await contract.tokenURI(tokenId);
+        Logger.log({ metadataUri });
+        metadataUri = normalizeIpfsUri(metadataUri);
       }
       if (tokenType == TokenType.ERC1155) {
         metadataUri = await contract.uri(tokenId);
+        metadataUri = normalizeIpfsUri(metadataUri);
       }
-      const metadata = await this.getMetadata(normalizeIpfsUri(metadataUri));
+      const metadata = await this.getMetadata(metadataUri);
       Logger.log({ metadata });
       name = metadata.name;
       image = metadata.image;
@@ -1823,7 +1806,7 @@ export class IndexerService implements OnModuleInit {
     return { name, description, image, metadataUri, attributes };
   }
 
-  async getMetadata(uri: string, timeout = 5000) {
+  async getMetadata(uri: string, timeout: number = 5000) {
     Logger.log('fetching metadata', uri);
     await new Promise((resolve) => setTimeout(resolve, 3000));
     if (uri.startsWith('ipfs://')) {
@@ -1837,17 +1820,6 @@ export class IndexerService implements OnModuleInit {
           timeout,
         },
       );
-      return this.parseJson(res.data);
-    }
-    if (uri.includes('ipfs')) {
-      const metadataUri = nusaIpfsGateway(uri);
-      const res = await axios.get(metadataUri, {
-        headers: {
-          Accept: 'application/json',
-          'Accept-Encoding': 'identity',
-        },
-        timeout,
-      });
       return this.parseJson(res.data);
     }
     const res = await axios.get(uri, {
