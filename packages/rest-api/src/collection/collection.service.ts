@@ -1105,10 +1105,14 @@ export class CollectionService {
       .catch((err) => {
         throw new HttpException('Category not found', HttpStatus.NOT_FOUND);
       });
-    const job = await this.importCollectionQueue.add('import-collection', {
-      contractAddress,
-      categoryId,
-    }, {});
+    const job = await this.importCollectionQueue.add(
+      'import-collection',
+      {
+        contractAddress,
+        categoryId,
+      },
+      {},
+    );
     return job;
   }
 
@@ -1126,24 +1130,30 @@ export class CollectionService {
   }
 
   async deleteImportedCollection(collectionId: number) {
-    await this.prisma.importedContracts.delete({ where: { id: collectionId }});
-    
-    const itemsByCollection = await this.prisma.item.findMany({ where: { collection_id: collectionId }});
-    await this.prisma.itemViews.deleteMany({ where: {
-      itemId: {
-        in: itemsByCollection.map(it => (it.id)),
-      }
-    }});
-    const deleted = await this.prisma.collection.delete({ where: { id: collectionId }});
+    await this.prisma.importedContracts.delete({ where: { id: collectionId } });
+
+    const itemsByCollection = await this.prisma.item.findMany({
+      where: { collection_id: collectionId },
+    });
+    await this.prisma.itemViews.deleteMany({
+      where: {
+        itemId: {
+          in: itemsByCollection.map((it) => it.id),
+        },
+      },
+    });
+    const deleted = await this.prisma.collection.delete({
+      where: { id: collectionId },
+    });
 
     return deleted;
   }
 
-  async refreshMetadataQueue({}: RefreshMetadataDto) {
-    // TODO:
-  }
+  // async refreshMetadataQueue({}: RefreshMetadataDto) {
+  //   // TODO:
+  // }
 
-  async syncOwnershipQueue({}: SyncOwnershipDto) {
-    // TODO:
-  }
+  // async syncOwnershipQueue({}: SyncOwnershipDto) {
+  //   // TODO:
+  // }
 }
