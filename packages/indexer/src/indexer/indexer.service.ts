@@ -1230,10 +1230,11 @@ export class IndexerService implements OnModuleInit {
     const iface = new ethers.utils.Interface(abi);
     for (const log of logs) {
       const event = iface.parseLog(log);
-      const { blockNumber } = log;
+      const { blockNumber, logIndex } = log;
+      const logIndexParsed = parseInt(logIndex.toString());
       const blockNumberParsed = parseInt(blockNumber.toString());
       Logger.log('processing event', JSON.stringify(event));
-      const contractAddress = log.address;
+      const contractAddress: string = log.address;
 
       const contract = new ethers.Contract(contractAddress, abi, this.provider);
 
@@ -1290,6 +1291,7 @@ export class IndexerService implements OnModuleInit {
           user,
           tokenType: TokenType.ERC721,
           chainId: this.chainId,
+          logIndex: logIndexParsed,
         });
       }
 
@@ -1303,6 +1305,7 @@ export class IndexerService implements OnModuleInit {
           user,
           tokenType: TokenType.ERC1155,
           chainId: this.chainId,
+          logIndex: logIndexParsed,
         });
       }
 
@@ -1316,6 +1319,7 @@ export class IndexerService implements OnModuleInit {
           user,
           tokenType: TokenType.ERC1155,
           chainId: this.chainId,
+          logIndex: logIndexParsed,
         });
       }
 
@@ -1327,19 +1331,20 @@ export class IndexerService implements OnModuleInit {
         if (contractAddress == nusaContractAddress) {
           await this.updateLatestBlock(blockNumberParsed);
         } else {
-          console.log(contractAddress, this.chainId)
-          await this.prisma.importedContracts.update({
+          console.log(contractAddress, this.chainId);
+          const update = await this.prisma.importedContracts.updateMany({
             where: {
-              contractAddress_chainId: {
-                contractAddress,
-                chainId: this.chainId,
+              contractAddress: {
+                mode: 'insensitive',
+                equals: contractAddress,
               },
-              
+              chainId: +this.chainId,
             },
             data: {
               lastIndexedBlock: blockNumberParsed,
             },
           });
+          console.log(update);
           console.log('imported contract block updated');
         }
       }
@@ -1355,6 +1360,7 @@ export class IndexerService implements OnModuleInit {
     user,
     tokenType,
     chainId,
+    logIndex,
   }: {
     contractAddress: string;
     event: ethers.utils.LogDescription;
@@ -1364,6 +1370,7 @@ export class IndexerService implements OnModuleInit {
     tokenType: TokenType;
     chainId: number;
     user: User;
+    logIndex: number;
   }) {
     const from = event.args[0];
     const to = event.args[1];
@@ -1383,6 +1390,7 @@ export class IndexerService implements OnModuleInit {
       transactionHash,
       blockNumber: blockNumberHashed,
       txIndex: 0,
+      logIndex,
     });
     if (from == ethers.constants.AddressZero) {
       await this.createItemIfNotExists({
@@ -1406,6 +1414,7 @@ export class IndexerService implements OnModuleInit {
     user,
     tokenType,
     chainId,
+    logIndex,
   }: {
     contractAddress: string;
     event: ethers.utils.LogDescription;
@@ -1415,6 +1424,7 @@ export class IndexerService implements OnModuleInit {
     tokenType: TokenType;
     chainId: number;
     user: User;
+    logIndex: number;
   }) {
     const operator = event.args[0];
     const from = event.args[1];
@@ -1437,6 +1447,7 @@ export class IndexerService implements OnModuleInit {
         transactionHash,
         blockNumber: blockNumberHashed,
         txIndex: 0,
+        logIndex,
       });
     // If tokenOwnerships has not changed && transfer is not mint return
     if (from == ethers.constants.AddressZero) {
@@ -1462,6 +1473,7 @@ export class IndexerService implements OnModuleInit {
     user,
     tokenType,
     chainId,
+    logIndex,
   }: {
     contractAddress: string;
     event: ethers.utils.LogDescription;
@@ -1471,6 +1483,7 @@ export class IndexerService implements OnModuleInit {
     tokenType: TokenType;
     chainId: number;
     user: User;
+    logIndex: number;
   }) {
     // const { operator, from, to, ids, values } = event.args;
     const operator = event.args[0];
@@ -1500,6 +1513,8 @@ export class IndexerService implements OnModuleInit {
           transactionHash,
           blockNumber: blockNumberHashed,
           txIndex: i,
+          logIndex,
+          isBatch: true,
         });
       // If tokenOwnerships has not changed && transfer is not mint return
       if (from == ethers.constants.AddressZero) {
@@ -1528,6 +1543,8 @@ export class IndexerService implements OnModuleInit {
     transactionHash,
     blockNumber,
     txIndex = 0,
+    logIndex,
+    isBatch = false,
   }: {
     contractAddress: string;
     from: string;
@@ -1539,6 +1556,8 @@ export class IndexerService implements OnModuleInit {
     transactionHash: string;
     blockNumber: number;
     txIndex: number;
+    logIndex: number;
+    isBatch?: boolean;
   }) {
     const tokenTransferHistory =
       await this.prisma.tokenTransferHistory.findFirst({
@@ -1546,6 +1565,7 @@ export class IndexerService implements OnModuleInit {
           transactionHash,
           txIndex,
           chainId,
+          logIndex,
         },
       });
     if (tokenTransferHistory) return [];
@@ -1554,10 +1574,11 @@ export class IndexerService implements OnModuleInit {
     transactions.push(
       this.prisma.tokenTransferHistory.upsert({
         where: {
-          transactionHash_chainId_txIndex: {
+          transactionHash_chainId_txIndex_logIndex: {
             transactionHash,
             txIndex,
             chainId,
+            logIndex,
           },
         },
         create: {
@@ -1571,6 +1592,8 @@ export class IndexerService implements OnModuleInit {
           value: quantity,
           chainId,
           txIndex,
+          logIndex,
+          isBatch,
         },
         update: {},
       }),
