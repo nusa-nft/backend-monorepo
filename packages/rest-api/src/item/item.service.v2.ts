@@ -570,22 +570,21 @@ export class ItemServiceV2 {
     owner: string,
     filter: Prisma.ItemFindManyArgs,
   ): Promise<Prisma.ItemFindManyArgs> {
-
     const tokenOwnerships = await this.prisma.tokenOwnerships.findMany({
       where: {
         ownerAddress: owner,
-      }
-    })
+      },
+    });
 
     const itemsOwnedOnChain = await this.prisma.item.findMany({
       where: {
-        OR: tokenOwnerships.map(to => ({
+        OR: tokenOwnerships.map((to) => ({
           contract_address: to.contractAddress,
           chainId: to.chainId,
-          tokenId: to.tokenId
-        }))
-      }
-    })
+          tokenId: to.tokenId,
+        })),
+      },
+    });
 
     // const tokens: { tokenId: number; tokenOwner: string }[] =
     //   await this.getTokensByOwner(owner);
@@ -895,28 +894,28 @@ export class ItemServiceV2 {
   }
 
   async getItemOwners(item: Item & any): Promise<ItemOwner[]> {
-    let owners: ItemOwner[] = [];
+    const owners: ItemOwner[] = [];
     if (item.quantity_minted > 0) {
       const ownerships = await this.prisma.tokenOwnerships.findMany({
         where: {
           contractAddress: item.contract_address,
           chainId: item.chainId,
-          tokenId: item.tokenId
-        }
-      })
-      for (let own of ownerships) {
+          tokenId: item.tokenId,
+        },
+      });
+      for (const own of ownerships) {
         const user = await this.prisma.user.findFirst({
           where: {
-            wallet_address: own.ownerAddress
-          }
-        })
+            wallet_address: own.ownerAddress,
+          },
+        });
         if (user) {
           owners.push({
             wallet_address: own.ownerAddress,
             username: user.username,
             profile_picture: user.profile_picture,
             quantity: own.quantity,
-          })
+          });
         } else {
           owners.push({
             wallet_address: own.ownerAddress,

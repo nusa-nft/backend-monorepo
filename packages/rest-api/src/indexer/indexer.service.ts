@@ -24,10 +24,17 @@ export class IndexerService {
     }
   }
 
-  async getItemActiveListing(assetContract: string, tokenId: number | Prisma.Decimal) {
+  async getItemActiveListing(
+    assetContract: string,
+    tokenId: number | Prisma.Decimal,
+  ) {
     try {
       const resp = await this.httpService.axiosRef.get(
-        `${this.INDEXER_URL}/marketplace/active-listing?assetContractAddress=${assetContract}&tokenId=${toString(tokenId)}`,
+        `${
+          this.INDEXER_URL
+        }/marketplace/active-listing?assetContractAddress=${assetContract}&tokenId=${toString(
+          tokenId,
+        )}`,
       );
       return resp.data;
     } catch (err) {
@@ -106,7 +113,10 @@ export class IndexerService {
     }
   }
 
-  async getRoyaltyReceivedHistory(tokenIds: number[] | Prisma.Decimal[], page: number) {
+  async getRoyaltyReceivedHistory(
+    tokenIds: number[] | Prisma.Decimal[],
+    page: number,
+  ) {
     try {
       const resp = await this.httpService.axiosRef.get(
         `${this.INDEXER_URL}/royalty?${tokenIds
@@ -122,7 +132,11 @@ export class IndexerService {
     }
   }
 
-  async getItemActivities(tokenId: number | Prisma.Decimal, page: number, event: string) {
+  async getItemActivities(
+    tokenId: number | Prisma.Decimal,
+    page: number,
+    event: string,
+  ) {
     try {
       const resp = await this.httpService.axiosRef.get(
         `${
@@ -137,10 +151,17 @@ export class IndexerService {
     }
   }
 
-  async getItemSaleHistory(tokenId: number | Prisma.Decimal, sortBy: SaleHistoryQueryParams) {
+  async getItemSaleHistory(
+    tokenId: number | Prisma.Decimal,
+    sortBy: SaleHistoryQueryParams,
+  ) {
     try {
       const resp = await this.httpService.axiosRef.get(
-        `${this.INDEXER_URL}/marketplace/sale-history/${tokenId.toString()}?&sortRange=${sortBy.sortRange}`,
+        `${
+          this.INDEXER_URL
+        }/marketplace/sale-history/${tokenId.toString()}?&sortRange=${
+          sortBy.sortRange
+        }`,
       );
       return resp.data;
     } catch (err) {

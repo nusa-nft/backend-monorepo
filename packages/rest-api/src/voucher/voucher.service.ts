@@ -233,7 +233,6 @@ export class VoucherService {
     };
   }
 
-
   async claim(
     voucher: string,
     toAddress: string,
