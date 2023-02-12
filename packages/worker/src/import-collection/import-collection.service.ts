@@ -606,6 +606,7 @@ export class ImportCollectionService {
         blockNumber,
         txIndex: i,
         logIndex,
+        isBatch: true,
       });
       // If tokenOwnerships has not changed && transfer is not mint return
       if (from == ethers.constants.AddressZero) {
@@ -634,7 +635,8 @@ export class ImportCollectionService {
     transactionHash,
     blockNumber,
     txIndex = 0,
-    logIndex
+    logIndex,
+    isBatch = false,
   }: {
     contractAddress: string;
     from: string;
@@ -647,6 +649,7 @@ export class ImportCollectionService {
     blockNumber: number;
     txIndex: number;
     logIndex: number;
+    isBatch?: boolean;
   }) {
     console.log({
       contractAddress,
@@ -693,7 +696,8 @@ export class ImportCollectionService {
           value: quantity,
           chainId,
           txIndex,
-          logIndex
+          logIndex,
+          isBatch
         },
         update: {},
       }),
