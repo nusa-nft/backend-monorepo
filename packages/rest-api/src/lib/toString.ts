@@ -6,4 +6,4 @@ export const toString = (value: any) => {
     });
   }
   return stringVal;
-}
+};

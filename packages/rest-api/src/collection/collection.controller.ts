@@ -288,15 +288,15 @@ export class CollectionController {
   }
 
   // TODO:
-  @Post('refresh-metadata-queue')
-  refreshMetadataQueue(@Body() payload: RefreshMetadataDto) {
-    return this.collectionService.refreshMetadataQueue(payload);
-  }
+  // @Post('refresh-metadata-queue')
+  // refreshMetadataQueue(@Body() payload: RefreshMetadataDto) {
+  //   return this.collectionService.refreshMetadataQueue(payload);
+  // }
 
-  @Post('sync-ownership-queue')
-  syncOwnershipQueue(@Body() payload: SyncOwnershipDto) {
-    return this.collectionService.syncOwnershipQueue(payload);
-  }
+  // @Post('sync-ownership-queue')
+  // syncOwnershipQueue(@Body() payload: SyncOwnershipDto) {
+  //   return this.collectionService.syncOwnershipQueue(payload);
+  // }
 }
 
 export function fileMimetypeFilter(...mimetypes: string[]) {

@@ -14,7 +14,13 @@ import {
 } from './dto/item.dto';
 import { IpfsService } from '../ipfs/ipfs.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { AttributeType, Item, ItemViews, Prisma, TokenType } from '@prisma/client';
+import {
+  AttributeType,
+  Item,
+  ItemViews,
+  Prisma,
+  TokenType,
+} from '@prisma/client';
 import standardizeMetadataAttribute from '../lib/standardizeMetadataAttributes';
 import { JwtService } from '@nestjs/jwt';
 import { ethers } from 'ethers';
@@ -317,7 +323,6 @@ export class ItemService {
       data: item,
     };
   }
-
 
   async like(userId: number, itemId: number) {
     const likeData = await this.prisma.itemLikes.findFirst({
