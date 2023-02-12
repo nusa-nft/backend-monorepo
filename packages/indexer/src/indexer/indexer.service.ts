@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, ethers, logger } from 'ethers';
 import { PrismaService } from 'src/prisma/prisma.service';
 import * as NusaNFT from '../contract/NusaNFT.json';
 import MarketplaceAbi from '../contract/Marketplace.json';
@@ -10,7 +10,10 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { ListingType, TokenType } from '@prisma/client';
 import { MarkeplaceListing, MarketplaceNewOffer } from './interfaces';
 import { WsProvider } from './ws-provider';
-import { check } from 'prettier';
+import { Collection, Prisma, User } from '@nusa-nft/database';
+import { normalizeIpfsUri, nusaIpfsGateway } from 'src/lib/ipfs-uri';
+import axios from 'axios';
+import retry from 'async-retry';
 
 const parseListingType = (listingTypeNumber: number) => {
   if (listingTypeNumber == 0) {
@@ -41,11 +44,14 @@ export class IndexerService implements OnModuleInit {
   filterNewOffer;
   filterAuctionClosed;
 
+  chainId = +this.configService.get<number>('CHAIN_ID');
+
   // RoyaltyDistributor Event Filters
   filterRoyaltyPaid;
 
   MAX_INTEGER = 2147483647;
   INDEX_OLD_BLOCKS_FINISHED = false;
+  INDEX_OLD_IMPORTED_CONTRACTS_BLOCK = false;
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
@@ -133,7 +139,13 @@ export class IndexerService implements OnModuleInit {
 
     for (const range of blockRange) {
       const { fromBlock, toBlock } = range;
-      await this.queryFilterErc1155(Number(fromBlock), Number(toBlock));
+      const hexFromBlock = ethers.BigNumber.from(
+        fromBlock.toString(),
+      ).toHexString();
+      const hexToBlock = ethers.BigNumber.from(
+        toBlock.toString(),
+      ).toHexString();
+      await this.handleIndexing(hexFromBlock, hexToBlock);
       await this.queryFilterMarketplace(Number(fromBlock), Number(toBlock));
       await this.queryFilterRoyaltyDistributor(
         Number(fromBlock),
@@ -146,17 +158,71 @@ export class IndexerService implements OnModuleInit {
     return;
   }
 
+  async indexOldImportedBlocks() {
+    const blockNumbers = [];
+    let fromBlock;
+    let blockRange = [];
+
+    const indexerState = await this.prisma.importedContracts.findFirst({
+      where: {
+        isImportFinish: true,
+      },
+      orderBy: {
+        lastIndexedBlock: 'desc',
+      },
+    });
+
+    if (indexerState) {
+      fromBlock = indexerState.lastIndexedBlock;
+    } else {
+      fromBlock = Number(this.configService.get<string>('FROM_BLOCK'));
+    }
+    // ethers get latest block
+    const latestBlockNumber = await this.provider.getBlockNumber();
+    for (let i = fromBlock; i <= latestBlockNumber; i++) {
+      blockNumbers.push(i);
+    }
+    // make chunk of per 3500 block range from previously determined block
+    const chunk = _.chunk(blockNumbers, 1000);
+    // make array of object fromBlock and toBlock value
+    blockRange = chunk.map((arr) => {
+      const toBlock = arr.slice(-1);
+      const fromBlock = arr.slice(0, 1);
+      return { fromBlock, toBlock };
+    });
+
+    for (const range of blockRange) {
+      const { fromBlock, toBlock } = range;
+      const hexFromBlock = ethers.BigNumber.from(
+        fromBlock.toString(),
+      ).toHexString();
+      const hexToBlock = ethers.BigNumber.from(
+        toBlock.toString(),
+      ).toHexString();
+      await this.handleIndexing(hexFromBlock, hexToBlock);
+      await this.prisma.importedContracts.updateMany({
+        data: {
+          lastIndexedBlock: +toBlock,
+        },
+      });
+      console.log('imported contract block updated');
+    }
+    this.INDEX_OLD_IMPORTED_CONTRACTS_BLOCK = true;
+    Logger.log('INDEX OLD IMPORTED CONTRACTS BLOCK DONE');
+    return;
+  }
+
   async onModuleInit() {
     this.indexOldBlocks();
-
-    this.handleErc1155TransferSingle();
+    this.indexOldImportedBlocks();
+    // this.handleErc1155TransferSingle();
 
     this.handleMarketplaceListingAdded();
     this.handleMarketplaceListingRemoved();
     this.handleMarketplaceNewSale();
     this.handleMarketplaceNewOffer();
     this.handleMarketplaceAuctionClosed();
-
+    this.queryFilterNftContracts();
     this.handleRoyaltyDistributorRoyaltyPaid();
   }
 
@@ -166,38 +232,38 @@ export class IndexerService implements OnModuleInit {
     process.exit(1);
   }
 
-  async handleErc1155TransferSingle() {
-    // listen to new transfer transaction
-    this.erc1155.on(
-      'TransferSingle',
-      async (operator, from, to, tokenId, value, log) => {
-        const { blockNumber, transactionHash } = log;
-        const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-        await this.prisma.erc1155TransferHistory.create({
-          data: {
-            operator,
-            from,
-            to,
-            tokenId: parseInt(tokenId),
-            block: blockNumber,
-            value: parseInt(value),
-            createdAt: timestamp,
-            transactionHash,
-          },
-        });
-        await this.createUpdateTokenOwnership({
-          from: log.args.from,
-          to: log.args.to,
-          tokenId: parseInt(tokenId),
-          quantity: parseInt(value),
-          timestamp,
-          transactionHash,
-        });
-        if (this.INDEX_OLD_BLOCKS_FINISHED)
-          await this.updateLatestBlock(blockNumber);
-      },
-    );
-  }
+  // async handleErc1155TransferSingle() {
+  //   // listen to new transfer transaction
+  //   this.erc1155.on(
+  //     'TransferSingle',
+  //     async (operator, from, to, tokenId, value, log) => {
+  //       const { blockNumber, transactionHash } = log;
+  //       const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
+  //       await this.prisma.erc1155TransferHistory.create({
+  //         data: {
+  //           operator,
+  //           from,
+  //           to,
+  //           tokenId: parseInt(tokenId),
+  //           block: blockNumber,
+  //           value: parseInt(value),
+  //           createdAt: timestamp,
+  //           transactionHash,
+  //         },
+  //       });
+  //       await this.createUpdateTokenOwnership({
+  //         from: log.args.from,
+  //         to: log.args.to,
+  //         tokenId: parseInt(tokenId),
+  //         quantity: parseInt(value),
+  //         timestamp,
+  //         transactionHash,
+  //       });
+  //       if (this.INDEX_OLD_BLOCKS_FINISHED)
+  //         await this.updateLatestBlock(blockNumber);
+  //     },
+  //   );
+  // }
 
   async handleMarketplaceListingAdded() {
     this.marketplace.on(
@@ -446,17 +512,17 @@ export class IndexerService implements OnModuleInit {
       ) => {
         const listing = await this.prisma.marketplaceListing.findFirst({
           where: {
-            listingId: listingId.toNumber()
-          }
-        })
+            listingId: listingId.toNumber(),
+          },
+        });
         if (!listing) return;
 
         const { blockNumber, transactionHash } = log;
         const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
         for (const [i, rec] of (recipients as Array<string>).entries()) {
           const royaltyPaid = await this.prisma.royaltyPaid.findFirst({
-            where: { transactionHash, recipient: rec }
-          })
+            where: { transactionHash, recipient: rec },
+          });
           if (royaltyPaid) continue;
 
           const bps: ethers.BigNumber = bpsPerRecipients[i];
@@ -480,6 +546,7 @@ export class IndexerService implements OnModuleInit {
   }
 
   async updateLatestBlock(blockNumber: number) {
+    console.log('contract block updated');
     const indexerState = await this.prisma.indexerState.findFirst();
     if (!indexerState) {
       await this.prisma.indexerState.create({
@@ -513,48 +580,48 @@ export class IndexerService implements OnModuleInit {
     }
   }
 
-  async queryFilterErc1155(fromBlock: number, toBlock: number) {
-    Logger.log(`queryFilterErc1155(${fromBlock}, ${toBlock})`);
-    const logs = await this.erc1155.queryFilter(
-      this.filterTransferSingle,
-      Number(fromBlock),
-      Number(toBlock),
-    );
-    for (const log of logs) {
-      Logger.log('ERC1155#TransferSingle');
-      const entry = await this.prisma.erc1155TransferHistory.findFirst({
-        where: {
-          transactionHash: log.transactionHash,
-        },
-      });
-      if (!entry) {
-        const tokenId = parseInt(log.args.id);
-        const value = parseInt(log.args.value);
-        const timestamp = (await this.provider.getBlock(log.blockNumber))
-          .timestamp;
-        await this.prisma.erc1155TransferHistory.create({
-          data: {
-            operator: log.args.operator,
-            from: log.args.from,
-            to: log.args.to,
-            tokenId: tokenId,
-            block: log.blockNumber,
-            value: value,
-            createdAt: timestamp,
-            transactionHash: log.transactionHash,
-          },
-        });
-        await this.createUpdateTokenOwnership({
-          from: log.args.from,
-          to: log.args.to,
-          tokenId,
-          quantity: value,
-          timestamp,
-          transactionHash: log.transactionHash
-        });
-      }
-    }
-  }
+  // async queryFilterErc1155(fromBlock: number, toBlock: number) {
+  //   Logger.log(`queryFilterErc1155(${fromBlock}, ${toBlock})`);
+  //   const logs = await this.erc1155.queryFilter(
+  //     this.filterTransferSingle,
+  //     Number(fromBlock),
+  //     Number(toBlock),
+  //   );
+  //   for (const log of logs) {
+  //     Logger.log('ERC1155#TransferSingle');
+  //     const entry = await this.prisma.erc1155TransferHistory.findFirst({
+  //       where: {
+  //         transactionHash: log.transactionHash,
+  //       },
+  //     });
+  //     if (!entry) {
+  //       const tokenId = parseInt(log.args.id);
+  //       const value = parseInt(log.args.value);
+  //       const timestamp = (await this.provider.getBlock(log.blockNumber))
+  //         .timestamp;
+  //       await this.prisma.erc1155TransferHistory.create({
+  //         data: {
+  //           operator: log.args.operator,
+  //           from: log.args.from,
+  //           to: log.args.to,
+  //           tokenId: tokenId,
+  //           block: log.blockNumber,
+  //           value: value,
+  //           createdAt: timestamp,
+  //           transactionHash: log.transactionHash,
+  //         },
+  //       });
+  //       await this.createUpdateTokenOwnership({
+  //         from: log.args.from,
+  //         to: log.args.to,
+  //         tokenId,
+  //         quantity: value,
+  //         timestamp,
+  //         transactionHash: log.transactionHash,
+  //       });
+  //     }
+  //   }
+  // }
 
   async queryFilterMarketplace(fromBlock: number, toBlock: number) {
     Logger.log(`queryFilterMarketplace(${fromBlock}, ${toBlock})`);
@@ -774,15 +841,15 @@ export class IndexerService implements OnModuleInit {
 
         const listing = await this.prisma.marketplaceListing.findFirst({
           where: {
-            listingId: listingId.toNumber()
-          }
-        })
+            listingId: listingId.toNumber(),
+          },
+        });
         if (!listing) continue;
 
         for (const [i, rec] of (recipients as Array<string>).entries()) {
           const royaltyPaid = await this.prisma.royaltyPaid.findFirst({
-            where: { transactionHash, recipient: rec }
-          })
+            where: { transactionHash, recipient: rec },
+          });
           if (royaltyPaid) continue;
           const bps: ethers.BigNumber = bpsPerRecipients[i];
           const amount: ethers.BigNumber = (totalPayout as ethers.BigNumber)
@@ -930,8 +997,8 @@ export class IndexerService implements OnModuleInit {
         tokenId: tokenId.toString(),
         chainId: Number(process.env.CHAIN_ID),
         contract_address: assetContract,
-      }
-    })
+      },
+    });
 
     if (checkListingId || !item) return;
     else {
@@ -960,8 +1027,8 @@ export class IndexerService implements OnModuleInit {
 
   async indexMarketplaceRemoveListing({ listingId, updatedAt }) {
     const listing = await this.prisma.marketplaceListing.findFirst({
-      where: { listingId: parseInt(listingId) }
-    })
+      where: { listingId: parseInt(listingId) },
+    });
     if (!listing) return;
     const deleteListing = await this.prisma.marketplaceListing.update({
       where: {
@@ -997,9 +1064,9 @@ export class IndexerService implements OnModuleInit {
         : endTime.toNumber();
     const listing = await this.prisma.marketplaceListing.findFirst({
       where: {
-        listingId: listingId.toNumber()
-      }
-    })
+        listingId: listingId.toNumber(),
+      },
+    });
     if (!listing) return;
     const updateListing = await this.prisma.marketplaceListing.update({
       where: {
@@ -1039,8 +1106,8 @@ export class IndexerService implements OnModuleInit {
       where: { transactionHash },
     });
     const listing = await this.prisma.marketplaceListing.findFirst({
-      where: { listingId: parseInt(listingId) }
-    })
+      where: { listingId: parseInt(listingId) },
+    });
     if (sale || !listing) return;
 
     const newSale = await this.prisma.marketplaceSale.create({
@@ -1074,8 +1141,8 @@ export class IndexerService implements OnModuleInit {
       where: { transactionHash },
     });
     const listing = await this.prisma.marketplaceListing.findFirst({
-      where: { listingId: listingId.toNumber() }
-    })
+      where: { listingId: listingId.toNumber() },
+    });
     if (offer || !listing) {
       return;
     }
@@ -1095,90 +1162,722 @@ export class IndexerService implements OnModuleInit {
     });
   }
 
-  async createUpdateTokenOwnership({
+  async queryFilterNftContracts() {
+    // query new blocks
+    this.provider.on('block', async (blockNumber: number) => {
+      const blockNumberString =
+        ethers.BigNumber.from(blockNumber).toHexString();
+      this.handleIndexing(blockNumberString, blockNumberString);
+    });
+  }
+
+  async handleIndexing(fromBlock: string, toBlock: string) {
+    const importedContracts = await this.prisma.importedContracts.findMany({
+      select: {
+        contractAddress: true,
+      },
+      where: {
+        isImportFinish: true,
+      },
+    });
+
+    // to get array of contracts
+    const contractAdresses = importedContracts.map(
+      (contract) => contract.contractAddress,
+    );
+
+    // get nusaConctract and push to contract array
+    const nusaContractAddress = this.configService.get<string>(
+      'NFT_CONTRACT_ADDRESS',
+    );
+
+    contractAdresses.push(nusaContractAddress);
+
+    if (contractAdresses.length < 1) return;
+
+    const topics = [
+      'TransferSingle(address,address,address,uint256,uint256)',
+      'TransferBatch(address,address,address,uint256[],uint256[])',
+      'Transfer(address,address,uint256)',
+    ];
+
+    const abi = [
+      'function supportsInterface(bytes4 interfaceID) external view returns (bool)',
+      'function name() public view returns (string memory)',
+      'function owner() public view returns (address)',
+      // ERC721
+      'function tokenURI(uint256 tokenId) public view returns (string memory)',
+      'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
+      // ERC1155
+      'function uri(uint256 _id) external view returns (string memory)',
+      'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
+      'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)',
+    ];
+
+    const arrayOfTopics = [];
+    for (const topic of topics) {
+      arrayOfTopics.push(ethers.utils.id(topic));
+    }
+    const logs = await this.provider.send('eth_getLogs', [
+      {
+        address: contractAdresses,
+        fromBlock: fromBlock,
+        toBlock: toBlock,
+        topics: [arrayOfTopics],
+      },
+    ]);
+
+    const iface = new ethers.utils.Interface(abi);
+    for (const log of logs) {
+      const event = iface.parseLog(log);
+      const { blockNumber, logIndex } = log;
+      const logIndexParsed = parseInt(logIndex.toString());
+      const blockNumberParsed = parseInt(blockNumber.toString());
+      Logger.log('processing event', JSON.stringify(event));
+      const contractAddress: string = log.address;
+
+      const contract = new ethers.Contract(contractAddress, abi, this.provider);
+
+      let tokenId;
+      if (event.name == 'Transfer') {
+        tokenId = parseInt(event.args[2]._hex);
+      }
+      if (event.name == 'TransferBatch') {
+        const ids = event.args[3];
+        tokenId = ids[0].toString();
+      }
+      if (event.name == 'TransferSingle') {
+        tokenId = parseInt(event.args[3]._hex);
+      }
+
+      let collection;
+      await retry(
+        async () => {
+          collection = await this.prisma.collection.findFirstOrThrow({
+            where: {
+              items: {
+                some: {
+                  tokenId,
+                },
+              },
+            },
+          });
+          return collection;
+        },
+        {
+          forever: true,
+        },
+      );
+
+      const collectionId = +collection.id;
+
+      const user = await this.prisma.user.findFirst({
+        where: {
+          collections: {
+            some: {
+              id: collectionId,
+            },
+          },
+        },
+      });
+
+      if (event.name == 'Transfer') {
+        await this.handleERC721Transfer({
+          event,
+          contractAddress,
+          log,
+          contract,
+          collection,
+          user,
+          tokenType: TokenType.ERC721,
+          chainId: this.chainId,
+          logIndex: logIndexParsed,
+        });
+      }
+
+      if (event.name == 'TransferSingle') {
+        await this.handleERC1155TransferSingle({
+          event,
+          contractAddress,
+          log,
+          contract,
+          collection,
+          user,
+          tokenType: TokenType.ERC1155,
+          chainId: this.chainId,
+          logIndex: logIndexParsed,
+        });
+      }
+
+      if (event.name == 'TransferBatch') {
+        await this.handleERC1155TransferBatch({
+          event,
+          contractAddress,
+          log,
+          contract,
+          collection,
+          user,
+          tokenType: TokenType.ERC1155,
+          chainId: this.chainId,
+          logIndex: logIndexParsed,
+        });
+      }
+
+      if (
+        fromBlock == toBlock &&
+        this.INDEX_OLD_IMPORTED_CONTRACTS_BLOCK &&
+        this.INDEX_OLD_BLOCKS_FINISHED
+      ) {
+        if (contractAddress == nusaContractAddress) {
+          await this.updateLatestBlock(blockNumberParsed);
+        } else {
+          console.log(contractAddress, this.chainId);
+          const update = await this.prisma.importedContracts.updateMany({
+            where: {
+              contractAddress: {
+                mode: 'insensitive',
+                equals: contractAddress,
+              },
+              chainId: +this.chainId,
+            },
+            data: {
+              lastIndexedBlock: blockNumberParsed,
+            },
+          });
+          console.log(update);
+          console.log('imported contract block updated');
+        }
+      }
+    }
+  }
+
+  async handleERC721Transfer({
+    event,
+    contractAddress,
+    log,
+    contract,
+    collection,
+    user,
+    tokenType,
+    chainId,
+    logIndex,
+  }: {
+    contractAddress: string;
+    event: ethers.utils.LogDescription;
+    log: ethers.Event;
+    contract: ethers.Contract;
+    collection: Collection;
+    tokenType: TokenType;
+    chainId: number;
+    user: User;
+    logIndex: number;
+  }) {
+    const from = event.args[0];
+    const to = event.args[1];
+    const tokenId = event.args[2].toString();
+    const { blockNumber, transactionHash } = log;
+    const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
+    const blockNumberHashed = parseInt(blockNumber.toString());
+
+    await this.createUpdateImportedContractTokenOwnership({
+      contractAddress,
+      from,
+      to,
+      tokenId,
+      quantity: 1,
+      timestamp,
+      chainId,
+      transactionHash,
+      blockNumber: blockNumberHashed,
+      txIndex: 0,
+      logIndex,
+    });
+    if (from == ethers.constants.AddressZero) {
+      await this.createItemIfNotExists({
+        contract,
+        collection,
+        tokenId,
+        chainId,
+        tokenType,
+        contractAddress,
+        user,
+      });
+    }
+  }
+
+  async handleERC1155TransferSingle({
+    event,
+    contractAddress,
+    log,
+    contract,
+    collection,
+    user,
+    tokenType,
+    chainId,
+    logIndex,
+  }: {
+    contractAddress: string;
+    event: ethers.utils.LogDescription;
+    log: ethers.Event;
+    contract: ethers.Contract;
+    collection: Collection;
+    tokenType: TokenType;
+    chainId: number;
+    user: User;
+    logIndex: number;
+  }) {
+    const operator = event.args[0];
+    const from = event.args[1];
+    const to = event.args[2];
+    const tokenId = event.args[3].toString();
+    const value = event.args[4].toNumber();
+    const { blockNumber, transactionHash } = log;
+    const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
+    const blockNumberHashed = parseInt(blockNumber.toString());
+
+    const tokenOwnershipWrite =
+      await this.createUpdateImportedContractTokenOwnership({
+        contractAddress,
+        from,
+        to,
+        tokenId,
+        quantity: value,
+        timestamp: timestamp,
+        chainId,
+        transactionHash,
+        blockNumber: blockNumberHashed,
+        txIndex: 0,
+        logIndex,
+      });
+    // If tokenOwnerships has not changed && transfer is not mint return
+    if (from == ethers.constants.AddressZero) {
+      await this.createItemIfNotExists({
+        contract,
+        collection,
+        tokenId,
+        chainId,
+        tokenType,
+        contractAddress,
+        user,
+        amount: value,
+      });
+    }
+  }
+
+  async handleERC1155TransferBatch({
+    event,
+    contractAddress,
+    log,
+    contract,
+    collection,
+    user,
+    tokenType,
+    chainId,
+    logIndex,
+  }: {
+    contractAddress: string;
+    event: ethers.utils.LogDescription;
+    log: ethers.Event;
+    contract: ethers.Contract;
+    collection: Collection;
+    tokenType: TokenType;
+    chainId: number;
+    user: User;
+    logIndex: number;
+  }) {
+    // const { operator, from, to, ids, values } = event.args;
+    const operator = event.args[0];
+    const from = event.args[1];
+    const to = event.args[2];
+    const ids = event.args[3];
+    const values = event.args[4];
+    const { blockNumber, transactionHash } = log;
+    const blockNumberHashed = parseInt(blockNumber.toString());
+
+    const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
+    for (let i = 0; i < ids.length; i++) {
+      console.log({ tokenId: ids[i].toString() });
+      console.log({ quantity: values[i].toString() });
+      const tokenId = ids[i].toString();
+      const quantity = values[i].toNumber();
+
+      const tokenOwnershipWrite =
+        await this.createUpdateImportedContractTokenOwnership({
+          contractAddress,
+          from,
+          to,
+          tokenId,
+          quantity,
+          timestamp: timestamp,
+          chainId,
+          transactionHash,
+          blockNumber: blockNumberHashed,
+          txIndex: i,
+          logIndex,
+          isBatch: true,
+        });
+      // If tokenOwnerships has not changed && transfer is not mint return
+      if (from == ethers.constants.AddressZero) {
+        await this.createItemIfNotExists({
+          contract,
+          collection,
+          tokenId: ids[i].toString(),
+          chainId,
+          tokenType,
+          contractAddress,
+          user,
+          amount: values[i].toNumber(),
+        });
+      }
+    }
+  }
+
+  async createUpdateImportedContractTokenOwnership({
+    contractAddress,
     from,
     to,
     tokenId,
     quantity,
     timestamp,
-    transactionHash
+    chainId,
+    transactionHash,
+    blockNumber,
+    txIndex = 0,
+    logIndex,
+    isBatch = false,
   }: {
-    from: string,
-    to: string,
-    tokenId: number,
-    quantity: number,
-    timestamp: number,
-    transactionHash: string
+    contractAddress: string;
+    from: string;
+    to: string;
+    tokenId: Prisma.Decimal;
+    quantity: number;
+    timestamp: number;
+    chainId: number;
+    transactionHash: string;
+    blockNumber: number;
+    txIndex: number;
+    logIndex: number;
+    isBatch?: boolean;
   }) {
-    const _from = await this.prisma.tokenOwnerships.findFirst({
-      where: {
-        contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-        tokenId,
-        ownerAddress: from,
-      }
-    })
-
-    const _to = await this.prisma.tokenOwnerships.findFirst({
-      where: {
-        contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-        tokenId,
-        ownerAddress: to,
-      }
-    })
-
-    // Upsert From
-    if (_from && _from.ownerAddress != ethers.constants.AddressZero) {
-      console.log(
-        this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-        tokenId,
-        from,
-      )
-      await this.prisma.tokenOwnerships.upsert({
+    const tokenTransferHistory =
+      await this.prisma.tokenTransferHistory.findFirst({
         where: {
-          contractAddress_chainId_tokenId_ownerAddress: {
-            contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-            tokenId,
-            ownerAddress: from,
-            chainId: +this.configService.get<number>('CHAIN_ID')
-          }
+          transactionHash,
+          txIndex,
+          chainId,
+          logIndex,
+        },
+      });
+    if (tokenTransferHistory) return [];
+
+    const transactions = [];
+    transactions.push(
+      this.prisma.tokenTransferHistory.upsert({
+        where: {
+          transactionHash_chainId_txIndex_logIndex: {
+            transactionHash,
+            txIndex,
+            chainId,
+            logIndex,
+          },
         },
         create: {
-          contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
+          contractAddress,
+          from,
+          to,
           tokenId,
-          ownerAddress: from,
-          quantity: _from ? _from.quantity - quantity : 0,
-          timestamp,
           transactionHash,
-          chainId: +this.configService.get<number>('CHAIN_ID'),
+          block: blockNumber,
+          createdAt: timestamp,
+          value: quantity,
+          chainId,
+          txIndex,
+          logIndex,
+          isBatch,
         },
-        update: {
-          quantity: _from ? _from?.quantity - quantity : 0
-        }
-      })
-    }
+        update: {},
+      }),
+    );
 
-    // Upsert To
-    await this.prisma.tokenOwnerships.upsert({
+    const _from = await this.prisma.tokenOwnerships.findFirst({
       where: {
-        contractAddress_chainId_tokenId_ownerAddress: {
-          contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-          tokenId,
-          ownerAddress: to,
-          chainId: +this.configService.get<number>('CHAIN_ID'),
-        }
+        contractAddress,
+        tokenId,
+        ownerAddress: from,
+        chainId,
       },
-      create: {
-        contractAddress: this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
+    });
+    const _to = await this.prisma.tokenOwnerships.findFirst({
+      where: {
+        contractAddress,
         tokenId,
         ownerAddress: to,
-        quantity: _to ? _to.quantity + quantity : quantity,
-        timestamp,
-        transactionHash,
-        chainId: +this.configService.get<number>('CHAIN_ID')
+        chainId,
       },
-      update: {
-        quantity: _to ? _to?.quantity + quantity : quantity
+    });
+    // Upsert From
+    if (_from && _from.ownerAddress != ethers.constants.AddressZero) {
+      transactions.push(
+        this.prisma.tokenOwnerships.upsert({
+          where: {
+            contractAddress_chainId_tokenId_ownerAddress: {
+              contractAddress,
+              tokenId,
+              ownerAddress: from,
+              chainId,
+            },
+          },
+          create: {
+            contractAddress,
+            tokenId,
+            ownerAddress: from,
+            quantity: _from ? _from.quantity - quantity : 0,
+            timestamp,
+            chainId,
+            transactionHash,
+          },
+          update: {
+            quantity: _from ? _from?.quantity - quantity : 0,
+            transactionHash,
+          },
+        }),
+      );
+    }
+    // Upsert To
+    transactions.push(
+      this.prisma.tokenOwnerships.upsert({
+        where: {
+          contractAddress_chainId_tokenId_ownerAddress: {
+            contractAddress,
+            tokenId,
+            ownerAddress: to,
+            chainId,
+          },
+        },
+        create: {
+          contractAddress,
+          tokenId,
+          ownerAddress: to,
+          quantity: _to ? _to.quantity + quantity : quantity,
+          timestamp,
+          chainId,
+          transactionHash,
+        },
+        update: {
+          quantity: _to ? _to?.quantity + quantity : quantity,
+          transactionHash,
+        },
+      }),
+    );
+
+    const result = await this.prisma.$transaction(transactions, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+    return result;
+  }
+
+  async createItemIfNotExists({
+    contract,
+    collection,
+    tokenId,
+    chainId,
+    tokenType,
+    contractAddress,
+    user,
+    amount = 1,
+  }: {
+    contract: ethers.Contract;
+    collection: Collection;
+    tokenId: Prisma.Decimal;
+    chainId: number;
+    tokenType: TokenType;
+    contractAddress: string;
+    user: User;
+    amount?: number;
+  }) {
+    const item = await this.prisma.item.findFirst({
+      where: {
+        tokenId: tokenId,
+        contract_address: contractAddress,
+        chainId,
+      },
+      include: {
+        attributes: true,
+      },
+    });
+    let name;
+    let metadataUri;
+    let attributes;
+    let description;
+    let image;
+    if (!item || !item.image || !item.name) {
+      const metadata = await this.extractMetadata(
+        contract,
+        collection,
+        tokenId,
+        tokenType,
+      );
+      console.log({ metadata });
+      name = metadata.name;
+      metadataUri = metadata.metadataUri;
+      attributes = metadata.attributes;
+      description = metadata.description;
+      image = metadata.image;
+    } else {
+      name = item.name;
+      metadataUri = item.metadata;
+      description = item.description;
+      attributes = item.attributes.map((x) => ({
+        trait_type: x.trait_type,
+        value: x.value,
+      }));
+    }
+    let itemData: Prisma.ItemCreateInput = {
+      chainId,
+      supply: amount,
+      quantity_minted: amount,
+      token_standard: tokenType,
+      metadata: metadataUri,
+      tokenId: tokenId,
+      contract_address: contractAddress,
+      is_metadata_freeze: true,
+      name,
+      image,
+      description,
+      Collection: {
+        connect: {
+          id: collection.id,
+        },
+      },
+      Creator: {
+        connect: {
+          id_wallet_address: {
+            id: user.id,
+            wallet_address: user.wallet_address,
+          },
+        },
+      },
+    };
+    let itemUpdateData: Prisma.ItemUpdateInput = {
+      ...itemData,
+    };
+    if (tokenType == TokenType.ERC1155) {
+      itemUpdateData = {
+        ...itemUpdateData,
+        supply: { increment: amount },
+        quantity_minted: { increment: amount },
+      };
+    }
+    if (this.validateMetadataAttributes(attributes)) {
+      itemData = {
+        ...itemData,
+        attributes: {
+          createMany: {
+            data: attributes.map((x) => ({ ...x, value: String(x.value) })),
+          },
+        },
+      };
+    }
+    await this.prisma.item.upsert({
+      where: {
+        tokenId_contract_address_chainId: {
+          tokenId: tokenId,
+          contract_address: contractAddress,
+          chainId,
+        },
+      },
+      create: itemData,
+      update: itemUpdateData,
+    });
+  }
+
+  async extractMetadata(
+    contract: ethers.Contract,
+    collection: Collection,
+    tokenId: Prisma.Decimal,
+    tokenType: TokenType,
+  ) {
+    let name = '';
+    let description = '';
+    let image = '';
+    let metadataUri = '';
+    let attributes = [];
+    try {
+      if (tokenType == TokenType.ERC721) {
+        metadataUri = await contract.tokenURI(tokenId);
+        Logger.log({ metadataUri });
+        metadataUri = normalizeIpfsUri(metadataUri);
       }
-    })
+      if (tokenType == TokenType.ERC1155) {
+        metadataUri = await contract.uri(tokenId);
+        metadataUri = normalizeIpfsUri(metadataUri);
+      }
+      const metadata = await this.getMetadata(metadataUri);
+      Logger.log({ metadata });
+      name = metadata.name;
+      image = metadata.image;
+      if (image.includes('ipfs')) {
+        image = normalizeIpfsUri(image);
+      }
+      if (!name) throw new Error();
+      attributes = metadata.attributes;
+      description = metadata.description;
+    } catch (err) {
+      Logger.error(`error fetching metadata`, err);
+      name = `${collection.name}-${tokenId}`;
+    }
+    return { name, description, image, metadataUri, attributes };
+  }
+
+  async getMetadata(uri: string, timeout: number = 5000) {
+    Logger.log('fetching metadata', uri);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    if (uri.startsWith('ipfs://')) {
+      const res = await axios.get(
+        `${process.env.IPFS_GATEWAY}/${uri.replace('ipfs://', '')}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Accept-Encoding': 'identity',
+          },
+          timeout,
+        },
+      );
+      return this.parseJson(res.data);
+    }
+    const res = await axios.get(uri, {
+      headers: { Accept: 'application/json', 'Accept-Encoding': 'identity' },
+      timeout,
+    });
+    return this.parseJson(res.data);
+  }
+
+  validateMetadataAttributes(attributes: object[]) {
+    let isValid = false;
+    if (!attributes) return isValid;
+    attributes.forEach((x: object) => {
+      if (
+        !Object.prototype.hasOwnProperty.call(x, 'trait_type') &&
+        !Object.prototype.hasOwnProperty.call(x, 'value')
+      ) {
+        isValid = false;
+        return;
+      }
+      isValid = true;
+    });
+    return isValid;
+  }
+
+  parseJson(maybeJson: any) {
+    if (Buffer.isBuffer(maybeJson)) {
+      try {
+        const decoded = JSON.parse(maybeJson.toString());
+        return decoded;
+      } catch (err) {
+        Logger.error(`Failed parseJson`, err);
+        return {};
+      }
+    }
+    return maybeJson;
   }
 }
