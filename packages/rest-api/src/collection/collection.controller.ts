@@ -31,7 +31,9 @@ import {
   CollectionDto,
   CollectionSortBy,
   ImportDto,
+  RefreshMetadataDto,
   SaleHistoryQueryParams,
+  SyncOwnershipDto,
   UpdateCollectionDto,
 } from './dto/collection.dto';
 import { SearchDtoParam } from './dto/search.dto';
@@ -283,6 +285,17 @@ export class CollectionController {
   @Delete('imported-collection/:collectionId')
   deleteImportedCollection(@Param('collectionId') collectionId: number) {
     return this.collectionService.deleteImportedCollection(collectionId);
+  }
+
+  // TODO:
+  @Post('refresh-metadata-queue')
+  refreshMetadataQueue(@Body() payload: RefreshMetadataDto) {
+    return this.collectionService.refreshMetadataQueue(payload);
+  }
+
+  @Post('sync-ownership-queue')
+  syncOwnershipQueue(@Body() payload: SyncOwnershipDto) {
+    return this.collectionService.syncOwnershipQueue(payload);
   }
 }
 

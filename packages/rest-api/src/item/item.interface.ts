@@ -65,8 +65,8 @@ export interface Listing {
 
 export interface ItemOwner {
   wallet_address: string;
-  username: string;
-  profile_picture: string;
+  username?: string;
+  profile_picture?: string;
   quantity: number;
 }
 

@@ -209,6 +209,7 @@ export class ImportCollectionService {
     
         for (const log of logs) {
           const event = iface.parseLog(log);
+          const { logIndex } = log;
           Logger.log('processing event', JSON.stringify(event));
           if (event.name == 'Transfer') {
             await this.handleERC721Transfer({
@@ -220,6 +221,7 @@ export class ImportCollectionService {
               user,
               tokenType,
               chainId,
+              logIndex,
             });
           }
           if (event.name == 'TransferSingle') {
@@ -232,6 +234,7 @@ export class ImportCollectionService {
               user,
               tokenType,
               chainId,
+              logIndex,
             });
           }
           if (event.name == 'TransferBatch') {
@@ -244,6 +247,7 @@ export class ImportCollectionService {
               user,
               tokenType,
               chainId,
+              logIndex,
             });
           }
         }
@@ -459,6 +463,7 @@ export class ImportCollectionService {
     user,
     tokenType,
     chainId,
+    logIndex,
   }: {
     contractAddress: string;
     event: ethers.utils.LogDescription;
@@ -468,6 +473,7 @@ export class ImportCollectionService {
     tokenType: TokenType;
     chainId: number;
     user: User;
+    logIndex: number;
   }) {
     const from = event.args[0];
     const to = event.args[1];
@@ -485,6 +491,7 @@ export class ImportCollectionService {
       transactionHash,
       blockNumber,
       txIndex: 0,
+      logIndex,
     });
     if (from == ethers.constants.AddressZero) {
       await this.createItemIfNotExists({
@@ -508,6 +515,7 @@ export class ImportCollectionService {
     user,
     tokenType,
     chainId,
+    logIndex,
   }: {
     contractAddress: string;
     event: ethers.utils.LogDescription;
@@ -517,6 +525,7 @@ export class ImportCollectionService {
     tokenType: TokenType;
     chainId: number;
     user: User;
+    logIndex: number;
   }) {
     const operator = event.args[0];
     const from = event.args[1];
@@ -536,6 +545,7 @@ export class ImportCollectionService {
       transactionHash,
       blockNumber,
       txIndex: 0,
+      logIndex,
     });
     // If tokenOwnerships has not changed && transfer is not mint return
     if (from == ethers.constants.AddressZero) {
@@ -561,6 +571,7 @@ export class ImportCollectionService {
     user,
     tokenType,
     chainId,
+    logIndex,
   }: {
     contractAddress: string;
     event: ethers.utils.LogDescription;
@@ -570,6 +581,7 @@ export class ImportCollectionService {
     tokenType: TokenType;
     chainId: number;
     user: User;
+    logIndex: number;
   }) {
     // const { operator, from, to, ids, values } = event.args;
     const operator = event.args[0];
@@ -593,6 +605,8 @@ export class ImportCollectionService {
         transactionHash,
         blockNumber,
         txIndex: i,
+        logIndex,
+        isBatch: true,
       });
       // If tokenOwnerships has not changed && transfer is not mint return
       if (from == ethers.constants.AddressZero) {
@@ -621,6 +635,8 @@ export class ImportCollectionService {
     transactionHash,
     blockNumber,
     txIndex = 0,
+    logIndex,
+    isBatch = false,
   }: {
     contractAddress: string;
     from: string;
@@ -632,13 +648,28 @@ export class ImportCollectionService {
     transactionHash: string;
     blockNumber: number;
     txIndex: number;
+    logIndex: number;
+    isBatch?: boolean;
   }) {
+    console.log({
+      contractAddress,
+      from,
+      to,
+      tokenId,
+      quantity,
+      timestamp,
+      chainId,
+      transactionHash,
+      blockNumber,
+      txIndex
+    })
     const tokenTransferHistory =
       await this.prisma.tokenTransferHistory.findFirst({
         where: {
           transactionHash,
           txIndex,
           chainId,
+          logIndex
         },
       });
     if (tokenTransferHistory) return [];
@@ -647,10 +678,11 @@ export class ImportCollectionService {
     transactions.push(
       this.prisma.tokenTransferHistory.upsert({
         where: {
-          transactionHash_chainId_txIndex: {
+          transactionHash_chainId_txIndex_logIndex: {
             transactionHash,
             txIndex,
             chainId,
+            logIndex
           },
         },
         create: {
@@ -664,6 +696,8 @@ export class ImportCollectionService {
           value: quantity,
           chainId,
           txIndex,
+          logIndex,
+          isBatch
         },
         update: {},
       }),

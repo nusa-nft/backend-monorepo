@@ -192,7 +192,7 @@ model LazyMintSale {
   itemId            Int
   LazyMintListing   LazyMintListing @relation(fields: [lazyMintListingId], references: [id])
   lazyMintListingId Int
-  tokenId           Decimal @db.Decimal(78, 0)
+  tokenId           Decimal         @db.Decimal(78, 0)
   tokenType         TokenType
   listingType       ListingType
   quantityBought    Int?
@@ -300,20 +300,21 @@ model TokenTransferHistory {
   to              String?
   contractAddress String
   chainId         Int     @default(0)
-  tokenId           Decimal @db.Decimal(78, 0)
+  tokenId         Decimal @db.Decimal(78, 0)
   value           Int?
   createdAt       Int?
   transactionHash String
   isBatch         Boolean @default(false)
   txIndex         Int     @default(0)
+  logIndex        Int     @default(0)
 
-  @@unique([transactionHash, chainId, txIndex])
+  @@unique([transactionHash, chainId, txIndex, logIndex])
 }
 
 model TokenOwnerships {
   contractAddress String
-  chainId         Int    @default(0)
-  tokenId           Decimal @db.Decimal(78, 0)
+  chainId         Int     @default(0)
+  tokenId         Decimal @db.Decimal(78, 0)
   ownerAddress    String
   quantity        Int
   timestamp       Int
@@ -328,7 +329,7 @@ model MarketplaceListing {
   lister               String?
   tokenOwner           String?
   assetContract        String?
-  tokenId              Decimal             @db.Decimal(78, 0)
+  tokenId              Decimal            @db.Decimal(78, 0)
   startTime            Int?
   endTime              Int?
   quantity             Int?
@@ -392,18 +393,18 @@ model IndexerState {
 }
 
 model Voucher {
-  id         Int     @unique @default(autoincrement())
-  tokenId    Int     @default(0)
-  rootHash   String
-  deleted    Boolean @default(false)
+  id       Int     @unique @default(autoincrement())
+  tokenId  Int     @default(0)
+  rootHash String
+  deleted  Boolean @default(false)
 }
 
 model VoucherLeaf {
-  id         Int        @unique @default(autoincrement())
-  hash       String     
-  num        Int        @default(0)
-  tokenId    Int 
-  deleted    Boolean @default(false)
+  id      Int     @unique @default(autoincrement())
+  hash    String
+  num     Int     @default(0)
+  tokenId Int
+  deleted Boolean @default(false)
 }
 
 model CuratedCollection {
@@ -413,14 +414,14 @@ model CuratedCollection {
 }
 
 model ImportedContracts {
-  id              Int       @unique @default(autoincrement())
-  contractAddress String
-  chainId         Int
-  tokenType       TokenType
-  deployedAtBlock Int
-  lastIndexedBlock Int @default(0)
-  createdAt       DateTime
-  isImportFinish  Boolean @default(false)
+  id               Int       @unique @default(autoincrement())
+  contractAddress  String
+  chainId          Int
+  tokenType        TokenType
+  deployedAtBlock  Int
+  lastIndexedBlock Int       @default(0)
+  createdAt        DateTime
+  isImportFinish   Boolean   @default(false)
 
   @@unique([contractAddress, chainId])
 }
