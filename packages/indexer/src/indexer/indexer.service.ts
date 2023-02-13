@@ -1438,6 +1438,7 @@ export class IndexerService implements OnModuleInit {
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     const blockNumberHashed = parseInt(blockNumber.toString());
 
+    console.log('handle transfer single')
     const tokenOwnershipWrite =
       await this.createUpdateImportedContractTokenOwnership({
         contractAddress,
@@ -1698,6 +1699,7 @@ export class IndexerService implements OnModuleInit {
     user: User;
     amount?: number;
   }) {
+    console.log('handle check if item not exist')
     const item = await this.prisma.item.findFirst({
       where: {
         tokenId: tokenId,
@@ -1792,6 +1794,8 @@ export class IndexerService implements OnModuleInit {
       create: itemData,
       update: itemUpdateData,
     });
+
+    console.log('create or update item finished')
   }
 
   async extractMetadata(
