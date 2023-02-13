@@ -145,8 +145,7 @@ export class IndexerService implements OnModuleInit {
       const hexToBlock = ethers.BigNumber.from(
         toBlock.toString(),
       ).toHexString();
-      const indexing = await this.handleIndexing(hexFromBlock, hexToBlock);
-      console.log(indexing);
+      await this.handleIndexing(hexFromBlock, hexToBlock);
       await this.queryFilterMarketplace(Number(fromBlock), Number(toBlock));
       await this.queryFilterRoyaltyDistributor(
         Number(fromBlock),
@@ -1251,15 +1250,15 @@ export class IndexerService implements OnModuleInit {
         tokenId = parseInt(event.args[3]._hex);
       }
 
-      console.log('ini  token', tokenId)
       let collection;
       await retry(
         async () => {
           collection = await this.prisma.collection.findFirstOrThrow({
             where: {
               items: {
-                some: {
+                every: {
                   tokenId,
+                  contract_address: contractAddress,
                 },
               },
             },
@@ -1438,7 +1437,6 @@ export class IndexerService implements OnModuleInit {
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     const blockNumberHashed = parseInt(blockNumber.toString());
 
-    console.log('handle transfer single')
     const tokenOwnershipWrite =
       await this.createUpdateImportedContractTokenOwnership({
         contractAddress,
@@ -1795,7 +1793,7 @@ export class IndexerService implements OnModuleInit {
       update: itemUpdateData,
     });
 
-    console.log('create or update item finished')
+    console.log('create or update item finished');
   }
 
   async extractMetadata(
