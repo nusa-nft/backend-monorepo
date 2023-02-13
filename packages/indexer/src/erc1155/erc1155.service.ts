@@ -301,7 +301,7 @@ export class Erc1155Service {
     const { tokenId, page, event } = params;
     const limit = 10;
     const offset = limit * (page - 1);
-
+    console.log(tokenId);
     const tokenIdsArray = JSON.parse(tokenId);
 
     const query = Prisma.sql`

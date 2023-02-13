@@ -145,7 +145,8 @@ export class IndexerService implements OnModuleInit {
       const hexToBlock = ethers.BigNumber.from(
         toBlock.toString(),
       ).toHexString();
-      await this.handleIndexing(hexFromBlock, hexToBlock);
+      const indexing = await this.handleIndexing(hexFromBlock, hexToBlock);
+      console.log(indexing);
       await this.queryFilterMarketplace(Number(fromBlock), Number(toBlock));
       await this.queryFilterRoyaltyDistributor(
         Number(fromBlock),
@@ -1250,6 +1251,7 @@ export class IndexerService implements OnModuleInit {
         tokenId = parseInt(event.args[3]._hex);
       }
 
+      console.log('ini  token', tokenId)
       let collection;
       await retry(
         async () => {
@@ -1348,6 +1350,7 @@ export class IndexerService implements OnModuleInit {
           console.log('imported contract block updated');
         }
       }
+      return;
     }
   }
 
