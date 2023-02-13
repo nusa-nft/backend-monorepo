@@ -676,6 +676,8 @@ export class CollectionService {
 
   async getCollectionStatus(collectionId: number) {
     const soldListingPrice = [];
+    console.log('ini', collectionId);
+
     const items = await this.prisma.item.findMany({
       where: {
         Collection: {
@@ -997,6 +999,8 @@ export class CollectionService {
     if (!collectionData) {
       return [];
     }
+
+    console.log(collectionData)
 
     for (const collection of collectionData) {
       const { id } = collection;
