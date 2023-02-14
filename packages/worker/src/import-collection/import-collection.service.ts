@@ -201,6 +201,7 @@ export class ImportCollectionService {
       });
 
       for (let {fromBlock, toBlock} of blockRangeChunks) {
+        Logger.log(`Processing logs for blocks ${fromBlock} to ${toBlock}`);
         const logs = await contract.queryFilter(
           { topics },
           fromBlock,
