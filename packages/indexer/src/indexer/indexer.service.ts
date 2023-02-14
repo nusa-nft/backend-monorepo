@@ -1227,10 +1227,10 @@ export class IndexerService implements OnModuleInit {
                   connectOrCreate: {
                     create: {
                       username: 'nusa collection',
-                      wallet_address: nusaWalletAddress.address.toLowerCase(),
+                      wallet_address: nusaWalletAddress.address,
                     },
                     where: {
-                      wallet_address: nusaWalletAddress.address.toLowerCase(),
+                      wallet_address: nusaWalletAddress.address,
                     },
                   },
                 },
