@@ -703,7 +703,7 @@ export class ItemServiceV2 {
     }
 
     const item = await this.prisma.item.findUnique({
-      where: { id },
+      where: { id: +id },
       include: {
         attributes: true,
         Collection: {
@@ -903,6 +903,7 @@ export class ItemServiceV2 {
           tokenId: item.tokenId,
         },
       });
+      console.log(ownerships);
       for (const own of ownerships) {
         const user = await this.prisma.user.findFirst({
           where: {

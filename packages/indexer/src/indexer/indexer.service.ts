@@ -50,7 +50,7 @@ export class IndexerService implements OnModuleInit {
   filterRoyaltyPaid;
 
   MAX_INTEGER = 2147483647;
-  INDEX_OLD_BLOCKS_FINISHED = false;
+  INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED = false;
   INDEX_OLD_IMPORTED_CONTRACTS_BLOCK = false;
   constructor(
     private prisma: PrismaService,
@@ -139,13 +139,6 @@ export class IndexerService implements OnModuleInit {
 
     for (const range of blockRange) {
       const { fromBlock, toBlock } = range;
-      const hexFromBlock = ethers.BigNumber.from(
-        fromBlock.toString(),
-      ).toHexString();
-      const hexToBlock = ethers.BigNumber.from(
-        toBlock.toString(),
-      ).toHexString();
-      await this.handleIndexing(hexFromBlock, hexToBlock);
       await this.queryFilterMarketplace(Number(fromBlock), Number(toBlock));
       await this.queryFilterRoyaltyDistributor(
         Number(fromBlock),
@@ -153,8 +146,8 @@ export class IndexerService implements OnModuleInit {
       );
       await this.updateLatestBlock(Number(toBlock));
     }
-    this.INDEX_OLD_BLOCKS_FINISHED = true;
-    Logger.log('INDEX OLD BLOCK DONE');
+    this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED = true;
+    Logger.log('INDEX MARKETPLACE PREVIOUS BLOCK DONE');
     return;
   }
 
@@ -208,7 +201,7 @@ export class IndexerService implements OnModuleInit {
       console.log('imported contract block updated');
     }
     this.INDEX_OLD_IMPORTED_CONTRACTS_BLOCK = true;
-    Logger.log('INDEX OLD IMPORTED CONTRACTS BLOCK DONE');
+    Logger.log('INDEX PREVIOUS TRANSFER EVENTS BLOCK DONE');
     return;
   }
 
@@ -231,39 +224,6 @@ export class IndexerService implements OnModuleInit {
     // Restart should be handled by PM2
     process.exit(1);
   }
-
-  // async handleErc1155TransferSingle() {
-  //   // listen to new transfer transaction
-  //   this.erc1155.on(
-  //     'TransferSingle',
-  //     async (operator, from, to, tokenId, value, log) => {
-  //       const { blockNumber, transactionHash } = log;
-  //       const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-  //       await this.prisma.erc1155TransferHistory.create({
-  //         data: {
-  //           operator,
-  //           from,
-  //           to,
-  //           tokenId: parseInt(tokenId),
-  //           block: blockNumber,
-  //           value: parseInt(value),
-  //           createdAt: timestamp,
-  //           transactionHash,
-  //         },
-  //       });
-  //       await this.createUpdateTokenOwnership({
-  //         from: log.args.from,
-  //         to: log.args.to,
-  //         tokenId: parseInt(tokenId),
-  //         quantity: parseInt(value),
-  //         timestamp,
-  //         transactionHash,
-  //       });
-  //       if (this.INDEX_OLD_BLOCKS_FINISHED)
-  //         await this.updateLatestBlock(blockNumber);
-  //     },
-  //   );
-  // }
 
   async handleMarketplaceListingAdded() {
     this.marketplace.on(
@@ -301,7 +261,7 @@ export class IndexerService implements OnModuleInit {
           listingType,
           createdAt: timestamp,
         });
-        if (this.INDEX_OLD_BLOCKS_FINISHED)
+        if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
           await this.updateLatestBlock(blockNumber);
       },
     );
@@ -318,7 +278,7 @@ export class IndexerService implements OnModuleInit {
           listingId,
           updatedAt: timestamp,
         });
-        if (this.INDEX_OLD_BLOCKS_FINISHED)
+        if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
           await this.updateLatestBlock(blockNumber);
       },
     );
@@ -356,7 +316,7 @@ export class IndexerService implements OnModuleInit {
         buyoutPricePerToken,
         updatedAt: timestamp,
       });
-      if (this.INDEX_OLD_BLOCKS_FINISHED)
+      if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
         await this.updateLatestBlock(blockNumber);
     });
   }
@@ -415,7 +375,7 @@ export class IndexerService implements OnModuleInit {
           buyoutPricePerToken,
           updatedAt: timestamp,
         });
-        if (this.INDEX_OLD_BLOCKS_FINISHED)
+        if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
           await this.updateLatestBlock(blockNumber);
       },
     );
@@ -437,7 +397,7 @@ export class IndexerService implements OnModuleInit {
           { listingId, closer, cancelled, auctionCreator, winningBidder },
           log,
         );
-        if (this.INDEX_OLD_BLOCKS_FINISHED)
+        if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
           await this.updateLatestBlock(blockNumber);
       },
     );
@@ -494,7 +454,7 @@ export class IndexerService implements OnModuleInit {
           buyoutPricePerToken,
           updatedAt: timestamp,
         });
-        if (this.INDEX_OLD_BLOCKS_FINISHED)
+        if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
           await this.updateLatestBlock(blockNumber);
       },
     );
@@ -579,49 +539,6 @@ export class IndexerService implements OnModuleInit {
       return;
     }
   }
-
-  // async queryFilterErc1155(fromBlock: number, toBlock: number) {
-  //   Logger.log(`queryFilterErc1155(${fromBlock}, ${toBlock})`);
-  //   const logs = await this.erc1155.queryFilter(
-  //     this.filterTransferSingle,
-  //     Number(fromBlock),
-  //     Number(toBlock),
-  //   );
-  //   for (const log of logs) {
-  //     Logger.log('ERC1155#TransferSingle');
-  //     const entry = await this.prisma.erc1155TransferHistory.findFirst({
-  //       where: {
-  //         transactionHash: log.transactionHash,
-  //       },
-  //     });
-  //     if (!entry) {
-  //       const tokenId = parseInt(log.args.id);
-  //       const value = parseInt(log.args.value);
-  //       const timestamp = (await this.provider.getBlock(log.blockNumber))
-  //         .timestamp;
-  //       await this.prisma.erc1155TransferHistory.create({
-  //         data: {
-  //           operator: log.args.operator,
-  //           from: log.args.from,
-  //           to: log.args.to,
-  //           tokenId: tokenId,
-  //           block: log.blockNumber,
-  //           value: value,
-  //           createdAt: timestamp,
-  //           transactionHash: log.transactionHash,
-  //         },
-  //       });
-  //       await this.createUpdateTokenOwnership({
-  //         from: log.args.from,
-  //         to: log.args.to,
-  //         tokenId,
-  //         quantity: value,
-  //         timestamp,
-  //         transactionHash: log.transactionHash,
-  //       });
-  //     }
-  //   }
-  // }
 
   async queryFilterMarketplace(fromBlock: number, toBlock: number) {
     Logger.log(`queryFilterMarketplace(${fromBlock}, ${toBlock})`);
@@ -1251,25 +1168,94 @@ export class IndexerService implements OnModuleInit {
       }
 
       let collection;
-      await retry(
-        async () => {
-          collection = await this.prisma.collection.findFirstOrThrow({
-            where: {
-              items: {
-                every: {
-                  tokenId,
-                  contract_address: contractAddress,
-                },
-              },
-            },
-          });
-          return collection;
-        },
-        {
-          forever: true,
-        },
+      console.log(
+        contractAddress.toLowerCase(),
+        nusaContractAddress.toLowerCase(),
       );
 
+      if (contractAddress.toLowerCase() != nusaContractAddress.toLowerCase()) {
+        console.log('kesana');
+
+        await retry(
+          async () => {
+            collection = await this.prisma.collection.findFirstOrThrow({
+              where: {
+                contract_address: contractAddress,
+              },
+            });
+            return collection;
+          },
+          {
+            forever: true,
+          },
+        );
+      } else {
+        console.log('kesini');
+        const metadataUri = await contract.uri(tokenId);
+        const metadata = await this.getMetadata(metadataUri);
+        if (!metadata.nusa_collection) {
+          const privateKey = process.env.NFT_CONTRACT_OWNER_PRIVATE_KEY;
+          const nusaWalletAddress = new ethers.Wallet(
+            privateKey,
+            this.provider,
+          );
+
+          const findNusaCollection: Collection =
+            await this.prisma.collection.findFirst({
+              where: {
+                slug: {
+                  contains: 'nusa-collection',
+                },
+              },
+            });
+
+          if (!findNusaCollection) {
+            collection = await this.prisma.collection.create({
+              data: {
+                name: 'nusa collection',
+                slug: 'nusa-collection',
+                Category: {
+                  connect: {
+                    id: 1,
+                  },
+                },
+                contract_address: nusaContractAddress,
+                Creator: {
+                  connectOrCreate: {
+                    create: {
+                      username: 'nusa collection',
+                      wallet_address: nusaWalletAddress.address,
+                    },
+                    where: {
+                      wallet_address: nusaWalletAddress.address,
+                    },
+                  },
+                },
+              },
+            });
+          } else {
+            collection = findNusaCollection;
+          }
+        } else {
+          const slug = metadata.nusa_collection.slug;
+          console.log(slug);
+          await retry(
+            async () => {
+              collection = await this.prisma.collection.findFirstOrThrow({
+                where: {
+                  slug,
+                },
+              });
+              return collection;
+            },
+            {
+              forever: true,
+            },
+          );
+        }
+      }
+
+      console.log('ini data collection', collection);
       const collectionId = +collection.id;
 
       const user = await this.prisma.user.findFirst({
@@ -1327,9 +1313,11 @@ export class IndexerService implements OnModuleInit {
       if (
         fromBlock == toBlock &&
         this.INDEX_OLD_IMPORTED_CONTRACTS_BLOCK &&
-        this.INDEX_OLD_BLOCKS_FINISHED
+        this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED
       ) {
-        if (contractAddress == nusaContractAddress) {
+        if (
+          contractAddress.toLowerCase() == nusaContractAddress.toLowerCase()
+        ) {
           await this.updateLatestBlock(blockNumberParsed);
         } else {
           console.log(contractAddress, this.chainId);
@@ -1697,7 +1685,7 @@ export class IndexerService implements OnModuleInit {
     user: User;
     amount?: number;
   }) {
-    console.log('handle check if item not exist')
+    console.log('handle check if item not exist');
     const item = await this.prisma.item.findFirst({
       where: {
         tokenId: tokenId,
@@ -1834,7 +1822,7 @@ export class IndexerService implements OnModuleInit {
     return { name, description, image, metadataUri, attributes };
   }
 
-  async getMetadata(uri: string, timeout: number = 5000) {
+  async getMetadata(uri: string, timeout: number = 10000) {
     Logger.log('fetching metadata', uri);
     await new Promise((resolve) => setTimeout(resolve, 3000));
     if (uri.startsWith('ipfs://')) {

@@ -38,13 +38,18 @@ export class IpfsService {
     description,
     image,
     attributes,
+    nusa_collection,
   }: {
     name: string;
     description: string;
     image: string;
     attributes: any[];
+    nusa_collection: {
+      name: string;
+      slug: string;
+    };
   }) {
-    const data = { name, description, image, attributes };
+    const data = { name, description, image, attributes, nusa_collection };
     const bufferData = Buffer.from(JSON.stringify(data));
     const formData = new FormData();
     formData.append('file', bufferData);
@@ -58,6 +63,7 @@ export class IpfsService {
         },
       },
     );
+    console.log('uploaded metadata', data)
     return result.data;
   }
 }
