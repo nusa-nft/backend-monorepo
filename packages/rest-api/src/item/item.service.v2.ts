@@ -901,6 +901,7 @@ export class ItemServiceV2 {
           contractAddress: item.contract_address,
           chainId: item.chainId,
           tokenId: item.tokenId,
+          quantity: { gt: 0 }
         },
       });
       console.log(ownerships);
