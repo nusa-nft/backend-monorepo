@@ -76,7 +76,8 @@ export class ImportCollectionService {
   @Process('import-collection')
   async processImportCollection(job: Job<ImportCollectionJob>) {
     Logger.log('processing job', JSON.stringify(job));
-    const { contractAddress, categoryId } = job.data;
+    let { contractAddress, categoryId } = job.data;
+    contractAddress = contractAddress.toLowerCase();
     const chainId = Number(process.env.CHAIN_ID);
 
     const iface = new ethers.utils.Interface(this.abi);
@@ -138,7 +139,12 @@ export class ImportCollectionService {
 
     // Check if user exists, if not create
     user = await this.prisma.user.findFirst({
-      where: { wallet_address: contractCreator },
+      where: {
+        wallet_address: {
+          contains: contractCreator,
+          mode: 'insensitive'
+        },
+      }
     });
     if (!user) {
       user = await this.prisma.user.create({
@@ -197,17 +203,17 @@ export class ImportCollectionService {
       let blockRangeChunks = this.getBlockRangeChunks({
         startBlock: queryStartBlock,
         endBlock: latestBlock,
-        chunkSize: 1000 
+        chunkSize: 3000
       });
 
-      for (let {fromBlock, toBlock} of blockRangeChunks) {
+      for (let { fromBlock, toBlock } of blockRangeChunks) {
         Logger.log(`Processing logs for blocks ${fromBlock} to ${toBlock}`);
         const logs = await contract.queryFilter(
           { topics },
           fromBlock,
           toBlock,
         );
-    
+
         for (const log of logs) {
           const event = iface.parseLog(log);
           const { logIndex } = log;
@@ -255,8 +261,9 @@ export class ImportCollectionService {
       }
 
       await this.prisma.importedContracts.update({
-        where: { contractAddress_chainId: {
-          contractAddress, chainId
+        where: {
+          contractAddress_chainId: {
+            contractAddress, chainId
           }
         },
         data: {
@@ -272,8 +279,9 @@ export class ImportCollectionService {
         latestBlockIndexed = true;
 
         await this.prisma.importedContracts.update({
-          where: { contractAddress_chainId: {
-            contractAddress, chainId
+          where: {
+            contractAddress_chainId: {
+              contractAddress, chainId
             }
           },
           data: {
@@ -353,7 +361,10 @@ export class ImportCollectionService {
   }) {
     let collection = await this.prisma.collection.findFirst({
       where: {
-        contract_address: contractAddress,
+        contract_address: {
+          contains: contractAddress,
+          mode: 'insensitive',
+        },
         chainId,
       },
     });
@@ -706,7 +717,10 @@ export class ImportCollectionService {
 
     const _from = await this.prisma.tokenOwnerships.findFirst({
       where: {
-        contractAddress,
+        contractAddress: {
+          contains: contractAddress,
+          mode: 'insensitive'
+        },
         tokenId,
         ownerAddress: from,
         chainId,
@@ -714,7 +728,10 @@ export class ImportCollectionService {
     });
     const _to = await this.prisma.tokenOwnerships.findFirst({
       where: {
-        contractAddress,
+        contractAddress: {
+          contains: contractAddress,
+          mode: 'insensitive'
+        },
         tokenId,
         ownerAddress: to,
         chainId,
@@ -803,7 +820,10 @@ export class ImportCollectionService {
     const item = await this.prisma.item.findFirst({
       where: {
         tokenId: tokenId,
-        contract_address: contractAddress,
+        contract_address: {
+          contains: contractAddress,
+          mode: 'insensitive'
+        },
         chainId,
       },
       include: {
