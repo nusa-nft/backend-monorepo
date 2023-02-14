@@ -5,12 +5,17 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
   private logger = new Logger(UsersService.name);
   async create(createUserDto: CreateUserDto) {
     try {
-      const wallet = await this.prisma.user.findUnique({
-        where: { wallet_address: createUserDto.wallet_address },
+      const wallet = await this.prisma.user.findFirst({
+        where: {
+          wallet_address: {
+            equals: createUserDto.wallet_address,
+            mode: 'insensitive'
+          }
+        },
       });
       if (wallet) {
         throw new HttpException(
