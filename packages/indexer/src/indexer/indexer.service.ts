@@ -176,7 +176,7 @@ export class IndexerService implements OnModuleInit {
       blockNumbers.push(i);
     }
     // make chunk of per 3500 block range from previously determined block
-    const chunk = _.chunk(blockNumbers, 1000);
+    const chunk = _.chunk(blockNumbers, 3000);
     // make array of object fromBlock and toBlock value
     blockRange = chunk.map((arr) => {
       const toBlock = arr.slice(-1);
@@ -1180,7 +1180,10 @@ export class IndexerService implements OnModuleInit {
           async () => {
             collection = await this.prisma.collection.findFirstOrThrow({
               where: {
-                contract_address: contractAddress,
+                contract_address: {
+                  contains: contractAddress,
+                  mode: 'insensitive',
+                },
               },
             });
             return collection;
@@ -1219,7 +1222,7 @@ export class IndexerService implements OnModuleInit {
                     id: 1,
                   },
                 },
-                contract_address: nusaContractAddress,
+                contract_address: nusaContractAddress.toLowerCase(),
                 Creator: {
                   connectOrCreate: {
                     create: {
@@ -1689,7 +1692,10 @@ export class IndexerService implements OnModuleInit {
     const item = await this.prisma.item.findFirst({
       where: {
         tokenId: tokenId,
-        contract_address: contractAddress,
+        contract_address: {
+          contains: contractAddress,
+          mode: 'insensitive',
+        },
         chainId,
       },
       include: {
@@ -1730,7 +1736,7 @@ export class IndexerService implements OnModuleInit {
       token_standard: tokenType,
       metadata: metadataUri,
       tokenId: tokenId,
-      contract_address: contractAddress,
+      contract_address: contractAddress.toLowerCase(),
       is_metadata_freeze: true,
       name,
       image,
@@ -1769,11 +1775,19 @@ export class IndexerService implements OnModuleInit {
         },
       };
     }
+    const importedContract = await this.prisma.importedContracts.findFirst({
+      where: {
+        contractAddress: {
+          contains: contractAddress,
+          mode: 'insensitive',
+        },
+      },
+    });
     await this.prisma.item.upsert({
       where: {
         tokenId_contract_address_chainId: {
           tokenId: tokenId,
-          contract_address: contractAddress,
+          contract_address: importedContract.contractAddress,
           chainId,
         },
       },
