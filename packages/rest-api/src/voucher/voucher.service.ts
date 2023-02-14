@@ -6,9 +6,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import keccak256 from 'keccak256';
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Job, Queue } from 'bull';
-import { ClaimDTO, CreateDTO, RegisterDTO } from './voucher.dto';
+import { ClaimDTO, CreateNftDTO, RegisterDTO } from './voucher.dto';
 import * as AsyncLock from 'async-lock';
 import { BlockchainTxPayload } from '../interfaces';
+import { v4 as uuidv4 } from 'uuid';
 
 const tryNum = 10;
 @Injectable()
@@ -57,7 +58,7 @@ export class VoucherService {
     return job;
   }
 
-  async queueCreateNft(param: CreateDTO) {
+  async queueCreateNft(param: CreateNftDTO) {
     const { toAddress, tokenURI } = param;
     const payload: BlockchainTxPayload = {
       method: 'create',
@@ -340,5 +341,26 @@ export class VoucherService {
       this.merkleTrees[tokenId].exp,
       proof,
     );
+  }
+
+  async testGenerateUuid(quantity: number) {
+    const uuids = [];
+    for (let i = 0; i < quantity; i++) {
+      uuids.push(uuidv4());
+    }
+    return uuids;
+  }
+
+  async getItemByVoucher(voucher: string) {
+    const leaf = ethers.utils.solidityKeccak256(['string'], [voucher]);
+    const voucherLeaf = await this.prisma.voucherLeaf.findFirstOrThrow({ where: { hash: leaf }});
+    Logger.log(voucherLeaf);
+    const item = await this.prisma.item.findFirstOrThrow({ where: {
+      tokenId: voucherLeaf.tokenId,
+      chainId: Number(process.env.CHAIN_ID),
+      contract_address: process.env.NFT_CONTRACT_ADDRESS
+    }})
+
+    return item;
   }
 }

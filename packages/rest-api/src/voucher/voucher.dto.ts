@@ -9,9 +9,6 @@ export class RegisterDTO {
   @ApiProperty()
   @IsNotEmpty()
   hash: string[];
-  @ApiProperty()
-  @IsNotEmpty()
-  expired: number;
 }
 
 export class ClaimDTO {
@@ -38,7 +35,7 @@ export class CheckDTO {
   voucher: string;
 }
 
-export class CreateDTO {
+export class CreateNftDTO {
   @ApiProperty()
   toAddress: string;
   @ApiProperty()
@@ -47,9 +44,10 @@ export class CreateDTO {
 
 export class CreateVoucherDTO {
   @ApiProperty()
-  tokenId: number;
-  @ApiProperty()
   voucher: string[];
+}
+
+export class GenerateUuidDTO {
   @ApiProperty()
-  exp: number;
+  quantity: number;
 }
