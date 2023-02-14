@@ -48,11 +48,21 @@ export class RoyaltyService {
       });
 
       const seller = await this.prisma.user.findFirst({
-        where: { wallet_address: r.listing.lister },
+        where: {
+          wallet_address: {
+            contains: r.listing.lister,
+            mode: 'insensitive',
+          },
+        },
       });
 
       const buyer = await this.prisma.user.findFirst({
-        where: { wallet_address: r.listing.MarketplaceSale.buyer },
+        where: {
+          wallet_address: {
+            contains: r.listing.MarketplaceSale.buyer,
+            mode: 'insensitive',
+          },
+        },
       });
 
       const date = formatDistance(new Date(r.createdAt * 1000), new Date(), {

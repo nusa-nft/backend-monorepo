@@ -176,7 +176,7 @@ export class IndexerService implements OnModuleInit {
       blockNumbers.push(i);
     }
     // make chunk of per 3500 block range from previously determined block
-    const chunk = _.chunk(blockNumbers, 1000);
+    const chunk = _.chunk(blockNumbers, 3000);
     // make array of object fromBlock and toBlock value
     blockRange = chunk.map((arr) => {
       const toBlock = arr.slice(-1);
