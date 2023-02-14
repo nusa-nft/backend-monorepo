@@ -99,7 +99,7 @@ export class UsersService {
         );
         return;
       }
-      await this.prisma.user.update({
+      const data = await this.prisma.user.update({
         where: {
           id: userId,
         },
@@ -119,6 +119,7 @@ export class UsersService {
       return {
         status: HttpStatus.OK,
         message: 'User has been updated',
+        data,
       };
     } catch (e) {
       this.logger.log(e.message);
