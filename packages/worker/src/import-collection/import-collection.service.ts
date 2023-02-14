@@ -401,7 +401,6 @@ export class ImportCollectionService {
       },
       update: {
         name,
-        slug,
         logo_image: '',
         chainId,
         isImported: true,
