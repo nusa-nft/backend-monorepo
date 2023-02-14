@@ -1620,6 +1620,8 @@ export class IndexerService implements OnModuleInit {
         chainId,
       },
     });
+
+    
     // Upsert From
     if (_from && _from.ownerAddress != ethers.constants.AddressZero) {
       transactions.push(
