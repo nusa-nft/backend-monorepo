@@ -16,6 +16,7 @@ import { IpfsService } from '../ipfs/ipfs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AttributeType,
+  Collection,
   Item,
   ItemViews,
   Prisma,
@@ -66,6 +67,7 @@ export class ItemService {
     let metadata = '';
     let attributeData = [];
     let collection_id = createItemDto.collection_id;
+    let collection: Collection;
 
     // If no collection, create collection automatically
     if (!collection_id) {
@@ -81,7 +83,7 @@ export class ItemService {
 
       const { slug } = await this.collectionService.getSlug(collectionName);
 
-      const collection = await this.collectionService.createCollection(
+      const collectionData = await this.collectionService.createCollection(
         userWalletAddress,
         {
           category_id: 1,
@@ -95,25 +97,39 @@ export class ItemService {
         },
       );
 
-      collection_id = collection.data.id;
+      collection = collectionData.data;
+      collection_id = collectionData.data.id;
+    } else {
+      collection = await this.prisma.collection.findFirst({
+        where: {
+          id: +collection_id,
+        },
+      });
     }
 
     if (createItemDto.attributes) {
       attributeData = JSON.parse(createItemDto.attributes);
       attributeData = this.nusaTypeValidator(attributeData);
     }
-
     // If freeze metadata, upload to IPFS
     if (createItemDto.is_metadata_freeze) {
       console.log({ file });
       const ipfsImageData = await this.ipfsService.uploadImage(file.path);
+      console.log(ipfsImageData)
       const standardizeMetadata = standardizeMetadataAttribute(attributeData);
+      console.log(standardizeMetadata)
+
       const ipfsMetadata = await this.ipfsService.uploadMetadata({
         name: createItemDto.name,
         description: createItemDto.description,
         image,
         attributes: standardizeMetadata,
+        nusa_collection: {
+          name: collection.name,
+          slug: collection.slug,
+        },
       });
+      console.log(ipfsImageData.Hash);
       image = `ipfs://${ipfsImageData.Hash}`;
       metadata = `ipfs://${ipfsMetadata.Hash}`;
     } else {
@@ -166,21 +182,26 @@ export class ItemService {
       },
     });
 
-    const item = await this.prisma.item.update({
-      where: { id: Item.id },
-      data: {
-        metadata: `${process.env.API_BASE_URL}/item/metadata/${Item.id}`,
-      },
-      include: {
-        attributes: true,
-        Creator: {
-          select: {
-            username: true,
-            wallet_address: true,
+    let item;
+    if (createItemDto.is_metadata_freeze == false) {
+      item = await this.prisma.item.update({
+        where: { id: Item.id },
+        data: {
+          metadata: `${process.env.API_BASE_URL}/item/metadata/${Item.id}`,
+        },
+        include: {
+          attributes: true,
+          Creator: {
+            select: {
+              username: true,
+              wallet_address: true,
+            },
           },
         },
-      },
-    });
+      });
+    } else {
+      item = Item;
+    }
 
     return {
       status: HttpStatus.CREATED,
