@@ -1594,20 +1594,34 @@ export class IndexerService implements OnModuleInit {
 
     const _from = await this.prisma.tokenOwnerships.findFirst({
       where: {
-        contractAddress,
+        contractAddress: {
+          contains: contractAddress,
+          mode: 'insensitive',
+        },
         tokenId,
-        ownerAddress: from,
+        ownerAddress: {
+          contains: from,
+          mode: 'insensitive',
+        },
         chainId,
       },
     });
     const _to = await this.prisma.tokenOwnerships.findFirst({
       where: {
-        contractAddress,
+        contractAddress: {
+          contains: contractAddress,
+          mode: 'insensitive',
+        },
         tokenId,
-        ownerAddress: to,
+        ownerAddress: {
+          contains: to,
+          mode: 'insensitive',
+        },
         chainId,
       },
     });
+
+    
     // Upsert From
     if (_from && _from.ownerAddress != ethers.constants.AddressZero) {
       transactions.push(
