@@ -4,8 +4,9 @@ import { ApiTags } from '@nestjs/swagger';
 import {
   CheckDTO,
   ClaimDTO,
-  CreateDTO,
+  CreateNftDTO,
   CreateVoucherDTO,
+  GenerateUuidDTO,
   RegisterDTO,
 } from './voucher.dto';
 
@@ -39,8 +40,8 @@ export class VoucherController {
     return this.voucherService.getCreator(tokenId);
   }
 
-  @Post('create')
-  createToken(@Body() param: CreateDTO) {
+  @Post('create-nft')
+  createToken(@Body() param: CreateNftDTO) {
     return this.voucherService.create(param.toAddress, param.tokenURI);
   }
 
@@ -55,12 +56,22 @@ export class VoucherController {
   }
 
   @Post('create-nft-queue')
-  queueCreateNft(@Body() param: CreateDTO) {
+  queueCreateNft(@Body() param: CreateNftDTO) {
     return this.voucherService.queueCreateNft(param);
   }
 
   @Post('claim-nft-queue')
   queueClaimNft(@Body() param: ClaimDTO) {
     return this.voucherService.queueClaimNft(param);
+  }
+
+  @Post('test-generate-uuid')
+  testGenerateUuid(@Body() param: GenerateUuidDTO) {
+    return this.voucherService.testGenerateUuid(param.quantity);
+  }
+
+  @Get('item/:voucher')
+  getItemByVoucher(@Param('voucher') voucher: string) {
+    return this.voucherService.getItemByVoucher(voucher);
   }
 }
