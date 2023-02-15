@@ -62,7 +62,7 @@ export class ItemService {
     userId: number,
     userWalletAddress: string,
   ) {
-    const contract_address = process.env.NFT_CONTRACT_ADDRESS;
+    const contract_address = (process.env.NFT_CONTRACT_ADDRESS as string).toLowerCase();
     let image = '';
     let metadata = '';
     let attributeData = [];
