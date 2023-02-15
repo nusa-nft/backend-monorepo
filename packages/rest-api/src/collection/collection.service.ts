@@ -63,7 +63,7 @@ export class CollectionService {
     this.validateRoyaltyInput(royaltyData);
     const collection = await this.prisma.collection.create({
       data: {
-        contract_address: contract_address,
+        contract_address: contract_address.toLowerCase(),
         Creator: {
           connect: {
             wallet_address: creatorAddress,
@@ -198,8 +198,8 @@ export class CollectionService {
       where: { id: +id },
       data: {
         contract_address:
-          createCollectionDto.contract_address ||
-          findCollection.contract_address,
+          createCollectionDto.contract_address.toLowerCase() ||
+          findCollection.contract_address.toLowerCase(),
         Creator: {
           connect: {
             wallet_address:

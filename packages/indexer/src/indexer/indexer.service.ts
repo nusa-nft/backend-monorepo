@@ -1797,6 +1797,7 @@ export class IndexerService implements OnModuleInit {
         },
       },
     });
+
     await this.prisma.item.upsert({
       where: {
         tokenId_contract_address_chainId: {
