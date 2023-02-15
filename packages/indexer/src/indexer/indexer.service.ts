@@ -1788,21 +1788,13 @@ export class IndexerService implements OnModuleInit {
           },
         },
       };
-    }
-    const importedContract = await this.prisma.importedContracts.findFirst({
-      where: {
-        contractAddress: {
-          contains: contractAddress,
-          mode: 'insensitive',
-        },
-      },
-    });
+    };
 
     await this.prisma.item.upsert({
       where: {
         tokenId_contract_address_chainId: {
           tokenId: tokenId,
-          contract_address: importedContract.contractAddress,
+          contract_address: contractAddress,
           chainId,
         },
       },
