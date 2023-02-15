@@ -19,6 +19,7 @@ export class VoucherService {
   private provider: ethers.providers.JsonRpcProvider;
   private wallet: ethers.Wallet;
   private nusaNFT = null;
+  private nusaNFTInterface: ethers.utils.Interface;
   private walletLock: AsyncLock;
   private nonce: number;
   private logger = new Logger(VoucherService.name);
@@ -40,12 +41,31 @@ export class VoucherService {
     );
 
     this.walletLock = new AsyncLock();
+
+    this.nusaNFTInterface = new ethers.utils.Interface([
+      'event TokenCreated(uint256 indexed tokenId)'
+    ]);
+  }
+
+  async queueCreateNft(param: CreateNftDTO) {
+    const { toAddress, tokenURI, voucherRootHash, voucherHashes } = param;
+    const payload: BlockchainTxPayload = {
+      method: 'create',
+      args: [toAddress, tokenURI],
+      extraData: {
+        voucherHashes,
+        voucherRootHash
+      }
+    };
+
+    const job = await this.blockchainTxQueue.add('create-nft', payload, { attempts: 3 });
+    return job;
   }
 
   async queueRegisterVoucher(param: RegisterDTO) {
     // hash is leaves =)
     const { tokenId, hash } = param;
-    const tree = await this.getMerkleTree(hash);
+    const tree = this.getMerkleTree(hash);
     const rootHash = await tree.getHexRoot();
 
     const payload: BlockchainTxPayload = {
@@ -54,18 +74,7 @@ export class VoucherService {
       extraData: { leaves: hash },
     };
 
-    const job = await this.blockchainTxQueue.add('register-voucher', payload);
-    return job;
-  }
-
-  async queueCreateNft(param: CreateNftDTO) {
-    const { toAddress, tokenURI } = param;
-    const payload: BlockchainTxPayload = {
-      method: 'create',
-      args: [toAddress, tokenURI],
-    };
-
-    const job = await this.blockchainTxQueue.add('create-nft', payload);
+    const job = await this.blockchainTxQueue.add('register-voucher', payload, { attempts: 3 });
     return job;
   }
 
@@ -91,7 +100,7 @@ export class VoucherService {
       where: { tokenId: voucherLeaf.tokenId },
     });
     const leafs = voucherLeafs.map((o) => o.hash);
-    const tree = await this.getMerkleTree(leafs);
+    const tree = this.getMerkleTree(leafs);
     const proof = tree.getHexProof(hash);
     const payload: BlockchainTxPayload = {
       method: 'claimVoucher',
@@ -117,7 +126,23 @@ export class VoucherService {
 
   @Process('create-nft')
   async processCreateNft(job: Job<BlockchainTxPayload>) {
-    await this.processJobWithWallet('create-nft', job);
+    await this.processJobWithWallet('create-nft', job, async (txReceipt) => {
+      const { logs } = txReceipt;
+      if (logs.length > 0) {
+        const event = this.nusaNFTInterface.parseLog(logs[0]);
+        if (event.name == 'TokenCreated') {
+          const tokenId = event.args[0].toNumber();
+          const payload: BlockchainTxPayload = {
+            method: 'registerVoucher',
+            args: [tokenId, job.data.extraData.voucherRootHash],
+            extraData: {
+              leaves: job.data.extraData.voucherHashes
+            }
+          }
+          this.blockchainTxQueue.add('register-voucher', payload, { attempts: 3 });
+        }
+      }
+    });
   }
 
   @Process('register-voucher')
@@ -143,7 +168,7 @@ export class VoucherService {
   processJobWithWallet(
     jobName: string,
     job: Job<BlockchainTxPayload>,
-    callback?: () => any,
+    callback?: (txReceipt: ethers.providers.TransactionReceipt) => any,
   ) {
     return new Promise((resolve) => {
       this.walletLock
@@ -162,10 +187,11 @@ export class VoucherService {
                   await this.provider.waitForTransaction(tx.hash);
                 this.logger.log('transaction processed', job, minedTx);
                 if (callback) {
-                  callback();
+                  callback(minedTx);
                 }
-              } catch (err) {
-                this.logger.error(err);
+              } catch (error) {
+                this.logger.error(error, 'Requeuing');
+                this.blockchainTxQueue.add(jobName, job.data);
               }
             })
             .catch(async (error: any) => {
@@ -179,8 +205,9 @@ export class VoucherService {
           resolve(true);
         })
         .catch((err) => {
-          this.logger.error(err, 'Requeuing');
-          this.blockchainTxQueue.add(jobName, job.data);
+          this.logger.error(err);
+          // this.logger.error(err, 'Requeuing');
+          // this.blockchainTxQueue.add(jobName, job.data);
           resolve(true);
         });
     });
@@ -189,7 +216,7 @@ export class VoucherService {
   async registerVoucherToDB(tokenId: number, leafs: string[]): Promise<any> {
     await this.prisma.voucher.deleteMany({ where: { tokenId } });
     await this.prisma.voucherLeaf.deleteMany({ where: { tokenId } });
-    const tree = await this.getMerkleTree(leafs);
+    const tree = this.getMerkleTree(leafs);
     const rootHash = `${tree.getHexRoot()}`;
 
     let isValid = true;
@@ -248,7 +275,7 @@ export class VoucherService {
       orderBy: { num: 'asc' },
     });
     const leafs = voucherLeafs.map((o) => o.hash);
-    const tree = await this.getMerkleTree(leafs);
+    const tree = this.getMerkleTree(leafs);
     const proof = tree.getHexProof(hash);
     // const dbVoucher = await this.prisma.voucher.findFirst({
     //   where: { id: tokenId },
@@ -307,7 +334,7 @@ export class VoucherService {
     return this.nusaNFT.create(toAddress, tokenURI);
   }
 
-  async getMerkleTree(leaves: string[]): Promise<any> {
+  getMerkleTree(leaves: string[]): MerkleTree {
     return new MerkleTree(leaves, keccak256, { sortPairs: true });
   }
 
@@ -315,7 +342,7 @@ export class VoucherService {
     const leaves = voucher.map((v) => {
       return ethers.utils.solidityKeccak256(['string'], [v]);
     });
-    const tree = await this.getMerkleTree(leaves);
+    const tree = this.getMerkleTree(leaves);
     const rootHash = `${tree.getHexRoot()}`;
     return {
       voucher,
@@ -325,20 +352,21 @@ export class VoucherService {
   }
 
   async check(tokenId: number, voucher: string): Promise<any> {
+    const hash = ethers.utils.solidityKeccak256(['string'], [voucher]);
+    const voucherLeaf = await this.prisma.voucherLeaf.findFirst({
+      where: { hash },
+    });
+    const voucherLeafs = await this.prisma.voucherLeaf.findMany({
+      where: { tokenId: voucherLeaf.tokenId },
+      orderBy: { num: 'asc' },
+    });
     // console.log(this.merkleTrees[tokenId]);
-    const merkleTree = await this.getMerkleTree(
-      this.merkleTrees[tokenId].leaves,
-    );
-    const hash = ethers.utils.solidityKeccak256(
-      ['string', 'uint256', 'uint'],
-      [voucher, tokenId, this.merkleTrees[tokenId].exp],
-    );
+    const merkleTree = this.getMerkleTree(voucherLeafs.map(o => o.hash));
     const proof = merkleTree.getHexProof(hash);
     // return this.merkleTrees[tokenId];
     return this.nusaNFT.isValidVoucher(
       voucher,
       tokenId,
-      this.merkleTrees[tokenId].exp,
       proof,
     );
   }
