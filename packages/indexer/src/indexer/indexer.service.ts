@@ -913,7 +913,10 @@ export class IndexerService implements OnModuleInit {
       where: {
         tokenId: tokenId.toString(),
         chainId: Number(process.env.CHAIN_ID),
-        contract_address: assetContract,
+        contract_address: {
+          equals: assetContract,
+          mode: 'insensitive'
+        },
       },
     });
 
