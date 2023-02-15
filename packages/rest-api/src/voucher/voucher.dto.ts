@@ -40,6 +40,10 @@ export class CreateNftDTO {
   toAddress: string;
   @ApiProperty()
   tokenURI: string;
+  @ApiProperty()
+  voucherHashes: string[];
+  @ApiProperty()
+  voucherRootHash: string;
 }
 
 export class CreateVoucherDTO {
