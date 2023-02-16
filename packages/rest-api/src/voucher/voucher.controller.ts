@@ -16,15 +16,6 @@ import {
 export class VoucherController {
   constructor(private readonly voucherService: VoucherService) {}
 
-  @Post('claim')
-  claim(@Body() param: ClaimDTO) {
-    return this.voucherService.claim(
-      param.voucher,
-      param.toAddress,
-      param.signature,
-    );
-  }
-
   @Post('check')
   check(@Body() param: CheckDTO) {
     return this.voucherService.check(param.tokenId, param.voucher);
@@ -40,20 +31,10 @@ export class VoucherController {
     return this.voucherService.getCreator(tokenId);
   }
 
-  @Post('create-nft')
-  createToken(@Body() param: CreateNftDTO) {
-    return this.voucherService.create(param.toAddress, param.tokenURI);
-  }
-
   @Post('create-voucher')
   createVoucher(@Body() param: CreateVoucherDTO) {
     return this.voucherService.createVoucher(param.voucher);
   }
-
-  // @Post('register-voucher-queue')
-  // queueRegisterVoucher(@Body() param: RegisterDTO) {
-  //   return this.voucherService.queueRegisterVoucher(param);
-  // }
 
   @Post('create-nft-queue')
   queueCreateNft(@Body() param: CreateNftDTO) {
@@ -73,5 +54,10 @@ export class VoucherController {
   @Get('item/:voucher')
   getItemByVoucher(@Param('voucher') voucher: string) {
     return this.voucherService.getItemByVoucher(voucher);
+  }
+
+  @Get('claim-nft-queue/status/:jobId')
+  getImportQueueStatus(@Param('jobId') jobId: number) {
+    return this.voucherService.getJobStatus(jobId);
   }
 }
