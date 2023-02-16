@@ -43,7 +43,8 @@ export class VoucherService {
     this.walletLock = new AsyncLock();
 
     this.nusaNFTInterface = new ethers.utils.Interface([
-      'event TokenCreated(uint256 indexed tokenId)'
+      'event TokenCreated(uint256 indexed tokenId)',
+      'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
     ]);
   }
 
@@ -81,16 +82,21 @@ export class VoucherService {
       where: { tokenId: voucherLeaf.tokenId },
       orderBy: { num: 'asc' },
     });
-    const dbVoucher = await this.prisma.voucher.findFirst({
-      where: { tokenId: voucherLeaf.tokenId },
-    });
-    const leafs = voucherLeafs.map((o) => o.hash);
-    const tree = this.getMerkleTree(leafs);
+    const leaves = voucherLeafs.map((o) => o.hash);
+    const tree = this.getMerkleTree(leaves);
+    const rootHash = tree.getHexRoot();
     const proof = tree.getHexProof(hash);
     const payload: BlockchainTxPayload = {
       method: 'claimVoucher',
       args: [voucher, voucherLeaf.tokenId, toAddress, proof],
     };
+    const rootHashVoucherRegistered = await this.nusaNFT._rootHashVoucher(voucherLeaf.tokenId);
+    console.log({
+      voucher,
+      hash,
+      rootHash,
+      rootHashVoucherRegistered
+    });
     const isValid = await this.nusaNFT.isValidVoucher(
       voucher,
       voucherLeaf.tokenId,
@@ -109,31 +115,36 @@ export class VoucherService {
     return job;
   }
 
+  /**
+   * On success, this function adds a register-voucher job to the queue
+   * 
+   * @param job create NFT Job Payload
+   */
   @Process('create-nft')
   async processCreateNft(job: Job<BlockchainTxPayload>) {
     await this.processJobWithWallet('create-nft', job, async (txReceipt) => {
       const { logs } = txReceipt;
-      if (logs.length > 0) {
-        const event = this.nusaNFTInterface.parseLog(logs[0]);
-        if (event.name == 'TokenCreated') {
-          const tokenId = event.args[0].toNumber();
-          const {
-            voucherRootHash,
-            voucherHashes,
-            itemUuid
-          } = job.data.extraData;
+      if (logs.length == 0) throw new Error('create-nft job failed. no logs');
 
-          await this.updateItemTokenId(itemUuid, tokenId);
-          const payload: BlockchainTxPayload = {
-            method: 'registerVoucher',
-            args: [tokenId, voucherRootHash],
-            extraData: {
-              leaves: voucherHashes,
-              itemUuid: itemUuid,
-            }
+      const event = this.nusaNFTInterface.parseLog(logs[0]);
+      if (event.name == 'TokenCreated') {
+        const tokenId = event.args[0].toNumber();
+        const {
+          voucherRootHash,
+          voucherHashes,
+          itemUuid
+        } = job.data.extraData;
+
+        await this.updateItemTokenId(itemUuid, tokenId);
+        const payload: BlockchainTxPayload = {
+          method: 'registerVoucher',
+          args: [tokenId, voucherRootHash],
+          extraData: {
+            leaves: voucherHashes,
+            itemUuid: itemUuid,
           }
-          this.blockchainTxQueue.add('register-voucher', payload, { attempts: 3 });
         }
+        this.blockchainTxQueue.add('register-voucher', payload, { attempts: 3 });
       }
     });
   }
@@ -147,6 +158,8 @@ export class VoucherService {
     if (creator != '0x0000000000000000000000000000000000000000')
       this.registerVoucherToDB(tokenId, leaves, itemUuid)
         .then((res) => {
+          console.log('register-voucher');
+          console.log({ 'job.data.method': job.data.method, 'job.data.args': job.data.args });
           this.processJobWithWallet('register-voucher', job);
         })
         .catch((e) => {
@@ -156,7 +169,29 @@ export class VoucherService {
 
   @Process('claim-nft')
   async processClaimVoucher(job: Job<BlockchainTxPayload>) {
-    this.processJobWithWallet('claim-nft', job);
+    this.processJobWithWallet('claim-nft', job, async (txReceipt) => {
+      const { logs } = txReceipt;
+      if (logs.length == 0) throw new Error('claim-nft job failed. no logs');
+      const event = this.nusaNFTInterface.parseLog(logs[0]);
+      if (event.name == 'TransferSingle') {
+        // const operator = event.args[0];
+        // const from = event.args[1];
+        // const to = event.args[2];
+        const tokenId = event.args[3].toString();
+        const value = event.args[4].toNumber();
+        await this.prisma.item.updateMany({
+          where: {
+            contract_address: process.env.NFT_CONTRACT_ADDRESS,
+            chainId: Number(process.env.CHAIN_ID),
+            tokenId
+          },
+          data: {
+            quantity_minted: { increment: value }
+          }
+        })
+        await job.progress(200);
+      }
+    });
   }
 
   processJobWithWallet(
@@ -180,6 +215,7 @@ export class VoucherService {
                 const minedTx: ethers.providers.TransactionReceipt =
                   await this.provider.waitForTransaction(tx.hash);
                 this.logger.log('transaction processed', job, minedTx);
+                await job.progress(100);
                 if (callback) {
                   callback(minedTx);
                 }
@@ -268,67 +304,6 @@ export class VoucherService {
     })
   }
 
-  async claim(
-    voucher: string,
-    toAddress: string,
-    signature: string,
-  ): Promise<any> {
-    const hash = ethers.utils.solidityKeccak256(['string'], [voucher]);
-    const voucherLeaf = await this.prisma.voucherLeaf.findFirst({
-      where: { hash },
-    });
-    const voucherLeafs = await this.prisma.voucherLeaf.findMany({
-      where: { tokenId: voucherLeaf.tokenId },
-      orderBy: { num: 'asc' },
-    });
-    const leafs = voucherLeafs.map((o) => o.hash);
-    const tree = this.getMerkleTree(leafs);
-    const proof = tree.getHexProof(hash);
-    // const dbVoucher = await this.prisma.voucher.findFirst({
-    //   where: { id: tokenId },
-    // });
-    // if (!dbVoucher) {
-    //   throw new HttpException(
-    //     {
-    //       status: HttpStatus.NOT_FOUND,
-    //       error: 'Token not have voucher',
-    //     },
-    //     HttpStatus.NOT_FOUND,
-    //   );
-    // }
-    // const leaves = dbVoucher.hash.split(',').map((s) => s.trim());
-    // const tree = await this.getMerkleTree(leaves);
-    // const hash = ethers.utils.solidityKeccak256(
-    //   ['string', 'uint256', 'uint'],
-    //   [voucher, tokenId, dbVoucher.expTime],
-    // );
-    // const proof = tree.getHexProof(hash);
-    // try {
-    //   const receipt = await this.nusaNFT.claimVoucher(
-    //     voucher,
-    //     tokenId,
-    //     dbVoucher.expTime,
-    //     toAddress,
-    //     signature,
-    //     proof,
-    //     {
-    //       // gasPrice: ethers.utils.parseUnits('5', 'gwei'),
-    //     },
-    //   );
-    //   this.logger.log('info', `register voucher for token id : ${tokenId}`);
-    //   return { receipt };
-    // } catch (error) {
-    //   this.logger.log('error', `error claim voucher for token id: ${tokenId}`);
-    //   throw new HttpException(
-    //     {
-    //       status: HttpStatus.NOT_FOUND,
-    //       error: 'Token not have voucher',
-    //     },
-    //     HttpStatus.NOT_FOUND,
-    //   );
-    // }
-  }
-
   async ownerContract(): Promise<string> {
     return this.nusaNFT.owner();
   }
@@ -337,22 +312,18 @@ export class VoucherService {
     return this.nusaNFT.creator(tokenId);
   }
 
-  async create(toAddress: string, tokenURI: string): Promise<any> {
-    return this.nusaNFT.create(toAddress, tokenURI);
-  }
-
   getMerkleTree(leaves: string[]): MerkleTree {
-    return new MerkleTree(leaves, keccak256, { sortPairs: true });
+    return new MerkleTree(leaves, ethers.utils.keccak256, { sortPairs: true });
   }
 
-  async createVoucher(voucher: string[]): Promise<any> {
-    const leaves = voucher.map((v) => {
+  async createVoucher(vouchers: string[]): Promise<any> {
+    const leaves = vouchers.map((v) => {
       return ethers.utils.solidityKeccak256(['string'], [v]);
     });
     const tree = this.getMerkleTree(leaves);
-    const rootHash = `${tree.getHexRoot()}`;
+    const rootHash = tree.getHexRoot();
     return {
-      voucher,
+      vouchers,
       leaves,
       rootHash,
     };
@@ -414,5 +385,10 @@ export class VoucherService {
         0,
       ),
     };
+  }
+
+  async getJobStatus(jobId: number) {
+    const job = await this.blockchainTxQueue.getJob(jobId);
+    return job;
   }
 }

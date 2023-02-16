@@ -14,16 +14,10 @@ export class RegisterDTO {
 export class ClaimDTO {
   @ApiProperty()
   @IsNotEmpty()
-  tokenId: number;
-  @ApiProperty()
-  @IsNotEmpty()
   voucher: string;
   @ApiProperty()
   @IsNotEmpty()
   toAddress: string;
-  @ApiProperty()
-  @IsNotEmpty()
-  signature: string;
 }
 
 export class CheckDTO {
