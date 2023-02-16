@@ -301,6 +301,18 @@ export class Erc1155Service {
     const { tokenId, page, event } = params;
     const limit = 10;
     const offset = limit * (page - 1);
+    if (!tokenId)
+      return {
+        status: HttpStatus.OK,
+        message: 'success',
+        metadata: {
+          page: Number(page),
+          perPage: 10,
+          pageCount: 1,
+          totalCount: 0,
+        },
+        records: [],
+      };
     const tokenIdsArray = JSON.parse(tokenId);
     const tokenIdsArrayOfNumber = tokenIdsArray.map((i) => Number(i));
 
