@@ -678,6 +678,15 @@ export class CollectionService {
     const soldListingPrice = [];
     console.log('ini', collectionId);
 
+    if (!collectionId) {
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          error: 'collection not found',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     const items = await this.prisma.item.findMany({
       where: {
         Collection: {
