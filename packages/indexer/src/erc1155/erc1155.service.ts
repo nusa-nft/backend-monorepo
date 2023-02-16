@@ -66,7 +66,7 @@ export class Erc1155Service {
             "to",
             "tokenId"
           FROM
-            public."Erc1155TransferHistory"
+            public."TokenTransferHistory"
         UNION
           SELECT
             'listing' AS event,
@@ -125,7 +125,7 @@ export class Erc1155Service {
           "to",
           "tokenId"
         FROM
-          public."Erc1155TransferHistory"
+          public."TokenTransferHistory"
       UNION
         SELECT
           'listing' AS event,
@@ -317,7 +317,7 @@ export class Erc1155Service {
             "to",
             "tokenId"
           FROM
-            public."Erc1155TransferHistory"
+            public."TokenTransferHistory"
         UNION
           SELECT
             'listing' AS event,
@@ -376,7 +376,7 @@ export class Erc1155Service {
           "to",
           "tokenId"
         FROM
-          public."Erc1155TransferHistory"
+          public."TokenTransferHistory"
       UNION
         SELECT
           'listing' AS event,
