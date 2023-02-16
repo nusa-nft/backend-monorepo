@@ -2,13 +2,13 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
   extensions = [citext]
 }
 
@@ -89,6 +89,7 @@ model Collection {
 
 model Item {
   id                 Int                  @unique @default(autoincrement())
+  uuid               String?               @db.Uuid
   tokenId            Decimal?             @default(-1) @db.Decimal(78, 0)
   name               String
   description        String?
@@ -173,7 +174,7 @@ model LazyMintListing {
   id                   Int            @unique @default(autoincrement())
   Item                 Item           @relation(fields: [itemId], references: [id])
   itemId               Int
-  assetContract        String @db.Citext
+  assetContract        String         @db.Citext
   // tokenId Int
   startTime            Int
   endTime              Int
@@ -203,23 +204,23 @@ model LazyMintSale {
 }
 
 model Notification {
-  id                        Int                      @unique @default(autoincrement())
-  notification_type         NotificationType
-  is_seen                   Boolean                  @default(false)
-  user                      User                     @relation(fields: [wallet_address], references: [wallet_address])
-  wallet_address            String                   @db.Citext
-  notification_detail_sale  NotificationDetailSale?  @relation("sale", fields: [notification_detail_sale_id], references: [id])
-  notification_detail_sale_id                   Int?
-  notification_detail_offer NotificationDetailOffer? @relation("offer", fields: [notification_detail_offer_id], references: [id])
-  notification_detail_offer_id                  Int?
-  createdAt                 DateTime                 @default(now())
+  id                           Int                      @unique @default(autoincrement())
+  notification_type            NotificationType
+  is_seen                      Boolean                  @default(false)
+  user                         User                     @relation(fields: [wallet_address], references: [wallet_address])
+  wallet_address               String                   @db.Citext
+  notification_detail_sale     NotificationDetailSale?  @relation("sale", fields: [notification_detail_sale_id], references: [id])
+  notification_detail_sale_id  Int?
+  notification_detail_offer    NotificationDetailOffer? @relation("offer", fields: [notification_detail_offer_id], references: [id])
+  notification_detail_offer_id Int?
+  createdAt                    DateTime                 @default(now())
 }
 
 model NotificationDetailSale {
   id                    Int              @unique @default(autoincrement())
   notification_type     NotificationType @default(Sale)
   listingId             Int?
-  asset_contract        String @db.Citext
+  asset_contract        String           @db.Citext
   lister                User             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
   lister_wallet_address String           @db.Citext
   buyer                 User             @relation("buyer", fields: [buyer_wallet_address], references: [wallet_address])
@@ -245,7 +246,7 @@ model NotificationDetailOffer {
   listing_type           ListingType
   quantity_wanted        Int?
   total_offer_ammount    Decimal          @db.Decimal(78, 0)
-  currency               String @db.Citext
+  currency               String           @db.Citext
   createdAt              DateTime         @default(now())
   createdAt_timestamp    Int?
   expiration_timestamp   Int?
@@ -344,7 +345,7 @@ model MarketplaceOffer {
   id                  Int                 @unique @default(autoincrement())
   listing             MarketplaceListing? @relation(fields: [listingId], references: [listingId])
   listingId           Int?
-  offeror             String @db.Citext
+  offeror             String              @db.Citext
   listingType         ListingType
   quantityWanted      Int?
   totalOfferAmount    Decimal             @db.Decimal(78, 0)
@@ -385,6 +386,7 @@ model IndexerState {
 model Voucher {
   id       Int     @unique @default(autoincrement())
   tokenId  Int     @default(0)
+  itemUuid String? @db.Uuid
   rootHash String
   deleted  Boolean @default(false)
 }
@@ -394,6 +396,7 @@ model VoucherLeaf {
   hash    String
   num     Int     @default(0)
   tokenId Int
+  itemUuid String? @db.Uuid
   deleted Boolean @default(false)
 }
 

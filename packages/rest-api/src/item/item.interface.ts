@@ -82,6 +82,10 @@ export interface ItemDetail extends Item {
   relatedItems: Partial<ItemDetail>[];
   listings: Listing[];
   creatorEarnings: number;
+  voucherRedeemable?: {
+    supply: number;
+    redeemed: number;
+  }
 }
 
 export interface ItemListResponse {

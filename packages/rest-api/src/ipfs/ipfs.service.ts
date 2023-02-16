@@ -43,6 +43,7 @@ export class IpfsService {
     nusa_collection,
     external_link,
     explicit_sensitive,
+    nusa_item_id,
   }: {
     name: string;
     description: string;
@@ -54,6 +55,7 @@ export class IpfsService {
     };
     external_link: string;
     explicit_sensitive: boolean;
+    nusa_item_id: string;
   }) {
     const data = {
       name,
@@ -62,7 +64,8 @@ export class IpfsService {
       attributes,
       nusa_collection,
       external_link,
-      explicit_sensitive
+      explicit_sensitive,
+      nusa_item_id
     };
     const bufferData = Buffer.from(JSON.stringify(data));
     const formData = new FormData();

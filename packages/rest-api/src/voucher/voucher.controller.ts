@@ -50,10 +50,10 @@ export class VoucherController {
     return this.voucherService.createVoucher(param.voucher);
   }
 
-  @Post('register-voucher-queue')
-  queueRegisterVoucher(@Body() param: RegisterDTO) {
-    return this.voucherService.queueRegisterVoucher(param);
-  }
+  // @Post('register-voucher-queue')
+  // queueRegisterVoucher(@Body() param: RegisterDTO) {
+  //   return this.voucherService.queueRegisterVoucher(param);
+  // }
 
   @Post('create-nft-queue')
   queueCreateNft(@Body() param: CreateNftDTO) {
