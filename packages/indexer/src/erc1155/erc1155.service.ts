@@ -301,8 +301,8 @@ export class Erc1155Service {
     const { tokenId, page, event } = params;
     const limit = 10;
     const offset = limit * (page - 1);
-    console.log(tokenId);
     const tokenIdsArray = JSON.parse(tokenId);
+    const tokenIdsArrayOfNumber = tokenIdsArray.map((i) => Number(i));
 
     const query = Prisma.sql`
       SELECT X.* FROM (
@@ -356,7 +356,7 @@ export class Erc1155Service {
             JOIN public."MarketplaceListing" listing
             ON sale."listingId" = listing."listingId"
         ) X
-        WHERE X."tokenId" IN (${Prisma.join(tokenIdsArray)})
+        WHERE X."tokenId" IN (${Prisma.join(tokenIdsArrayOfNumber)})
         ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}
       ORDER BY X."createdAt" DESC
       LIMIT ${limit}
@@ -415,7 +415,7 @@ export class Erc1155Service {
           JOIN public."MarketplaceListing" listing
           ON sale."listingId" = listing."listingId"
       ) X
-    WHERE X."tokenId" IN (${Prisma.join(tokenIdsArray)})
+    WHERE X."tokenId" IN (${Prisma.join(tokenIdsArrayOfNumber)})
     ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}
     `;
 
