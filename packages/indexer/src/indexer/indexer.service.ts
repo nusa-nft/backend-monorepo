@@ -913,7 +913,10 @@ export class IndexerService implements OnModuleInit {
       where: {
         tokenId: tokenId.toString(),
         chainId: Number(process.env.CHAIN_ID),
-        contract_address: assetContract,
+        contract_address: {
+          equals: assetContract,
+          mode: 'insensitive'
+        },
       },
     });
 
@@ -924,7 +927,7 @@ export class IndexerService implements OnModuleInit {
           listingId: parseInt(listingId._hex),
           lister,
           tokenOwner,
-          assetContract,
+          assetContract: assetContract.toLowerCase(),
           chainId: Number(process.env.CHAIN_ID),
           tokenId: tokenId.toString(),
           startTime: parseInt(startTime._hex),
@@ -993,7 +996,7 @@ export class IndexerService implements OnModuleInit {
         isCancelled: false,
         updatedAt,
         tokenOwner,
-        assetContract,
+        assetContract: assetContract.toLowerCase(),
         tokenId: parseInt(tokenId._hex),
         startTime: parseInt(startTime._hex),
         endTime: _endTime,
@@ -1030,7 +1033,7 @@ export class IndexerService implements OnModuleInit {
     const newSale = await this.prisma.marketplaceSale.create({
       data: {
         listingId: parseInt(listingId),
-        assetContract: assetContract,
+        assetContract: assetContract.toLowerCase(),
         lister: lister,
         buyer,
         quantityBought: parseInt(quantityBought),
@@ -1575,7 +1578,7 @@ export class IndexerService implements OnModuleInit {
           },
         },
         create: {
-          contractAddress,
+          contractAddress: contractAddress.toLowerCase(),
           from,
           to,
           tokenId,
