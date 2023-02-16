@@ -730,7 +730,6 @@ export class CollectionService {
       where: {
         Item: {
           collection_id: collectionId,
-          quantity_minted: { gt: 0 },
         },
         isCancelled: false,
         isFulfilled: false,
