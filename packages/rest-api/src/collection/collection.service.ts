@@ -733,6 +733,7 @@ export class CollectionService {
           quantity_minted: { gt: 0 },
         },
         isCancelled: false,
+        isFulfilled: false,
         quantity: {
           gt: 0,
         },
