@@ -41,7 +41,6 @@ export class AppService {
     const res = await this.httpService.axiosRef.post(
       `https://www.google.com/recaptcha/api/siteverify?secret=${this.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`,
     );
-    console.log({ res });
     if (res.data.success) {
       return true;
     }

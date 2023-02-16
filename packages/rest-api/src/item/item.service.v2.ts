@@ -854,6 +854,8 @@ export class ItemServiceV2 {
   }
 
   async setMinted(itemId: number, tokenId: number, quantityMinted: number) {
+    console.log('setMinted')
+    console.log({ itemId, tokenId, quantityMinted });
     if (!tokenId && tokenId != 0) {
       throw new HttpException('tokenId is required', HttpStatus.BAD_REQUEST);
     }
