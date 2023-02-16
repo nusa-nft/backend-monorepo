@@ -32,6 +32,7 @@ import { MintRequestStruct, signMintRequest } from './web3/erc1155-lazy-mint';
 import { NATIVE_CURRENCY } from './web3/constants';
 import { CollectionService } from 'src/collection/collection.service';
 import { formatDistance } from 'date-fns';
+import * as retry from 'async-retry';
 
 @Injectable()
 export class ItemService {
@@ -113,11 +114,8 @@ export class ItemService {
     }
     // If freeze metadata, upload to IPFS
     if (createItemDto.is_metadata_freeze) {
-      console.log({ file });
       const ipfsImageData = await this.ipfsService.uploadImage(file.path);
-      console.log(ipfsImageData)
       const standardizeMetadata = standardizeMetadataAttribute(attributeData);
-      console.log(standardizeMetadata)
 
       const ipfsMetadata = await this.ipfsService.uploadMetadata({
         name: createItemDto.name,
@@ -128,8 +126,9 @@ export class ItemService {
           name: collection.name,
           slug: collection.slug,
         },
+        external_link: createItemDto.external_link,
+        explicit_sensitive: createItemDto.explicit_sensitive,
       });
-      console.log(ipfsImageData.Hash);
       image = `ipfs://${ipfsImageData.Hash}`;
       metadata = `ipfs://${ipfsMetadata.Hash}`;
     } else {
@@ -138,69 +137,78 @@ export class ItemService {
         ? process.env.API_IMAGE_SERVE_URL + '/' + file.filename
         : 'https://nft.nusa.finance/uploads/' + file.filename;
     }
+    console.log({ metadata });
 
-    const Item = await this.prisma.item.create({
-      data: {
-        name: createItemDto.name,
-        description: createItemDto.description,
-        Collection: {
-          connect: {
-            id: Number(collection_id),
-          },
-        },
-        external_link: createItemDto.external_link,
-        image,
-        Creator: {
-          connect: {
-            id: userId,
-          },
-        },
-        contract_address: contract_address,
-        chainId: Number(createItemDto.chainId),
-        supply: Number(createItemDto.supply),
-        unlockable: createItemDto.unlockable,
-        metadata,
-        explicit_sensitive: createItemDto.explicit_sensitive,
-        is_metadata_freeze: createItemDto.is_metadata_freeze,
-        // If item is_minted, quantity_minted is supply, else 0
-        quantity_minted: createItemDto.is_minted ? createItemDto.supply : 0,
-        attributes: {
-          createMany: {
-            data: attributeData,
-          },
-        },
-        token_standard: TokenType.ERC1155,
-      },
-      include: {
-        attributes: true,
-        Creator: {
-          select: {
-            username: true,
-            wallet_address: true,
-          },
+    let lastInsertUnmintedItem = await this.prisma.item.findFirst({
+      where: { tokenId: { lt: 0 }},
+      orderBy: { id: 'asc' }
+    })
+    console.log('a')
+
+    let createItemData: Prisma.ItemCreateInput = {
+      name: createItemDto.name,
+      description: createItemDto.description,
+      Collection: {
+        connect: {
+          id: Number(collection_id),
         },
       },
-    });
+      external_link: createItemDto.external_link,
+      image,
+      Creator: {
+        connect: {
+          id: userId,
+        },
+      },
+      contract_address: contract_address,
+      chainId: Number(createItemDto.chainId),
+      supply: Number(createItemDto.supply),
+      unlockable: createItemDto.unlockable,
+      metadata,
+      tokenId: lastInsertUnmintedItem ? lastInsertUnmintedItem.tokenId.sub(1) : -1,
+      explicit_sensitive: createItemDto.explicit_sensitive,
+      is_metadata_freeze: createItemDto.is_metadata_freeze,
+      // If item is_minted, quantity_minted is supply, else 0
+      quantity_minted: createItemDto.is_minted ? createItemDto.supply : 0,
+      attributes: {
+        createMany: {
+          data: attributeData,
+        },
+      },
+      token_standard: TokenType.ERC1155,
+    };
+    console.log('b')
 
-    let item;
+    let item: Item;
+
+    await retry (
+      async () => {
+        try {
+          item = await this.prisma.item.create({ data: createItemData });
+        } catch (err) {
+          lastInsertUnmintedItem = await this.prisma.item.findFirst({
+            where: { tokenId: { lt: 0 }},
+            orderBy: { id: 'desc' }
+          })
+          createItemData = {
+            ...createItemData,
+            tokenId: lastInsertUnmintedItem.tokenId.sub(1),
+          }
+          throw new Error();
+        }
+      },
+      {
+        forever: true
+      }
+    )
+
     if (createItemDto.is_metadata_freeze == false) {
       item = await this.prisma.item.update({
-        where: { id: Item.id },
+        where: { id: item.id },
         data: {
-          metadata: `${process.env.API_BASE_URL}/item/metadata/${Item.id}`,
-        },
-        include: {
-          attributes: true,
-          Creator: {
-            select: {
-              username: true,
-              wallet_address: true,
-            },
-          },
+          metadata: `${process.env.API_BASE_URL}/item/metadata/${item.id}`,
         },
       });
-    } else {
-      item = Item;
     }
 
     return {
@@ -316,33 +324,6 @@ export class ItemService {
     }
 
     return owners;
-  }
-
-  async setMinted(itemId: number, tokenId: number) {
-    if (!tokenId && tokenId != 0) {
-      throw new HttpException('tokenId is required', HttpStatus.BAD_REQUEST);
-    }
-
-    let item = await this.prisma.item.findUnique({ where: { id: itemId } });
-    if (!item) {
-      throw new HttpException('item not found', HttpStatus.NOT_FOUND);
-    }
-
-    item = await this.prisma.item.update({
-      where: {
-        id: itemId,
-      },
-      data: {
-        tokenId,
-        quantity_minted: item.supply,
-      },
-    });
-
-    return {
-      status: HttpStatus.OK,
-      message: 'Item updated',
-      data: item,
-    };
   }
 
   async like(userId: number, itemId: number) {

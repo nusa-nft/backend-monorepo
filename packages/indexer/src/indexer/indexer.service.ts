@@ -95,7 +95,7 @@ export class IndexerService implements OnModuleInit {
     this.filterRoyaltyPaid = this.royaltyDistributor.filters.RoyaltyPaid();
   }
 
-  async indexOldBlocks() {
+  async indexMarketplaceOldBlocks() {
     const blockNumbers = [];
     let fromBlock;
     let blockRange = [];
@@ -151,7 +151,7 @@ export class IndexerService implements OnModuleInit {
     return;
   }
 
-  async indexOldImportedBlocks() {
+  async indexNftOldBlocks() {
     const blockNumbers = [];
     let fromBlock;
     let blockRange = [];
@@ -206,8 +206,8 @@ export class IndexerService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    this.indexOldBlocks();
-    this.indexOldImportedBlocks();
+    this.indexMarketplaceOldBlocks();
+    this.indexNftOldBlocks();
     // this.handleErc1155TransferSingle();
 
     this.handleMarketplaceListingAdded();
@@ -593,7 +593,6 @@ export class IndexerService implements OnModuleInit {
           listingType: event.args.listing.listingType,
           createdAt: timestamp,
         });
-        // await this.updateLatestBlock(log.blockNumber);
       }
       if (event.name == 'ListingRemoved') {
         Logger.log('ListingRemoved');
@@ -603,7 +602,6 @@ export class IndexerService implements OnModuleInit {
           listingId: event.args.listingId,
           updatedAt: timestamp,
         });
-        // await this.updateLatestBlock(log.blockNumber);
       }
       if (event.name == 'ListingUpdated') {
         Logger.log('ListingUpdated');
@@ -1177,31 +1175,24 @@ export class IndexerService implements OnModuleInit {
       );
 
       if (contractAddress.toLowerCase() != nusaContractAddress.toLowerCase()) {
+        // Get Collection from imported contract address
         console.log('kesana');
-
-        await retry(
-          async () => {
-            collection = await this.prisma.collection.findFirstOrThrow({
-              where: {
-                contract_address: {
-                  contains: contractAddress,
-                  mode: 'insensitive',
-                },
-              },
-            });
-            return collection;
+        collection = await this.prisma.collection.findFirstOrThrow({
+          where: {
+            contract_address: {
+              contains: contractAddress,
+              mode: 'insensitive',
+            },
           },
-          {
-            forever: true,
-          },
-        );
+        });
       } else {
+        // Create nusa-collection (if not exists) for items that do not have a collection
         console.log('kesini');
         const metadataUri = await contract.uri(tokenId);
         const metadata = await this.getMetadata(metadataUri);
         if (!metadata.nusa_collection) {
           const privateKey = process.env.NFT_CONTRACT_OWNER_PRIVATE_KEY;
-          const nusaWalletAddress = new ethers.Wallet(
+          const nusaWallet = new ethers.Wallet(
             privateKey,
             this.provider,
           );
@@ -1230,10 +1221,10 @@ export class IndexerService implements OnModuleInit {
                   connectOrCreate: {
                     create: {
                       username: 'nusa collection',
-                      wallet_address: nusaWalletAddress.address,
+                      wallet_address: nusaWallet.address,
                     },
                     where: {
-                      wallet_address: nusaWalletAddress.address,
+                      wallet_address: nusaWallet.address,
                     },
                   },
                 },
@@ -1243,6 +1234,7 @@ export class IndexerService implements OnModuleInit {
             collection = findNusaCollection;
           }
         } else {
+          // Find item's collection from metadata info 
           const slug = metadata.nusa_collection.slug;
           console.log(slug);
           await retry(
@@ -1446,7 +1438,9 @@ export class IndexerService implements OnModuleInit {
         logIndex,
       });
     // If tokenOwnerships has not changed && transfer is not mint return
-    if (from == ethers.constants.AddressZero) {
+    if (from == ethers.constants.AddressZero &&
+        contractAddress.toLowerCase() != (process.env.NFT_CONTRACT_ADDRESS).toLowerCase()
+      ) {
       await this.createItemIfNotExists({
         contract,
         collection,
@@ -1513,7 +1507,7 @@ export class IndexerService implements OnModuleInit {
           isBatch: true,
         });
       // If tokenOwnerships has not changed && transfer is not mint return
-      if (from == ethers.constants.AddressZero) {
+    if (from == ethers.constants.AddressZero && contractAddress != process.env.NFT_CONTRACT_ADDRESS) {
         await this.createItemIfNotExists({
           contract,
           collection,
