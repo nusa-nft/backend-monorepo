@@ -44,6 +44,8 @@ export class CreateNftDTO {
   voucherHashes: string[];
   @ApiProperty()
   voucherRootHash: string;
+  @ApiProperty()
+  itemUuid: string;
 }
 
 export class CreateVoucherDTO {

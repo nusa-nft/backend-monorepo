@@ -32,6 +32,7 @@ import { MintRequestStruct, signMintRequest } from './web3/erc1155-lazy-mint';
 import { NATIVE_CURRENCY } from './web3/constants';
 import { CollectionService } from 'src/collection/collection.service';
 import { formatDistance } from 'date-fns';
+import { v4 as uuidV4 } from 'uuid';
 import * as retry from 'async-retry';
 
 @Injectable()
@@ -69,6 +70,7 @@ export class ItemService {
     let attributeData = [];
     let collection_id = createItemDto.collection_id;
     let collection: Collection;
+    let nusa_item_id: string = uuidV4();
 
     // If no collection, create collection automatically
     if (!collection_id) {
@@ -128,6 +130,7 @@ export class ItemService {
         },
         external_link: createItemDto.external_link,
         explicit_sensitive: createItemDto.explicit_sensitive,
+        nusa_item_id,
       });
       image = `ipfs://${ipfsImageData.Hash}`;
       metadata = `ipfs://${ipfsMetadata.Hash}`;
@@ -146,6 +149,7 @@ export class ItemService {
     console.log('a')
 
     let createItemData: Prisma.ItemCreateInput = {
+      uuid: nusa_item_id,
       name: createItemDto.name,
       description: createItemDto.description,
       Collection: {

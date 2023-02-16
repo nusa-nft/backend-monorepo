@@ -11,7 +11,6 @@ import * as AsyncLock from 'async-lock';
 import { BlockchainTxPayload } from '../interfaces';
 import { v4 as uuidv4 } from 'uuid';
 
-const tryNum = 10;
 @Injectable()
 @Processor('blockchain-tx')
 export class VoucherService {
@@ -23,6 +22,7 @@ export class VoucherService {
   private walletLock: AsyncLock;
   private nonce: number;
   private logger = new Logger(VoucherService.name);
+
   constructor(
     private prisma: PrismaService,
     @InjectQueue('blockchain-tx') private blockchainTxQueue: Queue,
@@ -48,38 +48,23 @@ export class VoucherService {
   }
 
   async queueCreateNft(param: CreateNftDTO) {
-    const { toAddress, tokenURI, voucherRootHash, voucherHashes } = param;
+    const { toAddress, tokenURI, voucherRootHash, voucherHashes, itemUuid } = param;
     const payload: BlockchainTxPayload = {
       method: 'create',
       args: [toAddress, tokenURI],
       extraData: {
         voucherHashes,
-        voucherRootHash
-      }
+        voucherRootHash,
+        itemUuid
+      },
     };
 
     const job = await this.blockchainTxQueue.add('create-nft', payload, { attempts: 3 });
     return job;
   }
 
-  async queueRegisterVoucher(param: RegisterDTO) {
-    // hash is leaves =)
-    const { tokenId, hash } = param;
-    const tree = this.getMerkleTree(hash);
-    const rootHash = await tree.getHexRoot();
-
-    const payload: BlockchainTxPayload = {
-      method: 'registerVoucher',
-      args: [tokenId, rootHash],
-      extraData: { leaves: hash },
-    };
-
-    const job = await this.blockchainTxQueue.add('register-voucher', payload, { attempts: 3 });
-    return job;
-  }
-
   async queueClaimNft(param: ClaimDTO) {
-    const { signature, toAddress, voucher } = param;
+    const { toAddress, voucher } = param;
     const hash = ethers.utils.solidityKeccak256(['string'], [voucher]);
     const voucherLeaf = await this.prisma.voucherLeaf.findFirst({
       where: { hash },
@@ -132,11 +117,19 @@ export class VoucherService {
         const event = this.nusaNFTInterface.parseLog(logs[0]);
         if (event.name == 'TokenCreated') {
           const tokenId = event.args[0].toNumber();
+          const {
+            voucherRootHash,
+            voucherHashes,
+            itemUuid
+          } = job.data.extraData;
+
+          await this.updateItemTokenId(itemUuid, tokenId);
           const payload: BlockchainTxPayload = {
             method: 'registerVoucher',
-            args: [tokenId, job.data.extraData.voucherRootHash],
+            args: [tokenId, voucherRootHash],
             extraData: {
-              leaves: job.data.extraData.voucherHashes
+              leaves: voucherHashes,
+              itemUuid: itemUuid,
             }
           }
           this.blockchainTxQueue.add('register-voucher', payload, { attempts: 3 });
@@ -149,9 +142,10 @@ export class VoucherService {
   async processRegisterVoucher(job: Job<BlockchainTxPayload>) {
     const tokenId = job.data.args[0];
     const leaves = job.data.extraData.leaves;
+    const itemUuid = job.data.extraData.itemUuid;
     const creator = await this.nusaNFT.creator(tokenId);
     if (creator != '0x0000000000000000000000000000000000000000')
-      this.registerVoucherToDB(tokenId, leaves)
+      this.registerVoucherToDB(tokenId, leaves, itemUuid)
         .then((res) => {
           this.processJobWithWallet('register-voucher', job);
         })
@@ -190,13 +184,14 @@ export class VoucherService {
                   callback(minedTx);
                 }
               } catch (error) {
-                this.logger.error(error, 'Requeuing');
-                this.blockchainTxQueue.add(jobName, job.data);
+                this.logger.error(error);
+                throw new Error(error);
               }
             })
             .catch(async (error: any) => {
               this.logger.error(error, 'Requeuing');
-              this.blockchainTxQueue.add(jobName, job.data);
+              // this.blockchainTxQueue.add(jobName, job.data);
+              throw new Error(error);
             });
           this.nonce++;
         })
@@ -209,11 +204,12 @@ export class VoucherService {
           // this.logger.error(err, 'Requeuing');
           // this.blockchainTxQueue.add(jobName, job.data);
           resolve(true);
+          throw new Error(err);
         });
     });
   }
 
-  async registerVoucherToDB(tokenId: number, leafs: string[]): Promise<any> {
+  async registerVoucherToDB(tokenId: number, leafs: string[], itemUuid: string): Promise<any> {
     await this.prisma.voucher.deleteMany({ where: { tokenId } });
     await this.prisma.voucherLeaf.deleteMany({ where: { tokenId } });
     const tree = this.getMerkleTree(leafs);
@@ -235,6 +231,7 @@ export class VoucherService {
       data: {
         tokenId,
         rootHash,
+        itemUuid
       },
     });
 
@@ -244,6 +241,7 @@ export class VoucherService {
           hash: leafs[i],
           num: i,
           tokenId: tokenId,
+          itemUuid
         },
       });
     }
@@ -259,6 +257,15 @@ export class VoucherService {
         orderBy: { num: 'asc' },
       }),
     };
+  }
+
+  async updateItemTokenId(itemUuid: string, tokenId: number) {
+    await this.prisma.item.updateMany({
+      where: { uuid: itemUuid },
+      data: {
+        tokenId: tokenId.toString(),
+      }
+    })
   }
 
   async claim(
@@ -383,12 +390,29 @@ export class VoucherService {
     const leaf = ethers.utils.solidityKeccak256(['string'], [voucher]);
     const voucherLeaf = await this.prisma.voucherLeaf.findFirstOrThrow({ where: { hash: leaf }});
     Logger.log(voucherLeaf);
-    const item = await this.prisma.item.findFirstOrThrow({ where: {
-      tokenId: voucherLeaf.tokenId,
-      chainId: Number(process.env.CHAIN_ID),
-      contract_address: process.env.NFT_CONTRACT_ADDRESS
-    }})
+    const item = await this.prisma.item.findFirstOrThrow({
+      where: {
+        uuid: voucherLeaf.itemUuid,
+        chainId: Number(process.env.CHAIN_ID),
+        contract_address: process.env.NFT_CONTRACT_ADDRESS,
+      },
+      include: {
+        Creator: true,
+        attributes: true,
+        Collection: {
+          include: {
+            royalty: true
+          }
+        }
+      }
+    })
 
-    return item;
+    return {
+      ...item,
+      creatorEarnings: item.Collection.royalty.reduce(
+        (accum, val) => accum + val.percentage,
+        0,
+      ),
+    };
   }
 }
