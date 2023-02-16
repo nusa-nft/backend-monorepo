@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
   private logger = new Logger(UsersService.name);
   async create(createUserDto: CreateUserDto) {
     try {
@@ -13,8 +13,8 @@ export class UsersService {
         where: {
           wallet_address: {
             equals: createUserDto.wallet_address,
-            mode: 'insensitive'
-          }
+            mode: 'insensitive',
+          },
         },
       });
       if (wallet) {
