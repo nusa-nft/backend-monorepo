@@ -162,7 +162,7 @@ export class NotificationService {
           where: {
             assets: {
               some: {
-                tokenId,
+                id: lazyMintListing.itemId,
               },
             },
           },
