@@ -208,10 +208,10 @@ model Notification {
   is_seen                   Boolean                  @default(false)
   user                      User                     @relation(fields: [wallet_address], references: [wallet_address])
   wallet_address            String                   @db.Citext
-  notification_detail_sale  NotificationDetailSale?  @relation("sale", fields: [sale_id], references: [id])
-  sale_id                   Int?
-  notification_detail_offer NotificationDetailOffer? @relation("offer", fields: [offer_id], references: [id])
-  offer_id                  Int?
+  notification_detail_sale  NotificationDetailSale?  @relation("sale", fields: [notification_detail_sale_id], references: [id])
+  notification_detail_sale_id                   Int?
+  notification_detail_offer NotificationDetailOffer? @relation("offer", fields: [notification_detail_offer_id], references: [id])
+  notification_detail_offer_id                  Int?
   createdAt                 DateTime                 @default(now())
 }
 
