@@ -12,6 +12,7 @@ const auth = `Basic ${Buffer.from(`${projectId}:${projectSecret}`).toString(
 @Injectable()
 export class IpfsService {
   constructor(private readonly httpService: HttpService) {}
+
   async uploadImage(filePath: string) {
     const formData = new FormData();
     const file = await new Promise((resolve, reject) => {
@@ -33,12 +34,15 @@ export class IpfsService {
     );
     return result.data;
   }
+
   async uploadMetadata({
     name,
     description,
     image,
     attributes,
     nusa_collection,
+    external_link,
+    explicit_sensitive,
   }: {
     name: string;
     description: string;
@@ -48,8 +52,18 @@ export class IpfsService {
       name: string;
       slug: string;
     };
+    external_link: string;
+    explicit_sensitive: boolean;
   }) {
-    const data = { name, description, image, attributes, nusa_collection };
+    const data = {
+      name,
+      description,
+      image,
+      attributes,
+      nusa_collection,
+      external_link,
+      explicit_sensitive
+    };
     const bufferData = Buffer.from(JSON.stringify(data));
     const formData = new FormData();
     formData.append('file', bufferData);
@@ -63,7 +77,6 @@ export class IpfsService {
         },
       },
     );
-    console.log('uploaded metadata', data)
     return result.data;
   }
 }

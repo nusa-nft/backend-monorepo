@@ -96,16 +96,6 @@ export class ItemController {
     return this.itemService.deleteItem(+id, req.user.wallet_address);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('jwt')
-  @Patch('set-minted/:itemId')
-  setMinted(
-    @Param('itemId') itemId: number,
-    @Body() { tokenId }: SetItemMintedDto,
-  ) {
-    return this.itemService.setMinted(+itemId, tokenId);
-  }
-
   @Get('filter-data/:collectionId')
   getFilter(@Param('collectionId') collectionId: number) {
     return this.itemService.filter(+collectionId);
