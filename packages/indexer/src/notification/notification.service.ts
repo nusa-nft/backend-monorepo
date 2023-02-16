@@ -149,7 +149,7 @@ export class NotificationService {
     } = eventData;
     const notificationDataLister = await this.prisma.notification.create({
       data: {
-        notification_type: NotificationType.Offer,
+        notification_type: NotificationType.Sale,
         is_seen: false,
         user: {
           connect: {
@@ -161,7 +161,7 @@ export class NotificationService {
 
     const notificationDataBuyer = await this.prisma.notification.create({
       data: {
-        notification_type: NotificationType.Offer,
+        notification_type: NotificationType.Sale,
         is_seen: false,
         user: {
           connect: {

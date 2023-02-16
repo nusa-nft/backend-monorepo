@@ -676,7 +676,6 @@ export class CollectionService {
 
   async getCollectionStatus(collectionId: number) {
     const soldListingPrice = [];
-    console.log('ini', collectionId);
 
     if (!collectionId) {
       throw new HttpException(
@@ -1008,8 +1007,6 @@ export class CollectionService {
     if (!collectionData) {
       return [];
     }
-
-    console.log(collectionData)
 
     for (const collection of collectionData) {
       const { id } = collection;
