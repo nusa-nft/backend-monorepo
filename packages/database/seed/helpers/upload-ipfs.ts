@@ -12,7 +12,7 @@ export const uploadToIpfs = async (data: ArrayBufferLike) => {
   const formData = new FormData();
   formData.append('file', data);
   const result = await axios.post(
-    'https://ipfs.infura.io:5001/api/v0/add',
+    `${process.env.IPFS_RPC}/api/v0/add`,
     formData,
     {
       headers: {
@@ -29,8 +29,38 @@ export const uploadImageToIpfs = async (filePath) => {
   return await uploadToIpfs(file)
 }
 
-export const uploadMetadataToIpfs = async ({ name, description, image, attributes }) => {
-  const data = { name, description, image, attributes };
+export const uploadMetadataToIpfs = async ({
+  name,
+  description,
+  image,
+  attributes,
+  nusa_collection,
+  external_link,
+  explicit_sensitive,
+  nusa_item_id,
+}: {
+  name: string;
+  description: string;
+  image: string;
+  attributes: any[];
+  nusa_collection: {
+    name: string;
+    slug: string;
+  };
+  external_link: string;
+  explicit_sensitive: boolean;
+  nusa_item_id: string;
+}) => {
+  const data = {
+    name,
+    description,
+    image,
+    attributes,
+    nusa_collection,
+    external_link,
+    explicit_sensitive,
+    nusa_item_id
+  };
   const bufferData = Buffer.from(JSON.stringify(data));
   return await uploadToIpfs(bufferData);
 }

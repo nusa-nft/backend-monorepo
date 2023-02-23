@@ -7,11 +7,12 @@ import {
   uploadImageToIpfs,
   uploadMetadataToIpfs,
 } from './helpers/upload-ipfs';
+import { v4 as uuidV4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
 // Mumbai Testnet
-const BLOCKCHAIN = 80001;
+const BLOCKCHAIN = Number(process.env.CHAIN_ID);
 const TOKEN_STANDARD = 'ERC1155';
 
 const mockUserData = () => {
@@ -54,7 +55,7 @@ const mockCategories = () => {
   ];
 };
 
-const mockCollections = (users: Array<any>) => {
+const mockCollections = (users: Array<any>): (Prisma.CollectionCreateInput & any)[] => {
   return [
     {
       logo_image: 'image_350x350 (1).jpg',
@@ -406,7 +407,19 @@ async function main() {
           opensea_display_type: null,
         }
       ]
-      const metadataIpfsData = await uploadMetadataToIpfs({ name, description, image, attributes });
+      const metadataIpfsData = await uploadMetadataToIpfs({
+        name,
+        description,
+        image,
+        attributes,
+        nusa_collection: {
+          name: cc.name,
+          slug: cc.slug as string,
+        },
+        explicit_sensitive: cc.explicit_sensitive,
+        external_link: 'external-link',
+        nusa_item_id: uuidV4(),
+      });
       const metadata = `ipfs://${metadataIpfsData.Hash}`;
       const supply = 1;
 
