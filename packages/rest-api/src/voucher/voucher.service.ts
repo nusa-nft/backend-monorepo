@@ -144,7 +144,7 @@ export class VoucherService {
             itemUuid: itemUuid,
           }
         }
-        this.blockchainTxQueue.add('register-voucher', payload, { attempts: 3 });
+        await this.blockchainTxQueue.add('register-voucher', payload, { attempts: 3 });
       }
     });
   }
