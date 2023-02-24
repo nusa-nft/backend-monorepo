@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.11;
 
-import "@thirdweb-dev/contracts/lib/CurrencyTransferLib.sol";
+import "./LibCurrencyTransfer.sol";
 import {LibAppStorage, AppStorage, Royalty, MAX_BPS} from "./LibAppStorage.sol";
 
 library LibRoyalty {
     event RoyaltyPaid(
-        uint256 indexed listingId,
+        uint256 indexed id,
         address[] recipients,
         uint64[] bpsPerRecipients,
         uint256 totalPayout
@@ -58,7 +58,7 @@ library LibRoyalty {
         for (uint i = 0; i < listingRoyalty.recipients.length; i++) {
             uint256 value = (_totalPayoutAmount *
                 listingRoyalty.bpsPerRecipients[i]) / MAX_BPS;
-            CurrencyTransferLib.transferCurrencyWithWrapper(
+            LibCurrencyTransfer.transferCurrencyWithWrapper(
                 _currency,
                 _payer,
                 listingRoyalty.recipients[i],

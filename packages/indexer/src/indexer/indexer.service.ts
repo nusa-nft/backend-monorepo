@@ -1,8 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { BigNumber, ethers, logger } from 'ethers';
 import { PrismaService } from 'src/prisma/prisma.service';
-import * as NusaNFT from '../contract/NusaNFT.json';
-import MarketplaceAbi from '../contract/Marketplace.json';
+// import MarketplaceAbi from '../contract/Marketplace.json';
 import * as NusaRoyaltyDistributor from '../contract/NusaRoyaltyDistributor.json';
 import { ConfigService } from '@nestjs/config';
 import _ from 'lodash';
@@ -10,10 +9,16 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { ListingType, TokenType } from '@prisma/client';
 import { MarkeplaceListing, MarketplaceNewOffer } from './interfaces';
 import { WsProvider } from './ws-provider';
-import { Collection, Prisma, User } from '@nusa-nft/database';
+import { Collection, OfferStatus, Prisma, User } from '@nusa-nft/database';
 import { normalizeIpfsUri, nusaIpfsGateway } from 'src/lib/ipfs-uri';
 import axios from 'axios';
 import retry from 'async-retry';
+import { NusaNFT, MarketplaceFacet, OffersFacet, LibRoyalty } from '@nusa-nft/smart-contract/typechain-types/index';
+import { abi as NusaNftAbi } from '@nusa-nft/smart-contract/artifacts/contracts/NusaNFT.sol/NusaNFT.json';
+import { abi as MarketplaceAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/MarketplaceFacet.sol/MarketplaceFacet.json';
+import { abi as OffersAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/OffersFacet.sol/OffersFacet.json';
+import { abi as LibRoyaltyAbi } from  '@nusa-nft/smart-contract/artifacts/contracts/libraries/LibRoyalty.sol/LibRoyalty.json';
+import { OfferStruct, OfferStructOutput } from '@nusa-nft/smart-contract/typechain-types/contracts/facets/OffersFacet';
 
 const parseListingType = (listingTypeNumber: number) => {
   if (listingTypeNumber == 0) {
@@ -24,14 +29,31 @@ const parseListingType = (listingTypeNumber: number) => {
   }
 };
 
+const parseOfferStatus = (offerStatus: number) => {
+  if (offerStatus == 0) {
+    return OfferStatus.UNSET;
+  }
+  if (offerStatus == 1) {
+    return OfferStatus.CREATED;
+  }
+  if (offerStatus == 2) {
+    return OfferStatus.COMPLETED;
+  }
+  if (offerStatus == 3) {
+    return OfferStatus.CANCELLED;
+  }
+}
+
 @Injectable()
 export class IndexerService implements OnModuleInit {
   provider;
 
   // Contracts
-  erc1155: ethers.Contract;
-  marketplace: ethers.Contract;
-  royaltyDistributor: ethers.Contract;
+  erc1155: NusaNFT;
+  marketplace: MarketplaceFacet;
+  offers: OffersFacet;
+  royalty: LibRoyalty;
+  // royaltyDistributor: ethers.Contract;
 
   // ERC1155 Event Filters
   filterTransferSingle;
@@ -69,30 +91,36 @@ export class IndexerService implements OnModuleInit {
 
     this.erc1155 = new ethers.Contract(
       this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-      NusaNFT.abi as any,
+      NusaNftAbi as any,
       this.provider,
-    );
+    ) as NusaNFT;
 
     this.marketplace = new ethers.Contract(
       this.configService.get<string>('MARKETPLACE_CONTRACT_ADDRESS'),
       MarketplaceAbi as any,
       this.provider,
-    );
+    ) as MarketplaceFacet;
 
-    this.royaltyDistributor = new ethers.Contract(
-      this.configService.get<string>('ROYALTY_DISTRIBUTOR_CONTRACT_ADDRESS'),
-      NusaRoyaltyDistributor.abi as any,
+    this.offers = new ethers.Contract(
+      this.configService.get<string>('MARKETPLACE_CONTRACT_ADDRESS'),
+      OffersAbi as any,
       this.provider,
-    );
+    ) as OffersFacet;
+
+    this.royalty = new ethers.Contract(
+      this.configService.get<string>('MARKETPLACE_CONTRACT_ADDRESS'),
+      LibRoyaltyAbi as any,
+      this.provider,
+    ) as LibRoyalty;
 
     this.filterTransferSingle = this.erc1155.filters.TransferSingle();
     this.filterListingAdded = this.marketplace.filters.ListingAdded();
     this.filterListingRemoved = this.marketplace.filters.ListingRemoved();
     this.filterListingUpdated = this.marketplace.filters.ListingUpdated();
     this.filterNewSale = this.marketplace.filters.NewSale();
-    this.filterNewOffer = this.marketplace.filters.NewOffer();
+    this.filterNewOffer = this.offers.filters.NewOffer();
     this.filterAuctionClosed = this.marketplace.filters.AuctionClosed();
-    this.filterRoyaltyPaid = this.royaltyDistributor.filters.RoyaltyPaid();
+    this.filterRoyaltyPaid = this.royalty.filters.RoyaltyPaid();
   }
 
   async indexMarketplaceOldBlocks() {
@@ -289,7 +317,7 @@ export class IndexerService implements OnModuleInit {
       console.log(id, 'ini log', log);
       const { blockNumber } = log;
       const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-      const listing = await this.marketplace.listings(id);
+      const listing = await this.marketplace.getListing(id);
       console.log(listing);
       const {
         listingId,
@@ -348,7 +376,7 @@ export class IndexerService implements OnModuleInit {
           transactionHash,
         });
 
-        const listing = await this.marketplace.listings(_listingId);
+        const listing = await this.marketplace.getListing(_listingId);
         console.log(listing);
         const {
           listingId,
@@ -404,56 +432,18 @@ export class IndexerService implements OnModuleInit {
   }
 
   async handleMarketplaceNewOffer() {
-    this.marketplace.on(
+    this.offers.on(
       'NewOffer',
       async (
-        listingId: BigNumber,
         offeror: string,
-        listingType: number,
-        quantityWanted: BigNumber,
-        totalOfferAmount: BigNumber,
-        currency: string,
-        log: any,
+        offerId: ethers.BigNumberish,
+        assetContract: string,
+        offer: OfferStructOutput,
+        log: any
       ) => {
         const { blockNumber, transactionHash } = log;
         const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-        const offer = await this.marketplace.offers(listingId, offeror);
-        await this.indexMarketplaceNewOffer({
-          listingId,
-          offeror,
-          listingType,
-          quantityWanted,
-          totalOfferAmount,
-          currency,
-          createdAt: timestamp,
-          expirationTimestamp: offer.expirationTimestamp,
-          transactionHash,
-        });
-        // Update listing because listing time maybe increased when an offer is created
-        const listing = await this.marketplace.listings(listingId);
-        const {
-          tokenOwner,
-          assetContract,
-          tokenId,
-          startTime,
-          endTime,
-          quantity,
-          reservePricePerToken,
-          buyoutPricePerToken,
-        } = listing;
-        await this.indexMarketplaceUpdateListing({
-          listingId: listing.listingId,
-          assetContract,
-          tokenOwner,
-          tokenId,
-          startTime,
-          endTime,
-          quantity,
-          currency: listing.currency,
-          reservePricePerToken,
-          buyoutPricePerToken,
-          updatedAt: timestamp,
-        });
+        await this.indexMarketplaceNewOffer(offer, transactionHash, timestamp);
         if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
           await this.updateLatestBlock(blockNumber);
       },
@@ -461,7 +451,7 @@ export class IndexerService implements OnModuleInit {
   }
 
   async handleRoyaltyDistributorRoyaltyPaid() {
-    this.royaltyDistributor.on(
+    this.royalty.on(
       'RoyaltyPaid',
       async (
         listingId: BigNumber,
@@ -546,13 +536,17 @@ export class IndexerService implements OnModuleInit {
       {
         topics: [
           [
-            this.filterListingAdded.topics[0],
-            this.filterListingRemoved.topics[0],
-            this.filterListingUpdated.topics[0],
-            this.filterNewSale.topics[0],
-            this.filterNewOffer.topics[0],
-            this.filterAuctionClosed.topics[0],
-          ],
+            this.marketplace.filters.ListingAdded().topics[0],
+            this.marketplace.filters.ListingRemoved().topics[0],
+            this.marketplace.filters.ListingUpdated().topics[0],
+            this.marketplace.filters.NewSale().topics[0],
+            this.marketplace.filters.NewBid().topics[0],
+            this.marketplace.filters.AuctionClosed().topics[0],
+            this.offers.filters.NewOffer().topics[0],
+            this.offers.filters.AcceptedOffer().topics[0],
+            this.offers.filters.CancelledOffer().topics[0],
+            this.royalty.filters.RoyaltyPaid().topics[0]
+          ] as string[]
         ],
       },
       fromBlock,
@@ -564,17 +558,23 @@ export class IndexerService implements OnModuleInit {
      * Marketplace Contract Event Reference -> https://github.dev/thirdweb-dev/contracts/blob/main/contracts/marketplace/Marketplace.sol
      */
     const iface = new ethers.utils.Interface([
-      'event ListingAdded(uint256 indexed listingId, address indexed assetContract, address indexed lister, tuple(uint256 listingId, address tokenOwner, address assetContract, uint256 tokenId, uint256 startTime, uint256 endTime, uint256 quantity, address currency, uint256 reservePricePerToken, uint256 buyoutPricePerToken, uint8 tokenType, uint8 listingType) listing)',
+      'event ListingAdded(uint256 indexed listingId, address indexed assetContract, address indexed lister, tuple(uint256 listingId, address tokenOwner, address assetContract, uint256 tokenId, uint256 startTime, uint256 endTime, uint256 quantity, address currency, uint256 reservePricePerToken, uint256 buyoutPricePerToken, uint8 tokenType, uint8 listingType, uint8 status, uint256 royaltyInfoId) listing)',
       'event ListingRemoved(uint256 indexed listingId, address indexed listingCreator)',
       'event ListingUpdated(uint256 indexed listingId, address indexed listingCreator)',
       'event NewSale(uint256 indexed listingId, address indexed assetContract, address indexed lister, address buyer, uint256 quantityBought, uint256 totalPricePaid)',
-      'event NewOffer(uint256 indexed listingId, address indexed offeror, uint8 indexed listingType, uint256 quantityWanted, uint256 totalOfferAmount, address currency)',
+      'event NewBid( uint256 indexed listingId, address bidder, uint256 quantityWanted, address currency, uint256 pricePerToken, uint256 totalPrice)',
       'event AuctionClosed(uint256 indexed listingId, address indexed closer, bool indexed cancelled, address auctionCreator, address winningBidder)',
+      'event NewOffer(address indexed offeror, uint256 indexed offerId, address indexed assetContract, tuple(uint256 offerId, address offeror, address assetContract, uint256 tokenId, uint256 quantity, address currency, uint256 totalPrice, uint256 expirationTimestamp, uint8 tokenType, uint8 status, uint256 royaltyInfoId) offer)',
+      'event AcceptedOffer(address indexed offeror, uint256 indexed offerId, address indexed assetContract, uint256 tokenId, address seller, uint256 quantityBought, uint256 totalPricePaid)',
+      'event CancelledOffer(address indexed offeror, uint256 indexed offerId)',
+      'event RoyaltyPaid(uint256 indexed id, address[] recipients, uint64[] bpsPerRecipients, uint256 totalPayout)'
     ]);
     for (const log of logs) {
       const event = iface.parseLog(log);
+      console.log({ event })
       const timestamp = (await this.provider.getBlock(log.blockNumber))
         .timestamp;
+      const transactionHash = log.transactionHash;
       if (event.name == 'ListingAdded') {
         Logger.log('ListingAdded');
         await this.indexMarketplaceCreateListingHistory({
@@ -607,7 +607,7 @@ export class IndexerService implements OnModuleInit {
         Logger.log('ListingUpdated');
         const timestamp = (await this.provider.getBlock(log.blockNumber))
           .timestamp;
-        const listing = await this.marketplace.listings(event.args.listingId);
+        const listing = await this.marketplace.getListing(event.args.listingId);
         console.log(listing);
         const {
           listingId,
@@ -640,7 +640,7 @@ export class IndexerService implements OnModuleInit {
         Logger.log('NewSale');
         const timestamp = (await this.provider.getBlock(log.blockNumber))
           .timestamp;
-        const listing = await this.marketplace.listings(event.args.listingId);
+        const listing = await this.marketplace.getListing(event.args.listingId);
         console.log(listing);
         const {
           listingId,
@@ -683,50 +683,12 @@ export class IndexerService implements OnModuleInit {
         Logger.log('NewOffer');
         const timestamp = (await this.provider.getBlock(log.blockNumber))
           .timestamp;
-        const offer = await this.marketplace.offers(
-          event.args.listingId,
-          event.args.offeror,
-        );
-        await this.indexMarketplaceNewOffer({
-          listingId: event.args.listingId,
-          offeror: event.args.offeror,
-          listingType: event.args.listingType,
-          quantityWanted: event.args.quantityWanted,
-          totalOfferAmount: event.args.totalOfferAmount,
-          currency: event.args.currency,
-          createdAt: timestamp,
-          transactionHash: log.transactionHash,
-          expirationTimestamp: offer.expirationTimestamp,
-        });
-        // Update listing because listing time maybe increased when an offer is created
-        const listing = await this.marketplace.listings(event.args.listingId);
-        const {
-          listingId,
-          tokenOwner,
-          assetContract,
-          tokenId,
-          startTime,
-          endTime,
-          quantity,
-          currency,
-          reservePricePerToken,
-          buyoutPricePerToken,
-        } = listing;
-        await this.indexMarketplaceUpdateListing({
-          listingId,
-          assetContract,
-          tokenOwner,
-          tokenId,
-          startTime,
-          endTime,
-          quantity,
-          currency,
-          reservePricePerToken,
-          buyoutPricePerToken,
-          updatedAt: timestamp,
-        });
+        const offeror: ethers.BigNumberish = event.args[0];
+        const offerId: ethers.BigNumberish = event.args[1];
+        const assetContract: string = event.args[2];
+        const offer: OfferStructOutput = event.args[3];
+        await this.indexMarketplaceNewOffer(offer, transactionHash, timestamp);
       }
-
       if (event.name == 'AuctionClosed') {
         Logger.log('AuctionClosed');
         await this.handleAuctionClosed(event.args, log);
@@ -735,7 +697,7 @@ export class IndexerService implements OnModuleInit {
   }
 
   async queryFilterRoyaltyDistributor(fromBlock: number, toBlock: number) {
-    const logs = await this.royaltyDistributor.queryFilter(
+    const logs = await this.royalty.queryFilter(
       {
         topics: [[this.filterRoyaltyPaid.topics[0]]],
       },
@@ -801,7 +763,7 @@ export class IndexerService implements OnModuleInit {
       return;
     }
 
-    const listing = await this.marketplace.listings(args.listingId);
+    const listing = await this.marketplace.getListing(args.listingId);
     console.log(listing);
     const {
       listingId,
@@ -836,14 +798,14 @@ export class IndexerService implements OnModuleInit {
     }
 
     // If Auction Closed by bidder
-    const winningBid = await this.marketplace.winningBid(listingId);
+    const winningBid = await this.marketplace.getWinningBid(listingId);
     await this.indexMarketplaceNewSale({
       listingId,
       assetContract,
       lister: auctionCreator,
       buyer: winningBidder,
       quantityBought: quantity,
-      totalPricePaid: winningBid.pricePerToken.mul(quantity),
+      totalPricePaid: winningBid._bidAmount.mul(quantity),
       createdAt: timestamp,
       transactionHash: log.transactionHash,
     });
@@ -1044,38 +1006,27 @@ export class IndexerService implements OnModuleInit {
     return newSale;
   }
 
-  async indexMarketplaceNewOffer({
-    listingId,
-    offeror,
-    listingType,
-    quantityWanted,
-    totalOfferAmount,
-    currency,
-    createdAt,
-    expirationTimestamp,
-    transactionHash,
-  }: MarketplaceNewOffer) {
-    const offer = await this.prisma.marketplaceOffer.findFirst({
+  async indexMarketplaceNewOffer(offer: OfferStructOutput, transactionHash: string, timestamp: number) {
+    const _offer = await this.prisma.marketplaceOffer.findFirst({
       where: { transactionHash },
     });
-    const listing = await this.prisma.marketplaceListing.findFirst({
-      where: { listingId: listingId.toNumber() },
-    });
-    if (offer || !listing) {
-      return;
-    }
+    if (_offer) return;
+    console.log({ offer })
 
     await this.prisma.marketplaceOffer.create({
       data: {
-        listingId: listingId.toNumber(),
-        offeror,
-        listingType: parseListingType(listingType),
-        quantityWanted: quantityWanted.toNumber(),
-        totalOfferAmount: totalOfferAmount.toString(),
-        currency,
-        createdAt,
-        expirationTimestamp: expirationTimestamp.toNumber(),
+        id: offer.offerId.toNumber(),
+        offeror: offer.offeror,
+        assetContract: offer.assetContract,
+        tokenId: offer.tokenId.toString(),
+        quantity: offer.quantity.toNumber(),
+        currency: offer.currency,
+        totalPrice: offer.totalPrice.toString(),
+        expirationTimestamp: offer.expirationTimestamp.toString(),
         transactionHash,
+        status: parseOfferStatus(offer.status),
+        royaltyInfoId: offer.royaltyInfoId.toNumber(),
+        createdAt: timestamp,
       },
     });
   }
@@ -1853,7 +1804,12 @@ export class IndexerService implements OnModuleInit {
           },
           timeout,
         },
-      );
+      ).catch(err => {
+        Logger.error('fetch metadata failed');
+        Logger.error(uri);
+        Logger.error(err);
+        throw new Error(err);
+      }) 
       return this.parseJson(res.data);
     }
     const res = await axios.get(uri, {

@@ -40,16 +40,21 @@ export class MarketplaceController {
     @Query('floorPrice') floorPrice: number,
     @Query('page') page?: number,
   ) {
-    return this.marketplaceService.getMarketplaceOfferHistory(
-      tokenId,
-      page,
-      floorPrice,
-    );
+    // return this.marketplaceService.getMarketplaceOfferHistory(
+    //   tokenId,
+    //   page,
+    //   floorPrice,
+    // );
+    return {
+      metadata: {},
+      records: [],
+    };
   }
 
   @Get('offers/:listingId')
   getMarketplaceListingOffers(@Param('listingId') listingId: number) {
-    return this.marketplaceService.getMarketplaceListingOffers(+listingId);
+    // return this.marketplaceService.getMarketplaceListingOffers(+listingId);
+    return [];
   }
 
   @Get('sale-history/:tokenId')

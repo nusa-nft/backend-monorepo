@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.11;
 
-import "@thirdweb-dev/contracts/lib/CurrencyTransferLib.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
@@ -10,6 +9,7 @@ import "../interfaces/INusaOffers.sol";
 import "../libraries/LibMeta.sol";
 import "../libraries/LibToken.sol";
 import "../libraries/LibRoyalty.sol";
+import "../libraries/LibCurrencyTransfer.sol";
 
 contract OffersFacet is INusaOffers, Modifiers {
     function offer(
@@ -142,14 +142,14 @@ contract OffersFacet is INusaOffers, Modifiers {
         //     );
         // } catch {}
 
-        CurrencyTransferLib.transferCurrencyWithWrapper(
+        LibCurrencyTransfer.transferCurrencyWithWrapper(
             _currencyToUse,
             _payer,
             s.platformFeeRecipient,
             platformFeeCut,
             address(0)
         );
-        CurrencyTransferLib.transferCurrencyWithWrapper(
+        LibCurrencyTransfer.transferCurrencyWithWrapper(
             _currencyToUse,
             _payer,
             _payee,

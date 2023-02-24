@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { expect } from "chai";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Diamond, MarketplaceFacet, NusaNFT, NusaNFT__factory, OffersFacet, WETH9 } from "../typechain-types";
+import { Diamond, LibRoyalty__factory, MarketplaceFacet, NusaNFT, NusaNFT__factory, OffersFacet, WETH9 } from "../typechain-types";
 import { ListingAddedEventObject, ListingUpdatedEventObject } from "../typechain-types/contracts/interfaces/INusaMarketplace";
 import { ethers } from "ethers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
@@ -235,7 +235,21 @@ describe("Marketplace Test", async () => {
             value: NFT_PRICE_UPDATED.mul(2)
           }
         )
-      await tx.wait();
+      const receipt = await tx.wait();
+      const events = receipt.events?.find(event => event.address == diamond.address);
+      // console.log({ events })
+      const royalty = await hre.ethers.getContractAt("LibRoyalty", diamond.address);
+      receipt.events?.forEach(e => {
+        try {
+          const decoded = royalty.interface.decodeEventLog(
+            'RoyaltyPaid',
+            e.data,
+            e.topics
+          )
+          console.log({ decoded })
+        } catch (err) { }
+      })
+
 
       const nftBalanceOfSeller = await nftContract.balanceOf(nftMinter.address, 0);
       const nftBalanceOfBuyer = await nftContract.balanceOf(nftBuyer.address, 0);

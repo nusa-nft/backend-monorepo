@@ -93,8 +93,8 @@ task("marketplace-simulation", "Simulate marketplace activities")
       let tx = await nft.connect(seller).mintTo(seller.address, ethers.constants.MaxUint256, "URI", i + 1);
       const receipt = await tx.wait();
       let eventTransferSingle = receipt.events?.find(event => event.event == "TransferSingle");
-      let { _id, _value } = eventTransferSingle?.args as unknown as TransferSingleEventObject;
-      nftIds.push(_id);
+      let { id, value } = eventTransferSingle?.args as unknown as TransferSingleEventObject;
+      nftIds.push(id);
     }
     (await nft.connect(seller).setApprovalForAll(diamondAddress, true)).wait();
 

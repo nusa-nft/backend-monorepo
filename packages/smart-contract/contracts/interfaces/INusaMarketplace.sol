@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.11;
 
-import "@thirdweb-dev/contracts/extension/interface/IPlatformFee.sol";
+import "./IPlatformFee.sol";
 import {Listing, ListingParams} from "../libraries/LibAppStorage.sol";
 
 interface INusaMarketplace is IPlatformFee {

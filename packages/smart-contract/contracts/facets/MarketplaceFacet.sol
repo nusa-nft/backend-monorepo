@@ -11,13 +11,13 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol"
 import "../interfaces/IERC721Receiver.sol";
 import "../interfaces/IERC1155Receiver.sol";
 
-import "@thirdweb-dev/contracts/lib/CurrencyTransferLib.sol";
 import "@thirdweb-dev/contracts/lib/FeeType.sol";
 
 import "../libraries/LibMeta.sol";
 import "../libraries/LibDiamond.sol";
 import "../libraries/LibRoyalty.sol";
 import "../libraries/LibToken.sol";
+import "../libraries/LibCurrencyTransfer.sol";
 
 import {
     Modifiers,
@@ -371,7 +371,7 @@ contract MarketplaceFacet is
 
         // Payout previous highest bid.
         if (currentWinningBid.bidder != address(0) && currentOfferAmount > 0) {
-            CurrencyTransferLib.transferCurrencyWithWrapper(
+            LibCurrencyTransfer.transferCurrencyWithWrapper(
                 _targetListing.currency,
                 address(this),
                 currentWinningBid.bidder,
@@ -381,7 +381,7 @@ contract MarketplaceFacet is
         }
 
         // Collect incoming bid
-        CurrencyTransferLib.transferCurrencyWithWrapper(
+        LibCurrencyTransfer.transferCurrencyWithWrapper(
             _targetListing.currency,
             _incomingBid.bidder,
             address(this),
@@ -475,6 +475,24 @@ contract MarketplaceFacet is
             _targetListing.tokenOwner,
             _winningBid.bidder
         );
+    }
+
+    function getWinningBid(uint256 _listingId)
+        external
+        view
+        onlyExistingListing(_listingId)
+        returns (
+            address _bidder,
+            address _currency,
+            uint256 _bidAmount
+        )
+    {
+        Listing memory _targetListing = s.listings[_listingId];
+        Bid memory _currentWinningBid = s.winningBid[_listingId];
+
+        _bidder = _currentWinningBid.bidder;
+        _currency = _targetListing.currency;
+        _bidAmount = _currentWinningBid.totalPrice;
     }
 
     /// @dev Closes an auction for the winning bidder; distributes auction items to the winning bidder.
@@ -592,14 +610,14 @@ contract MarketplaceFacet is
         //     );
         // } catch {}
 
-        CurrencyTransferLib.transferCurrencyWithWrapper(
+        LibCurrencyTransfer.transferCurrencyWithWrapper(
             _currencyToUse,
             _payer,
             s.platformFeeRecipient,
             platformFeeCut,
             _nativeTokenWrapper
         );
-        CurrencyTransferLib.transferCurrencyWithWrapper(
+        LibCurrencyTransfer.transferCurrencyWithWrapper(
             _currencyToUse,
             _payer,
             _payee,
@@ -628,7 +646,7 @@ contract MarketplaceFacet is
         require(block.timestamp < _listing.endTime && block.timestamp > _listing.startTime, "not within sale window.");
 
         // Check: buyer owns and has approved sufficient currency for sale.
-        if (_currency == CurrencyTransferLib.NATIVE_TOKEN) {
+        if (_currency == LibCurrencyTransfer.NATIVE_TOKEN) {
             require(msg.value == settledTotalPrice, "msg.value != price");
         } else {
             LibToken.validateERC20BalAndAllowance(_payer, _currency, settledTotalPrice);
