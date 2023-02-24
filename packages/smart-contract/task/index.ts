@@ -7,3 +7,4 @@ export * from "./deploy-nft";
 export * from "./register-voucher";
 export * from "./deploy-marketplace";
 export * from "./deploy-all";
+export * from "./marketplace-simulation";

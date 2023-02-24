@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { expect } from "chai";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Diamond, MarketplaceFacet, NusaNFT, NusaNFT__factory, NusaRoyaltyDistributor, OffersFacet, WETH9 } from "../typechain-types";
+import { Diamond, MarketplaceFacet, NusaNFT, NusaNFT__factory, OffersFacet, WETH9 } from "../typechain-types";
 import { ListingAddedEventObject, ListingUpdatedEventObject } from "../typechain-types/contracts/interfaces/INusaMarketplace";
 import { ethers } from "ethers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
@@ -39,7 +39,6 @@ describe("Marketplace Test", async () => {
   const ROYALTY_BPS_2 = 500;
 
   let nftContract: NusaNFT;
-  let royaltyDistContract: NusaRoyaltyDistributor;
   let diamond: Diamond;
   let marketplace: MarketplaceFacet;
   let offers: OffersFacet;

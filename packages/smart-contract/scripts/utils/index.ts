@@ -30,11 +30,12 @@ export async function getGasPrice(ethers: any, mul: any) {
 }
 
 export const getContractAddressByNetworkName = async (contractName: string, network: string) => {
+  console.log({ network })
   const deployedContracts = await readFromCsv('./deployed-contract.csv') as any[];
   const contractInfoByNetwork = deployedContracts.find(x =>
-    x["Network"] == network && x["ContractName"] == contractName
+    x["network"] == network && x["contractName"] == contractName
   );
-  const contractAddress = contractInfoByNetwork["Address"];
+  const contractAddress = contractInfoByNetwork["address"];
 
   return contractAddress;
 }

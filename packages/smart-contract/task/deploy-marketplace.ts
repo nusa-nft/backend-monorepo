@@ -23,7 +23,6 @@ task("deploy-marketplace")
       // Deploy Wrapped Token
       const WrappedToken = await ethers.getContractFactory("WETH9");
       const wrappedTokenContract = await WrappedToken.deploy();
-      console.log('hehe')
       nativeTokenWrapper = wrappedTokenContract.address;
       platformFeeRecipient = deployer.address;
     }
