@@ -2,9 +2,9 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { ListingType } from '@prisma/client';
 import { differenceInDays, format, formatDistance, subDays } from 'date-fns';
 import { BigNumber, ethers, FixedNumber } from 'ethers';
-import { Erc1155Service } from 'src/erc1155/erc1155.service';
-import { toString } from 'src/lib/toString';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Erc1155Service } from '../erc1155/erc1155.service';
+import { toString } from '../lib/toString';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   OnSaleItemSortBy,
   OnSaleQueryParams,

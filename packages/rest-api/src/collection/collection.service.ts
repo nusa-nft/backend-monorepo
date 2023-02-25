@@ -22,7 +22,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SearchDtoParam } from './dto/search.dto';
 import { slugify } from '../lib/slugify';
 import { JwtService } from '@nestjs/jwt';
-import { IndexerService } from 'src/indexer/indexer.service';
+import { IndexerService } from '../indexer/indexer.service';
 import { Item, Prisma, TokenType, Collection, User } from '@prisma/client';
 import { ItemService } from '../item/item.service';
 import { formatDistance } from 'date-fns';

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { formatDistance } from 'date-fns';
 import { ethers } from 'ethers';
-import { IndexerService } from 'src/indexer/indexer.service';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { IndexerService } from '../indexer/indexer.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { RoyaltyReceivedHistoryParams } from './royalty.dto';
 
 interface RoyaltyHistory {

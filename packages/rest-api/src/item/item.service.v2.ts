@@ -20,10 +20,10 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ethers } from 'ethers';
 import { ConfigService } from '@nestjs/config';
-import { IndexerService } from 'src/indexer/indexer.service';
-import { UsersService } from 'src/users/users.service';
+import { IndexerService } from '../indexer/indexer.service';
+import { UsersService } from '../users/users.service';
 import { NATIVE_CURRENCY } from './web3/constants';
-import { CollectionService } from 'src/collection/collection.service';
+import { CollectionService } from '../collection/collection.service';
 import { MintRequestStruct, signMintRequest } from './web3/erc1155-lazy-mint';
 import { isArray, isObject } from 'class-validator';
 
@@ -36,8 +36,8 @@ import {
 } from './item.interface';
 import { HttpStatusCode } from 'axios';
 import { ItemQueryParamsV2 } from './dto/item.dto';
-import { RecentlySoldItem } from 'src/interfaces';
-import { toString } from 'src/lib/toString';
+import { RecentlySoldItem } from '../interfaces';
+import { toString } from '../lib/toString';
 
 @Injectable()
 export class ItemServiceV2 {
@@ -449,12 +449,13 @@ export class ItemServiceV2 {
       };
 
     if (hasOffers) {
-      marketplaceListingFilter = {
-        some: {
-          ...marketplaceListingFilter.some,
-          MarketplaceOffer: { some: {} },
-        },
-      };
+      // FIXME:
+      // marketplaceListingFilter = {
+      //   some: {
+      //     ...marketplaceListingFilter.some,
+      //     MarketplaceOffer: { some: {} },
+      //   },
+      // };
     }
 
     if (priceMin) {

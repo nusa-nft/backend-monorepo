@@ -1,10 +1,10 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { formatDistance } from 'date-fns';
 import { NotificationQueryParam, Take } from './dto/notification.dto';
-import { events } from 'src/lib/newEventEmitter';
+import { events } from '../lib/newEventEmitter';
 import { NotificationType } from '@prisma/client';
-import * as retry from 'async-retry';
+import retry from 'async-retry';
 
 @Injectable()
 export class NotificationService {

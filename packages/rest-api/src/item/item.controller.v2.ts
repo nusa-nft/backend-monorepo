@@ -12,8 +12,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-import { extractJwt } from 'src/lib/extractJwt';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { extractJwt } from '../lib/extractJwt';
 import {
   ItemQueryParamsV2,
   LazyMintSale,

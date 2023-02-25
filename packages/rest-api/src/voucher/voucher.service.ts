@@ -7,7 +7,7 @@ import keccak256 from 'keccak256';
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Job, Queue } from 'bull';
 import { ClaimDTO, CreateNftDTO, RegisterDTO } from './voucher.dto';
-import * as AsyncLock from 'async-lock';
+import AsyncLock from 'async-lock';
 import { BlockchainTxPayload } from '../interfaces';
 import { v4 as uuidv4 } from 'uuid';
 

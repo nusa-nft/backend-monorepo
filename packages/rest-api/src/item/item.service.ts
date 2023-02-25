@@ -26,14 +26,14 @@ import standardizeMetadataAttribute from '../lib/standardizeMetadataAttributes';
 import { JwtService } from '@nestjs/jwt';
 import { ethers } from 'ethers';
 import { ConfigService } from '@nestjs/config';
-import { IndexerService } from 'src/indexer/indexer.service';
-import { UsersService } from 'src/users/users.service';
+import { IndexerService } from '../indexer/indexer.service';
+import { UsersService } from '../users/users.service';
 import { MintRequestStruct, signMintRequest } from './web3/erc1155-lazy-mint';
 import { NATIVE_CURRENCY } from './web3/constants';
-import { CollectionService } from 'src/collection/collection.service';
+import { CollectionService } from '../collection/collection.service';
 import { formatDistance } from 'date-fns';
 import { v4 as uuidV4 } from 'uuid';
-import * as retry from 'async-retry';
+import retry from 'async-retry';
 
 @Injectable()
 export class ItemService {
@@ -116,6 +116,7 @@ export class ItemService {
     }
     // If freeze metadata, upload to IPFS
     if (createItemDto.is_metadata_freeze) {
+      console.log({ createItemDto })
       const ipfsImageData = await this.ipfsService.uploadImage(file.path);
       const standardizeMetadata = standardizeMetadataAttribute(attributeData);
 
@@ -173,7 +174,7 @@ export class ItemService {
       explicit_sensitive: createItemDto.explicit_sensitive,
       is_metadata_freeze: createItemDto.is_metadata_freeze,
       // If item is_minted, quantity_minted is supply, else 0
-      quantity_minted: createItemDto.is_minted ? createItemDto.supply : 0,
+      // quantity_minted: createItemDto.is_minted ? createItemDto.supply : 0,
       attributes: {
         createMany: {
           data: attributeData,
@@ -187,9 +188,11 @@ export class ItemService {
 
     await retry (
       async () => {
+        console.log("in retry")
         try {
           item = await this.prisma.item.create({ data: createItemData });
         } catch (err) {
+          console.log({ err })
           lastInsertUnmintedItem = await this.prisma.item.findFirst({
             where: { tokenId: { lt: 0 }},
             orderBy: { id: 'desc' }

@@ -37,7 +37,7 @@ import {
   UpdateCollectionDto,
 } from './dto/collection.dto';
 import { SearchDtoParam } from './dto/search.dto';
-import { extractJwt } from 'src/lib/extractJwt';
+import { extractJwt } from '../lib/extractJwt';
 
 const maxFileSize = 5 * 1000 * 1000;
 @ApiTags('collection')

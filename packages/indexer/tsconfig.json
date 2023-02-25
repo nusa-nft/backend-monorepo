@@ -20,5 +20,4 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
   },
-  "exclude": ["../smart-contract/typechain-types/@thirdweb-dev"]
 }

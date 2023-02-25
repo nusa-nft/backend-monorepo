@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { events } from 'src/lib/newEventEmitter';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { events } from '../lib/newEventEmitter';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   NotificationType,
   MarketplaceListing,

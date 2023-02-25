@@ -16,6 +16,7 @@ import {
   Headers,
   Ip,
   Delete,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -72,7 +73,11 @@ export class ItemController {
   )
   createItem(
     @Request() req: any,
-    @Body() createItemDto: ItemDto,
+    @Body(
+      new ValidationPipe({
+        transform: true
+      })
+    ) createItemDto: ItemDto,
     @UploadedFile(
       new ParseFilePipe({
         validators: [new MaxFileSizeValidator({ maxSize: maxFileSize })],

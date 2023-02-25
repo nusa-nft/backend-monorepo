@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { BigNumber, ethers, logger } from 'ethers';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 // import MarketplaceAbi from '../contract/Marketplace.json';
 import * as NusaRoyaltyDistributor from '../contract/NusaRoyaltyDistributor.json';
 import { ConfigService } from '@nestjs/config';
@@ -10,7 +10,7 @@ import { ListingType, TokenType } from '@prisma/client';
 import { MarkeplaceListing, MarketplaceNewOffer } from './interfaces';
 import { WsProvider } from './ws-provider';
 import { Collection, OfferStatus, Prisma, User } from '@nusa-nft/database';
-import { normalizeIpfsUri, nusaIpfsGateway } from 'src/lib/ipfs-uri';
+import { normalizeIpfsUri, nusaIpfsGateway } from '../lib/ipfs-uri';
 import axios from 'axios';
 import retry from 'async-retry';
 import { NusaNFT, MarketplaceFacet, OffersFacet, LibRoyalty } from '@nusa-nft/smart-contract/typechain-types/index';

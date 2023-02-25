@@ -1,7 +1,7 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable } from '@nestjs/common';
-import * as FormData from 'form-data';
-import * as fs from 'fs';
+import { Injectable, Logger } from '@nestjs/common';
+import FormData from 'form-data';
+import fs from 'fs';
 
 const projectId = process.env.INFURA_IPFS_PROJECT_ID;
 const projectSecret = process.env.INFURA_API_KEY_SECRET;
@@ -22,17 +22,23 @@ export class IpfsService {
       });
     });
     formData.append('file', file);
-    const result = await this.httpService.axiosRef.post(
-      'https://ipfs.infura.io:5001/api/v0/add',
-      formData,
-      {
-        headers: {
-          authorization: auth,
-          'Content-Type': 'multipart/form-data',
+    try {
+      const result = await this.httpService.axiosRef.post(
+        // 'https://ipfs.infura.io:5001/api/v0/add',
+        `${process.env.IPFS_RPC}/api/v0/add`,
+        formData,
+        {
+          headers: {
+            authorization: auth,
+            'Content-Type': 'multipart/form-data',
+          },
         },
-      },
-    );
-    return result.data;
+      );
+      return result.data;
+    } catch (err) {
+      Logger.error('#IpfsService.uploadImage', err);
+      throw err;
+    }
   }
 
   async uploadMetadata({
@@ -70,16 +76,22 @@ export class IpfsService {
     const bufferData = Buffer.from(JSON.stringify(data));
     const formData = new FormData();
     formData.append('file', bufferData);
-    const result = await this.httpService.axiosRef.post(
-      'https://ipfs.infura.io:5001/api/v0/add',
-      formData,
-      {
-        headers: {
-          authorization: auth,
-          'Content-Type': 'multipart/form-data',
+    try {
+      const result = await this.httpService.axiosRef.post(
+        // 'https://ipfs.infura.io:5001/api/v0/add',
+        `${process.env.IPFS_RPC}/api/v0/add`,
+        formData,
+        {
+          headers: {
+            authorization: auth,
+            'Content-Type': 'multipart/form-data',
+          },
         },
-      },
-    );
-    return result.data;
+      );
+      return result.data;
+    } catch (err) {
+      Logger.error('#IpfsService.uploadMetadata', err);
+      throw err;
+    }
   }
 }
