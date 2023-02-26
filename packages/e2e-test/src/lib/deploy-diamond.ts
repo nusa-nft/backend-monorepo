@@ -74,7 +74,7 @@ export async function deployDiamond(contractOwner: ethers.Wallet, {
       action: FacetCutAction.Add,
       functionSelectors: getSelectors(facet)
     })
-    facets[facet.name] = facet;
+    facets[Facet.name] = facet;
   }
 
   // upgrade diamond with facets

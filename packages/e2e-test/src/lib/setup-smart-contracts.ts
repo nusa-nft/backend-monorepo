@@ -31,7 +31,7 @@ export async function deployContracts(
     wmatic,
     nft,
     diamond,
-    marketplace,
-    offers
+    marketplace: marketplace.attach(diamond.address),
+    offers: offers.attach(diamond.address)
   }
 }
