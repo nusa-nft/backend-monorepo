@@ -74,34 +74,9 @@ export class ItemService {
 
     // If no collection, create collection automatically
     if (!collection_id) {
-      const myCollection = await this.collectionService.findMyCollection(
-        userId,
-        { page: 1 },
-      );
-
-      let collectionName = `Untitled Collection ${userWalletAddress}`;
-      if (myCollection.records.length > 0) {
-        collectionName += ` ${myCollection.records[0].id + 1}`;
-      }
-
-      const { slug } = await this.collectionService.getSlug(collectionName);
-
-      const collectionData = await this.collectionService.createCollection(
-        userWalletAddress,
-        {
-          category_id: 1,
-          name: collectionName,
-          chainId: createItemDto.chainId,
-          creator_address: userWalletAddress,
-          slug,
-          explicit_sensitive: false,
-          // TODO: Set default logo image to a variable
-          logo_image: 'ipfs://QmaTCGzpQBRy1rmCcwqtY1t8MPj4NkfhjdqLRStoPPbpPC', // default logo image
-        },
-      );
-
-      collection = collectionData.data;
-      collection_id = collectionData.data.id;
+      const fallbackCollection = await this.createFallbackCollection(userId, userWalletAddress, createItemDto.chainId);
+      collection = fallbackCollection.data;
+      collection_id = fallbackCollection.data.id;
     } else {
       collection = await this.prisma.collection.findFirst({
         where: {
@@ -109,14 +84,13 @@ export class ItemService {
         },
       });
     }
-
+    // Clean attributes
     if (createItemDto.attributes) {
       attributeData = JSON.parse(createItemDto.attributes);
       attributeData = this.nusaTypeValidator(attributeData);
     }
     // If freeze metadata, upload to IPFS
     if (createItemDto.is_metadata_freeze) {
-      console.log({ createItemDto })
       const ipfsImageData = await this.ipfsService.uploadImage(file.path);
       const standardizeMetadata = standardizeMetadataAttribute(attributeData);
 
@@ -141,13 +115,11 @@ export class ItemService {
         ? process.env.API_IMAGE_SERVE_URL + '/' + file.filename
         : 'https://nft.nusa.finance/uploads/' + file.filename;
     }
-    console.log({ metadata });
 
     let lastInsertUnmintedItem = await this.prisma.item.findFirst({
       where: { tokenId: { lt: 0 }},
       orderBy: { id: 'asc' }
     })
-    console.log('a')
 
     let createItemData: Prisma.ItemCreateInput = {
       uuid: nusa_item_id,
@@ -173,8 +145,6 @@ export class ItemService {
       tokenId: lastInsertUnmintedItem ? lastInsertUnmintedItem.tokenId.sub(1) : -1,
       explicit_sensitive: createItemDto.explicit_sensitive,
       is_metadata_freeze: createItemDto.is_metadata_freeze,
-      // If item is_minted, quantity_minted is supply, else 0
-      // quantity_minted: createItemDto.is_minted ? createItemDto.supply : 0,
       attributes: {
         createMany: {
           data: attributeData,
@@ -182,13 +152,11 @@ export class ItemService {
       },
       token_standard: TokenType.ERC1155,
     };
-    console.log('b')
 
     let item: Item;
 
     await retry (
       async () => {
-        console.log("in retry")
         try {
           item = await this.prisma.item.create({ data: createItemData });
         } catch (err) {
@@ -223,6 +191,36 @@ export class ItemService {
       message: 'Item created',
       data: item,
     };
+  }
+
+  async createFallbackCollection(userId: number, userWalletAddress: string, chainId) {
+    const myCollection = await this.collectionService.findMyCollection(
+      userId,
+      { page: 1 },
+    );
+
+    let collectionName = `Untitled Collection ${userWalletAddress}`;
+    if (myCollection.records.length > 0) {
+      collectionName += ` ${myCollection.records[0].id + 1}`;
+    }
+
+    const { slug } = await this.collectionService.getSlug(collectionName);
+
+    const collectionData = await this.collectionService.createCollection(
+      userWalletAddress,
+      {
+        category_id: 1,
+        name: collectionName,
+        chainId: chainId,
+        creator_address: userWalletAddress,
+        slug,
+        explicit_sensitive: false,
+        // TODO: Set default logo image to a variable
+        logo_image: 'ipfs://QmaTCGzpQBRy1rmCcwqtY1t8MPj4NkfhjdqLRStoPPbpPC', // default logo image
+      },
+    );
+
+    return collectionData;
   }
 
   async retrieveListingOffers(listing) {
@@ -682,7 +680,7 @@ export class ItemService {
     minterWalletAddress: string,
   ) {
     const listing = await this.prisma.lazyMintListing.findFirstOrThrow({
-      where: { id: listingId },
+      where: { id: +listingId },
       include: {
         Item: {
           include: {
@@ -734,6 +732,7 @@ export class ItemService {
       this.configService.get<string>('NFT_CONTRACT_OWNER_PRIVATE_KEY'),
       provider,
     );
+    console.log({ nftContractOwnerAddress: nftContractOwner.address })
 
     const { chainId } = await provider.getNetwork();
 

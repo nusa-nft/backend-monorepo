@@ -51,7 +51,11 @@ export class CollectionService {
     creatorAddress: string,
     createCollectionDto: CollectionDto,
   ) {
-    const slug = await this.slugValidator(createCollectionDto.slug);
+    let slug: string;
+    if (!createCollectionDto.slug) {
+      slug = (await this.getSlug(createCollectionDto.name)).slug;
+    }
+    slug = await this.slugValidator(slug);
     const contract_address = process.env.NFT_CONTRACT_ADDRESS;
     let royaltyData = [];
     try {

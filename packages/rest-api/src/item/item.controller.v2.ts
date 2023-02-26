@@ -10,16 +10,28 @@ import {
   Version,
   Request,
   Query,
+  MaxFileSizeValidator,
+  ParseFilePipe,
+  UploadedFile,
+  UseInterceptors,
+  ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { extractJwt } from '../lib/extractJwt';
 import {
+  ItemDto,
   ItemQueryParamsV2,
   LazyMintSale,
   SetItemMintedDto,
 } from './dto/item.dto';
+import { fileMimetypeFilter } from './item.controller';
 import { ItemServiceV2 } from './item.service.v2';
+
+const maxFileSize = 5 * 1000 * 1000;
 
 @ApiTags('Item')
 @ApiBearerAuth()
@@ -83,6 +95,52 @@ export class ItemControllerV2 {
       listingId,
       user.wallet_address,
       quantity,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @ApiConsumes('multipart/form-data')
+  @Post('/upload-metadata')
+  @ApiOkResponse({ description: 'Item has been created' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  @UseInterceptors(
+    FileInterceptor('image', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          // Generating a 32 random chars long string
+          const randomName = Array(32)
+            .fill(null)
+            .map(() => Math.round(Math.random() * 16).toString(16))
+            .join('');
+          //Calling the callback passing the random name generated with the original extension name
+          cb(null, `${randomName}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: fileMimetypeFilter('jpeg', 'png', 'jpg', 'gif', 'webp'),
+    }),
+  )
+  uploadIpfsItemMetadata(
+    @Request() req: any,
+    @Body(
+      new ValidationPipe({
+        transform: true
+      })
+    ) createItemDto: ItemDto,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [new MaxFileSizeValidator({ maxSize: maxFileSize })],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    const { user } = req;
+    return this.itemService.uploadIpfsItemMetadata(
+      createItemDto,
+      file,
+      +user.id,
+      user.wallet_address
     );
   }
 }

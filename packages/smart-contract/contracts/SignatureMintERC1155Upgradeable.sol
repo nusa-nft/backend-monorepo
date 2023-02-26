@@ -6,6 +6,8 @@ import "./interfaces/ISignatureMintERC1155.sol";
 import "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
 
+import "hardhat/console.sol";
+
 abstract contract SignatureMintERC1155Upgradeable is Initializable, EIP712Upgradeable, ISignatureMintERC1155 {
     using ECDSAUpgradeable for bytes32;
 
@@ -32,6 +34,9 @@ abstract contract SignatureMintERC1155Upgradeable is Initializable, EIP712Upgrad
     {
         signer = _recoverAddress(_req, _signature);
         success = !minted[_req.uid] && _isAuthorizedSigner(signer);
+
+        console.log("signer log in contract");
+        console.log(signer);
     }
 
     /// @dev Returns whether a given address is authorized to sign mint requests.

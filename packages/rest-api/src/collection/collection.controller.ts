@@ -13,6 +13,7 @@ import {
   Request,
   Headers,
   Delete,
+  ValidationPipe,
 } from '@nestjs/common';
 import { diskStorage } from 'multer';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -84,7 +85,11 @@ export class CollectionController {
       feature_image?: Express.Multer.File;
       banner_image?: Express.Multer.File;
     },
-    @Body() createCollectionDto: CollectionDto,
+    @Body(
+      new ValidationPipe({
+        transform: true
+      })
+    ) createCollectionDto: CollectionDto,
     @Request() req: any,
   ) {
     if (files) {

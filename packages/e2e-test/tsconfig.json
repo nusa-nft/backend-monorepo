@@ -21,5 +21,4 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
   },
-  "include": ["decs.d.ts", "src"]
 }

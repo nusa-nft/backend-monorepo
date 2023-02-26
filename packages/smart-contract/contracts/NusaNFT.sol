@@ -107,6 +107,7 @@ contract NusaNFT is
         name = _name;
         symbol = _symbol;
         __Ownable_init_unchained();
+        __SignatureMintERC1155_init();
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -118,6 +119,7 @@ contract NusaNFT is
         name = _name;
         symbol = _symbol;
         __Ownable_init_unchained();
+        __SignatureMintERC1155_init();
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 

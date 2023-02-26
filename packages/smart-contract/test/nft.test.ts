@@ -5,7 +5,7 @@ import hre from "hardhat";
 import keccak256 from "keccak256";
 import MerkleTree from "merkletreejs";
 import { NusaNFT_V2_Test_Only, NusaNFT__factory } from "../typechain-types";
-import { ISignatureMintERC1155 } from "../typechain-types/@thirdweb-dev/contracts/extension/interface/ISignatureMintERC1155";
+import { ISignatureMintERC1155 } from "../typechain-types/contracts/interfaces/ISignatureMintERC1155";
 import { NusaNFT } from "../typechain-types/contracts/NusaNFT";
 import { v4 as uuidv4 } from "uuid";
 

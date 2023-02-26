@@ -16,8 +16,10 @@ export async function deployContracts(
   const wmaticFactory = new ethers.ContractFactory(WmaticAbi, WmaticBytecode, deployer);
   const wmatic = await wmaticFactory.deploy();
 
+  // TODO: Should deploy with proxy
   const nftFactory = new ethers.ContractFactory(NftAbi, NftBytecode, deployer);
   const nft = await nftFactory.deploy() as unknown as NusaNFT;
+  (await nft.initialize("NusaNFT", "NNFT")).wait(); 
 
   const [diamond, marketplace, offers] = await deployDiamond(deployer, {
     platformFeeRecipient: deployer.address,

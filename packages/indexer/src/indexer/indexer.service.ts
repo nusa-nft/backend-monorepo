@@ -19,6 +19,8 @@ import { abi as MarketplaceAbi } from '@nusa-nft/smart-contract/artifacts/contra
 import { abi as OffersAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/OffersFacet.sol/OffersFacet.json';
 import { abi as LibRoyaltyAbi } from  '@nusa-nft/smart-contract/artifacts/contracts/libraries/LibRoyalty.sol/LibRoyalty.json';
 import { OfferStruct, OfferStructOutput } from '@nusa-nft/smart-contract/typechain-types/contracts/facets/OffersFacet';
+import { ISignatureMintERC1155, TokensMintedWithSignatureEvent, TokensMintedWithSignatureEventObject } from '@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT';
+import { LogDescription } from 'ethers/lib/utils';
 
 const parseListingType = (listingTypeNumber: number) => {
   if (listingTypeNumber == 0) {
@@ -42,6 +44,24 @@ const parseOfferStatus = (offerStatus: number) => {
   if (offerStatus == 3) {
     return OfferStatus.CANCELLED;
   }
+}
+
+interface Attribute {
+  trait_type: string;
+  value: string;
+}
+
+interface Metadata {
+  uri: string;
+  name: string;
+  image: string;
+  description: string;
+  attributes: Array<Attribute>;
+  nusa_collection?: {
+    name: string,
+    slug: string,
+  };
+  nusa_item_id?: string;
 }
 
 @Injectable()
@@ -236,7 +256,6 @@ export class IndexerService implements OnModuleInit {
   async onModuleInit() {
     this.indexMarketplaceOldBlocks();
     this.indexNftOldBlocks();
-    // this.handleErc1155TransferSingle();
 
     this.handleMarketplaceListingAdded();
     this.handleMarketplaceListingRemoved();
@@ -510,7 +529,6 @@ export class IndexerService implements OnModuleInit {
       return;
     }
     if (blockNumber > indexerState.lastBlockProcessed) {
-      Logger.log(`${blockNumber} > ${indexerState.lastBlockProcessed}`);
       await this.prisma.indexerState
         .upsert({
           where: { lastBlockProcessed: indexerState.lastBlockProcessed },
@@ -1079,6 +1097,7 @@ export class IndexerService implements OnModuleInit {
       'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
       // ERC1155
       'function uri(uint256 _id) external view returns (string memory)',
+      'function totalSupply(uint256 id) public view returns(uint256)',
       'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
       'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)',
     ];
@@ -1099,35 +1118,36 @@ export class IndexerService implements OnModuleInit {
     const iface = new ethers.utils.Interface(abi);
     for (const log of logs) {
       const event = iface.parseLog(log);
+      Logger.log('processing event', JSON.stringify(event));
+
       const { blockNumber, logIndex } = log;
       const logIndexParsed = parseInt(logIndex.toString());
       const blockNumberParsed = parseInt(blockNumber.toString());
-      Logger.log('processing event', JSON.stringify(event));
       const contractAddress: string = log.address;
-
       const contract = new ethers.Contract(contractAddress, abi, this.provider);
 
       let tokenId;
+      let collection;
+      let metadataUri;
+      let metadata;
+
       if (event.name == 'Transfer') {
-        tokenId = parseInt(event.args[2]._hex);
+        tokenId = event.args[2].toString();
       }
       if (event.name == 'TransferBatch') {
         const ids = event.args[3];
         tokenId = ids[0].toString();
       }
       if (event.name == 'TransferSingle') {
-        tokenId = parseInt(event.args[3]._hex);
+        tokenId = event.args[3].toString();
       }
-
-      let collection;
-      console.log(
-        contractAddress.toLowerCase(),
-        nusaContractAddress.toLowerCase(),
-      );
+      metadataUri = await contract.uri(tokenId);
+      metadata = await this.getMetadata(metadataUri);
+      metadata = this.cleanMetadata({ uri: metadataUri, metadata, fallbackName: `${contractAddress}-${tokenId}` });
 
       if (contractAddress.toLowerCase() != nusaContractAddress.toLowerCase()) {
         // Get Collection from imported contract address
-        console.log('kesana');
+        Logger.log('Handling item from imported contract')
         collection = await this.prisma.collection.findFirstOrThrow({
           where: {
             contract_address: {
@@ -1138,56 +1158,12 @@ export class IndexerService implements OnModuleInit {
         });
       } else {
         // Create nusa-collection (if not exists) for items that do not have a collection
-        console.log('kesini');
-        const metadataUri = await contract.uri(tokenId);
-        const metadata = await this.getMetadata(metadataUri);
+        Logger.log('Handling Item from NusaNFT contract');
         if (!metadata.nusa_collection) {
-          const privateKey = process.env.NFT_CONTRACT_OWNER_PRIVATE_KEY;
-          const nusaWallet = new ethers.Wallet(
-            privateKey,
-            this.provider,
-          );
-
-          const findNusaCollection: Collection =
-            await this.prisma.collection.findFirst({
-              where: {
-                slug: {
-                  contains: 'nusa-collection',
-                },
-              },
-            });
-
-          if (!findNusaCollection) {
-            collection = await this.prisma.collection.create({
-              data: {
-                name: 'nusa collection',
-                slug: 'nusa-collection',
-                Category: {
-                  connect: {
-                    id: 1,
-                  },
-                },
-                contract_address: nusaContractAddress.toLowerCase(),
-                Creator: {
-                  connectOrCreate: {
-                    create: {
-                      username: 'nusa collection',
-                      wallet_address: nusaWallet.address,
-                    },
-                    where: {
-                      wallet_address: nusaWallet.address,
-                    },
-                  },
-                },
-              },
-            });
-          } else {
-            collection = findNusaCollection;
-          }
+          collection = await this.getNusaDefaultCollection(); // A collection for items that have no collection in metadata
         } else {
           // Find item's collection from metadata info 
           const slug = metadata.nusa_collection.slug;
-          console.log(slug);
           await retry(
             async () => {
               collection = await this.prisma.collection.findFirstOrThrow({
@@ -1204,7 +1180,6 @@ export class IndexerService implements OnModuleInit {
         }
       }
 
-      console.log('ini data collection', collection);
       const collectionId = +collection.id;
 
       const user = await this.prisma.user.findFirst({
@@ -1224,6 +1199,7 @@ export class IndexerService implements OnModuleInit {
           log,
           contract,
           collection,
+          metadata,
           user,
           tokenType: TokenType.ERC721,
           chainId: this.chainId,
@@ -1238,6 +1214,7 @@ export class IndexerService implements OnModuleInit {
           log,
           contract,
           collection,
+          metadata,
           user,
           tokenType: TokenType.ERC1155,
           chainId: this.chainId,
@@ -1286,8 +1263,53 @@ export class IndexerService implements OnModuleInit {
           console.log('imported contract block updated');
         }
       }
-      return;
     }
+    return;
+  }
+
+  async getNusaDefaultCollection() {
+    const privateKey = process.env.NFT_CONTRACT_OWNER_PRIVATE_KEY;
+    const nusaWallet = new ethers.Wallet(
+      privateKey,
+      this.provider,
+    );
+
+    let findNusaCollection: Collection =
+      await this.prisma.collection.findFirst({
+        where: {
+          slug: {
+            contains: 'nusa-collection',
+          },
+        },
+      });
+
+    if (!findNusaCollection) {
+      findNusaCollection = await this.prisma.collection.create({
+        data: {
+          name: 'nusa collection',
+          slug: 'nusa-collection',
+          Category: {
+            connect: {
+              id: 1,
+            },
+          },
+          contract_address: process.env.NFT_CONTRACT_ADDRESS.toLowerCase(),
+          Creator: {
+            connectOrCreate: {
+              create: {
+                username: 'nusa collection',
+                wallet_address: nusaWallet.address,
+              },
+              where: {
+                wallet_address: nusaWallet.address,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    return findNusaCollection;
   }
 
   async handleERC721Transfer({
@@ -1300,6 +1322,7 @@ export class IndexerService implements OnModuleInit {
     tokenType,
     chainId,
     logIndex,
+    metadata
   }: {
     contractAddress: string;
     event: ethers.utils.LogDescription;
@@ -1310,6 +1333,7 @@ export class IndexerService implements OnModuleInit {
     chainId: number;
     user: User;
     logIndex: number;
+    metadata: Metadata;
   }) {
     const from = event.args[0];
     const to = event.args[1];
@@ -1332,9 +1356,10 @@ export class IndexerService implements OnModuleInit {
       logIndex,
     });
     if (from == ethers.constants.AddressZero) {
-      await this.createItemIfNotExists({
+      await this.createOrMintItem({
         contract,
         collection,
+        metadata,
         tokenId,
         chainId,
         tokenType,
@@ -1354,6 +1379,7 @@ export class IndexerService implements OnModuleInit {
     tokenType,
     chainId,
     logIndex,
+    metadata
   }: {
     contractAddress: string;
     event: ethers.utils.LogDescription;
@@ -1364,6 +1390,7 @@ export class IndexerService implements OnModuleInit {
     chainId: number;
     user: User;
     logIndex: number;
+    metadata: Metadata
   }) {
     const operator = event.args[0];
     const from = event.args[1];
@@ -1373,6 +1400,7 @@ export class IndexerService implements OnModuleInit {
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     const blockNumberHashed = parseInt(blockNumber.toString());
+    Logger.log('handleERC1155TransferSingle');
 
     const tokenOwnershipWrite =
       await this.createUpdateImportedContractTokenOwnership({
@@ -1389,12 +1417,11 @@ export class IndexerService implements OnModuleInit {
         logIndex,
       });
     // If tokenOwnerships has not changed && transfer is not mint return
-    if (from == ethers.constants.AddressZero &&
-        contractAddress.toLowerCase() != (process.env.NFT_CONTRACT_ADDRESS).toLowerCase()
-      ) {
-      await this.createItemIfNotExists({
+    if (from == ethers.constants.AddressZero) {
+      await this.createOrMintItem({
         contract,
         collection,
+        metadata,
         tokenId,
         chainId,
         tokenType,
@@ -1441,6 +1468,9 @@ export class IndexerService implements OnModuleInit {
       console.log({ quantity: values[i].toString() });
       const tokenId = ids[i].toString();
       const quantity = values[i].toNumber();
+      const metadataUri = await contract.uri(tokenId);
+      let metadata = await this.getMetadata(metadataUri);
+      metadata = this.cleanMetadata({ uri: metadataUri, metadata, fallbackName: `${contractAddress}-${tokenId}` });
 
       const tokenOwnershipWrite =
         await this.createUpdateImportedContractTokenOwnership({
@@ -1458,13 +1488,14 @@ export class IndexerService implements OnModuleInit {
           isBatch: true,
         });
       // If tokenOwnerships has not changed && transfer is not mint return
-    if (from == ethers.constants.AddressZero && contractAddress != process.env.NFT_CONTRACT_ADDRESS) {
-        await this.createItemIfNotExists({
+    if (from == ethers.constants.AddressZero) {
+        await this.createOrMintItem({
           contract,
           collection,
           tokenId: ids[i].toString(),
           chainId,
           tokenType,
+          metadata,
           contractAddress,
           user,
           amount: values[i].toNumber(),
@@ -1631,7 +1662,7 @@ export class IndexerService implements OnModuleInit {
     return result;
   }
 
-  async createItemIfNotExists({
+  async createOrMintItem({
     contract,
     collection,
     tokenId,
@@ -1640,6 +1671,7 @@ export class IndexerService implements OnModuleInit {
     contractAddress,
     user,
     amount = 1,
+    metadata
   }: {
     contract: ethers.Contract;
     collection: Collection;
@@ -1649,8 +1681,29 @@ export class IndexerService implements OnModuleInit {
     contractAddress: string;
     user: User;
     amount?: number;
+    metadata?: Metadata
   }) {
-    console.log('handle check if item not exist');
+    // check item using uuid, if exists, mint
+    if (metadata.nusa_item_id) {
+      const item = await this.prisma.item.findFirst({
+        where: {
+          uuid: metadata.nusa_item_id
+        },
+      })
+      // This handles lazy mint sale
+      if (item) {
+        const onChainSupply = await (contract as NusaNFT).totalSupply(tokenId.toString());
+        await this.prisma.item.update({
+          where: { id: item.id },
+          data: {
+            tokenId: tokenId,
+            quantity_minted: onChainSupply.toNumber()
+          }
+        });
+        return;
+      }
+    }
+    // else create
     const item = await this.prisma.item.findFirst({
       where: {
         tokenId: tokenId,
@@ -1664,45 +1717,19 @@ export class IndexerService implements OnModuleInit {
         attributes: true,
       },
     });
-    let name;
-    let metadataUri;
-    let attributes;
-    let description;
-    let image;
-    if (!item || !item.image || !item.name) {
-      const metadata = await this.extractMetadata(
-        contract,
-        collection,
-        tokenId,
-        tokenType,
-      );
-      console.log({ metadata });
-      name = metadata.name;
-      metadataUri = metadata.metadataUri;
-      attributes = metadata.attributes;
-      description = metadata.description;
-      image = metadata.image;
-    } else {
-      name = item.name;
-      metadataUri = item.metadata;
-      description = item.description;
-      attributes = item.attributes.map((x) => ({
-        trait_type: x.trait_type,
-        value: x.value,
-      }));
-    }
     let itemData: Prisma.ItemCreateInput = {
       chainId,
+      uuid: metadata.nusa_item_id ? metadata.nusa_item_id : undefined,
       supply: amount,
       quantity_minted: amount,
       token_standard: tokenType,
-      metadata: metadataUri,
+      metadata: metadata.uri,
       tokenId: tokenId,
       contract_address: contractAddress.toLowerCase(),
       is_metadata_freeze: true,
-      name,
-      image,
-      description,
+      name: metadata.name,
+      image: metadata.image,
+      description: metadata.description,
       Collection: {
         connect: {
           id: collection.id,
@@ -1727,12 +1754,12 @@ export class IndexerService implements OnModuleInit {
         quantity_minted: { increment: amount },
       };
     }
-    if (this.validateMetadataAttributes(attributes)) {
+    if (this.validateMetadataAttributes(metadata.attributes)) {
       itemData = {
         ...itemData,
         attributes: {
           createMany: {
-            data: attributes.map((x) => ({ ...x, value: String(x.value) })),
+            data: metadata.attributes.map((x) => ({ ...x, value: String(x.value) })),
           },
         },
       };
@@ -1788,7 +1815,33 @@ export class IndexerService implements OnModuleInit {
       Logger.error(`error fetching metadata`, err);
       name = `${collection.name}-${tokenId}`;
     }
-    return { name, description, image, metadataUri, attributes };
+
+    return {
+      name,
+      description,
+      image,
+      metadataUri,
+      attributes
+    };
+  }
+
+  cleanMetadata({ uri, metadata, fallbackName }: { uri: string, metadata: any, fallbackName: string }) {
+    const name = metadata.name ? metadata.name : fallbackName;
+    const description = metadata.description;
+    const image = metadata.image.includes('ipfs') ? normalizeIpfsUri(metadata.image) : metadata.image;
+    uri = uri.includes('ipfs') ? normalizeIpfsUri(uri) : uri;
+    const attributes = metadata.attributes;
+    const nusa_collection = metadata.nusa_collection;
+
+    return {
+      ...metadata,
+      name,
+      description,
+      image,
+      uri,
+      attributes,
+      nusa_collection,
+    };
   }
 
   async getMetadata(uri: string, timeout: number = 10000) {

@@ -549,4 +549,8 @@ contract NusaNFT_V2_Test_Only is
         }
         return found;
     }
+
+    function testV2Function() external pure returns(string memory) {
+        return "from contract v2";
+    }
 }

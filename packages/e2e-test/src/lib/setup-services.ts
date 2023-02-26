@@ -87,6 +87,6 @@ export async function setupIpfs() {
   const proc = spawn("ipfs", ["daemon"], {detached: true});
   // Wait until ipfs runs
   console.log("starting IPFS..")
-  await new Promise(resolve => setTimeout(resolve, 10000))
+  await new Promise(resolve => setTimeout(resolve, 15000))
   return proc;
 }

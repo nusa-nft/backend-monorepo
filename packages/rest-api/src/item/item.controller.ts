@@ -165,7 +165,7 @@ export class ItemController {
   ) {
     const { user } = req;
     return this.itemService.getLazyMintListingSignature(
-      listingId,
+      +listingId,
       user.wallet_address,
     );
   }
