@@ -1,6 +1,10 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
+// TODO:
+// 1. create NotificationDetailBid model
+// 2. Include acceptor in MarketplaceOffer
+
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
@@ -221,10 +225,10 @@ model NotificationDetailSale {
   notification_type     NotificationType @default(Sale)
   listingId             Int?
   asset_contract        String           @db.Citext
-  lister                User             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
-  lister_wallet_address String           @db.Citext
-  buyer                 User             @relation("buyer", fields: [buyer_wallet_address], references: [wallet_address])
-  buyer_wallet_address  String           @db.Citext
+  lister                User?             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
+  lister_wallet_address String?           @db.Citext
+  buyer                 User?             @relation("buyer", fields: [buyer_wallet_address], references: [wallet_address])
+  buyer_wallet_address  String?           @db.Citext
   quantity_bought       Int?
   total_price_paid      Decimal          @db.Decimal(78, 0)
   createdAt             DateTime         @default(now())
@@ -239,10 +243,10 @@ model NotificationDetailOffer {
   id                     Int              @unique @default(autoincrement())
   notification_type      NotificationType @default(Offer)
   listingId              Int?
-  lister                 User             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
-  lister_wallet_address  String           @db.Citext
-  offeror                User             @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
-  offeror_wallet_address String           @db.Citext
+  lister                 User?            @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
+  lister_wallet_address  String?          @db.Citext
+  offeror                User?            @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
+  offeror_wallet_address String?          @db.Citext
   listing_type           ListingType
   quantity_wanted        Int?
   total_offer_ammount    Decimal          @db.Decimal(78, 0)
@@ -281,6 +285,13 @@ enum ListingType {
 enum NotificationType {
   Sale
   Offer
+}
+
+enum ListingStatus {
+  UNSET
+  CREATED
+  COMPLETED
+  CANCELLED
 }
 
 enum OfferStatus {
@@ -345,6 +356,7 @@ model MarketplaceListing {
   isClosedByBidder     Boolean?
   RoyaltyPaid          RoyaltyPaid[]
   Item                 Item?            @relation(fields: [tokenId, assetContract, chainId], references: [tokenId, contract_address, chainId])
+  status               ListingStatus
 }
 
 model MarketplaceOffer {
@@ -360,6 +372,18 @@ model MarketplaceOffer {
   status              OfferStatus
   royaltyInfoId       Int
   createdAt           Int?
+}
+
+model Bid {
+  listingId       Decimal @db.Decimal(78, 0)
+  bidder          String  @db.Citext
+  quantityWanted  Decimal @db.Decimal(78, 0)
+  currency        String  @db.Citext
+  pricePerToken   Decimal @db.Decimal(78, 0)
+  totalPrice      Decimal @db.Decimal(78, 0)
+  transactionHash String
+
+  @@unique([listingId, bidder, transactionHash])
 }
 
 model MarketplaceSale {

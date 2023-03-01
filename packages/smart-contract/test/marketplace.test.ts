@@ -71,16 +71,17 @@ describe("Marketplace Test", async () => {
 
     // Deploy NFT Contract Logic
     const NusaNFT = await hre.ethers.getContractFactory("NusaNFT");
-    const nftContractLogic = await NusaNFT.deploy();
-    // encode initialize data
-    const nusaNFTInitializeData = nftContractLogic.interface.encodeFunctionData("initialize", [
-      NAME,
-      SYMBOL
-    ]);
-    // Deploy proxy and pass in logic initialize data
-    const ProxyNusaNFT = await hre.ethers.getContractFactory("ProxyNusaNFT");
-    const proxy = await ProxyNusaNFT.deploy(nftContractLogic.address, nusaNFTInitializeData) as NusaNFT;
-    nftContract = NusaNFT__factory.connect(proxy.address, contractOwner);
+    nftContract = await hre.upgrades.deployProxy(
+      NusaNFT,
+      [NAME, SYMBOL],
+      {
+        initializer: "initialize",
+        kind: "uups",
+        unsafeAllow: ["constructor", "delegatecall", "state-variable-immutable"]
+      }
+    ) as NusaNFT;
+
+    await nftContract.deployed();
 
     // Deploy Wrap Token
     const WrappedToken = await hre.ethers.getContractFactory("WETH9");
@@ -437,6 +438,11 @@ describe("Marketplace Test", async () => {
       const nftBalanceAfterClose = await nftContract.balanceOf(nftBuyer.address, 0);
 
       expect(nftBalanceAfterClose).to.equal(nftBalanceBeforeClose.add(2), "Incorrect NFT transferred to winning bidder");
+    })
+
+    it("Listing status is COMPLETED", async () => {
+      const listing = await marketplace.attach(diamond.address).getListing(createdListingId_1);
+      expect(listing.status).to.equal(2, "Listing status is not COMPLETED");
     })
   })
 

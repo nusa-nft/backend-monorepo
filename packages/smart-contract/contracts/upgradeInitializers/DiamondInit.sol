@@ -51,6 +51,7 @@ contract DiamondInit {
         // More info here: https://eips.ethereum.org/EIPS/eip-2535#diamond-interface 
         s.platformFeeRecipient = _args.platformFeeRecipient;
         s.platformFeeBps = _args.platformFeeBps;
+        s.timeBuffer = 15 minutes; // default auction time buffer;
         s.nativeTokenWrapper = _args.nativeTokenWrapper;
     }
 

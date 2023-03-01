@@ -37,18 +37,8 @@ export class NotificationService {
         id: 'desc',
       },
       include: {
-        notification_detail_offer: {
-          include: {
-            lister: true,
-            offeror: true,
-          },
-        },
-        notification_detail_sale: {
-          include: {
-            lister: true,
-            buyer: true,
-          },
-        },
+        notification_detail_offer: true,
+        notification_detail_sale: true,
       },
       where: {
         user: {

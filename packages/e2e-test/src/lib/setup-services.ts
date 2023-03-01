@@ -5,6 +5,7 @@ import { PrismaClient } from '@nusa-nft/database';
 import { exec, spawn } from "child_process";
 import { AppModule as IndexerAppModule } from "@nusa-nft/indexer/src/app.module";
 import { AppModule as RestApiAppModule } from "@nusa-nft/rest-api/src/app.module";
+import { AppModule as WorkerAppModule } from '@nusa-nft/worker/src/app.module';
 
 export async function setupDatabase() {
   // FIXME: script should read .env.test instead of .env
@@ -27,7 +28,7 @@ export async function setupDatabase() {
 async function runMigrationAndResetDB() {
   console.log("Running Migration")
   await new Promise(resolve => {
-    exec(`cd ${__dirname}/../../../database && npx prisma migrate dev && npx prisma migrate reset --force --skip-seed`, async (error, stdout, stderr) => {
+    exec(`cd ${__dirname}/../../../database && npx prisma migrate deploy && npx prisma migrate reset --force --skip-seed`, async (error, stdout, stderr) => {
       if (error) {
         throw error;
       }
@@ -67,7 +68,7 @@ export async function setupIndexer() {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [IndexerAppModule],
   }).compile();
-  const indexer: INestApplication = moduleFixture.createNestApplication();
+  const indexer: INestApplication = moduleFixture.createNestApplication({ logger: ['error'] });
   await indexer.init();
 
   return indexer;
@@ -77,10 +78,20 @@ export async function setupRestApi() {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [RestApiAppModule],
   }).compile();
-  const restApi: INestApplication = moduleFixture.createNestApplication();
+  const restApi: INestApplication = moduleFixture.createNestApplication({ logger: ['error'] });
   await restApi.init();
 
   return restApi;
+}
+
+export async function setupWorker() {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    imports: [WorkerAppModule],
+  }).compile();
+  const worker: INestApplication = moduleFixture.createNestApplication({ logger: ['log', 'error', 'debug', 'warn'] });
+  await worker.init();
+
+  return worker;
 }
 
 export async function setupIpfs() {

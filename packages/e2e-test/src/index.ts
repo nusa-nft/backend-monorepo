@@ -3,7 +3,8 @@ import {
   setupDatabase,
   setupIndexer,
   setupIpfs,
-  setupRestApi
+  setupRestApi,
+  setupWorker
 } from "./lib/setup-services";
 import { deployContracts } from './lib/setup-smart-contracts';
 import { ethers, Event } from "ethers";
@@ -18,9 +19,16 @@ import { NusaNFT, TokensMintedWithSignatureEvent, TransferSingleEvent } from "@n
 import retry from 'async-retry';
 import { NATIVE_CURRENCY } from "@nusa-nft/rest-api/src/item/web3/constants";
 import { INestApplication } from "@nestjs/common";
-import { testCreateItemOnChain } from "./test-cases/create-item";
-import { testLazyMintItemSale } from "./test-cases/lazy-mint-item-sale";
-import { testMarketplaceDirectListing } from "./test-cases/marketplace-direct-listing";
+import {
+  testCreateItemOnChain,
+  testLazyMintItemSale,
+  testMarketplaceDirectListing,
+  testMarketplacAuctionListing,
+  offer,
+  importERC1155BatchMint,
+  importERC1155Mint,
+  importERC721Mint
+} from "./test-cases";
 
 let ipfsProcess: ChildProcess;
 
@@ -51,10 +59,13 @@ async function main() {
     nft,
     diamond,
     marketplace,
-    offers
+    offers,
+    erc1155,
+    erc721,
   } = await deployContracts(blockchain);
   // Get blockchain accounts
-  const [deployer, acc1, acc2] = getTestAccounts(blockchain);
+  const [deployer, acc1, acc2, acc3, acc4] = getTestAccounts(blockchain);
+  const web3Provider = new ethers.providers.Web3Provider(blockchain.provider);
 
   // set contract address to env variables
   // this should be picked up by rest-api and indexer services
@@ -62,14 +73,16 @@ async function main() {
   process.env.MARKETPLACE_CONTRACT_ADDRESS = diamond.address;
   process.env.NFT_CONTRACT_OWNER_PRIVATE_KEY = deployer.privateKey;
   process.env.CHAIN_ID = '1337';
+  process.env.WORKER_IMPORT_COLLECTION_START_BLOCK = '0';
 
 
   // Setup indexer, rest api, ipfs
   // IPFS takes 15 seconds to start
-  const promises = await Promise.all([setupIndexer(), setupRestApi(), setupIpfs()]);
+  const promises = await Promise.all([setupIndexer(), setupRestApi(), setupWorker(), setupIpfs()]);
   const indexer = promises[0];
   const restApi = promises[1];
-  ipfsProcess = promises[2]
+  const worker = promises[2];
+  ipfsProcess = promises[3];
 
   /**
    * Test Cases
@@ -99,38 +112,106 @@ async function main() {
   /// ======================
   // Test Create Item On Chain
   // =======================
-  await testCreateItemOnChain({
-    restApi,
-    collectionId,
-    wallet: acc1,
-    db,
-    nft
-  });
-  
+  // await testCreateItemOnChain({
+  //   restApi,
+  //   collectionId,
+  //   wallet: acc1,
+  //   db,
+  //   nft
+  // });
+
   /// =========================================
   /// Test Create Lazy Mint Item, Sell, and Buy
   /// =========================================
-  await testLazyMintItemSale({
-    restApi,
-    db,
-    nft,
-    collectionId,
-    sellerWallet: acc1,
-    buyerWallet: acc2,
-  });
+  // await testLazyMintItemSale({
+  //   restApi,
+  //   db,
+  //   nft,
+  //   collectionId,
+  //   sellerWallet: acc1,
+  //   buyerWallet: acc2,
+  // });
 
   /// =========================================
   /// Test Create Direct Listing and Buy
   /// =========================================
-  await testMarketplaceDirectListing({
+  // await testMarketplaceDirectListing({
+  //   restApi,
+  //   db,
+  //   nft,
+  //   marketplace,
+  //   collectionId,
+  //   sellerWallet: acc1,
+  //   buyerWallet: acc2,
+  // })
+
+  /// =========================================
+  /// Test Create Auction Listing and Buy
+  /// =========================================
+  // await testMarketplacAuctionListing({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   nft,
+  //   marketplace,
+  //   collectionId,
+  //   sellerWallet: acc1,
+  //   bidderWallet1: acc2,
+  //   bidderWallet2: acc3
+  // });
+
+  /// =========================================
+  /// Test Create Offer and Accept
+  /// =========================================
+  // await offer({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   nft,
+  //   offers,
+  //   collectionId,
+  //   minter: acc1,
+  //   offeror: acc2,
+  //   marketplace,
+  //   wmatic
+  // });
+
+  /// ====================================
+  /// Test Import ERC1155 Mint
+  /// ====================================
+  // await importERC1155Mint({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   erc1155,
+  //   minter: deployer,
+  //   receiver: acc1,
+  // });
+
+
+  /// ====================================
+  /// Test Import ERC1155 Batch Mint
+  /// ====================================
+  // await importERC1155BatchMint({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   erc1155,
+  //   minter: deployer,
+  //   receiver: acc1,
+  // });
+
+  /// ====================================
+  /// Test Import ERC721 Mint
+  /// ====================================
+  await importERC721Mint({
     restApi,
     db,
-    nft,
-    marketplace,
-    collectionId,
-    sellerWallet: acc1,
-    buyerWallet: acc2,
-  })
+    web3Provider,
+    erc721,
+    minter: deployer,
+    receiver: acc1,
+  });
 }
 
 /**

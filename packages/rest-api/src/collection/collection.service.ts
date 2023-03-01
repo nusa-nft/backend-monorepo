@@ -33,7 +33,7 @@ import axios from 'axios';
 @Injectable()
 @Processor('import-collection')
 export class CollectionService {
-  private provider: ethers.providers.JsonRpcProvider;
+  // private provider: ethers.providers.JsonRpcProvider;
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -42,9 +42,9 @@ export class CollectionService {
     private itemService: ItemService,
     @InjectQueue('import-collection') private importCollectionQueue: Queue,
   ) {
-    this.provider = new ethers.providers.WebSocketProvider(
-      process.env.WSS_RPC_URL,
-    );
+    // this.provider = new ethers.providers.WebSocketProvider(
+    //   process.env.WSS_RPC_URL,
+    // );
   }
 
   async createCollection(
@@ -1128,6 +1128,15 @@ export class CollectionService {
       {},
     );
     return job;
+  }
+
+  async clearImportQueue() {
+    await this.importCollectionQueue.clean(0, 'delayed');
+    await this.importCollectionQueue.clean(0, 'wait');
+    await this.importCollectionQueue.clean(0, 'active');
+    await this.importCollectionQueue.clean(0, 'completed');
+    await this.importCollectionQueue.clean(0, 'failed');
+    return true;
   }
 
   async getJobStatus(jobId: number) {

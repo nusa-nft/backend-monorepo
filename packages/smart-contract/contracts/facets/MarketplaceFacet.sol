@@ -441,6 +441,10 @@ contract MarketplaceFacet is
             if (_closeFor == targetBid.bidder) {
                 _closeAuctionForBidder(targetListing, targetBid);
             }
+
+            if (targetListing.quantity == 0 && targetBid.pricePerToken == 0) {
+                s.listings[_listingId].status = ListingStatus.COMPLETED;
+            }
         }
     }
 

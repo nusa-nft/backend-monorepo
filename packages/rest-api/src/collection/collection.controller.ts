@@ -277,6 +277,11 @@ export class CollectionController {
     return this.collectionService.importQueue(payload);
   }
 
+  @Delete('import-queue')
+  clearImportQueue() {
+    return this.collectionService.clearImportQueue();
+  }
+
   @Get('import-queue/status/:jobId')
   getImportQueueStatus(@Param('jobId') jobId: number) {
     return this.collectionService.getJobStatus(jobId);

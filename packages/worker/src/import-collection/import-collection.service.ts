@@ -1,13 +1,13 @@
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { InjectQueue, OnQueueFailed, OnQueueResumed, OnQueueStalled, Process, Processor } from '@nestjs/bull';
+import { HttpException, HttpStatus, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { InjectQueue, OnQueueFailed, OnQueueResumed, OnQueueStalled, OnQueueWaiting, Process, Processor } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
 import { ethers } from 'ethers';
 import { AttributeType, Collection, Prisma, TokenType, User } from '@nusa-nft/database';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { slugify } from '../lib/slugify';
 import axios from 'axios';
 import { base64 } from 'ethers/lib/utils';
-import { normalizeIpfsUri, nusaIpfsGateway } from 'src/lib/ipfs-uri';
+import { normalizeIpfsUri, nusaIpfsGateway } from '../lib/ipfs-uri';
 import * as _ from 'lodash';
 
 interface ImportCollectionJob {
@@ -17,7 +17,7 @@ interface ImportCollectionJob {
 
 @Injectable()
 @Processor('import-collection')
-export class ImportCollectionService {
+export class ImportCollectionService implements OnModuleInit {
   private provider: ethers.providers.JsonRpcProvider;
   private abi: string[];
   private ERC721_INTERFACE_ID = '0x80ac58cd';
@@ -45,6 +45,10 @@ export class ImportCollectionService {
     ];
   }
 
+  async onModuleInit() {
+    console.log('OnModuleInit');
+  }
+
   @OnQueueStalled({ name: 'import-collection' })
   onImportCollectionStalled(job: Job<ImportCollectionJob>) {
     Logger.log('Job stalled, requeuing', JSON.stringify(job));
@@ -63,6 +67,11 @@ export class ImportCollectionService {
   @OnQueueResumed({ name: 'import-collection' })
   onImportCollectionResumed(job: Job<ImportCollectionJob>) {
     Logger.log('resuming job', JSON.stringify(job));
+  }
+
+  @OnQueueWaiting({ name: 'import-collection' })
+  onImportCollectionWaiting(job: Job<ImportCollectionJob>) {
+    Logger.log('waiting job', JSON.stringify(job));
   }
 
   /**
@@ -85,7 +94,7 @@ export class ImportCollectionService {
     const contract = new ethers.Contract(contractAddress, this.abi, this.provider);
     const isErc721 = await contract.supportsInterface(this.ERC721_INTERFACE_ID);
     const isErc1155 = await contract.supportsInterface(this.ERC1155_INTERFACE_ID);
-    let startBlock = 10000000;
+    let startBlock = Number(process.env.WORKER_IMPORT_COLLECTION_START_BLOCK);
     let latestBlock = await this.provider.getBlockNumber();
 
     let creationBlock;
@@ -429,9 +438,9 @@ export class ImportCollectionService {
     return collection;
   }
 
-  async getMetadata(uri: string, timeout: number = 5000) {
+  async getMetadata(uri: string, timeout: number = 10000) {
     Logger.log('fetching metadata', uri);
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     if (uri.startsWith('ipfs://')) {
       const res = await axios.get(
         `${process.env.IPFS_GATEWAY}/${uri.replace('ipfs://', '')}`,
@@ -490,6 +499,7 @@ export class ImportCollectionService {
     const to = event.args[1];
     const tokenId = event.args[2].toString();
     const { blockNumber, transactionHash } = log;
+    console.log({ blockNumber });
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     await this.createUpdateTokenOwnership({
       contractAddress,
@@ -603,8 +613,8 @@ export class ImportCollectionService {
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     for (let i = 0; i < ids.length; i++) {
-      console.log({ tokenId: ids[i].toString() });
-      console.log({ quantity: values[i].toString() });
+      // console.log({ tokenId: ids[i].toString() });
+      // console.log({ quantity: values[i].toString() });
       const tokenOwnershipWrite = await this.createUpdateTokenOwnership({
         contractAddress,
         from,
@@ -662,18 +672,18 @@ export class ImportCollectionService {
     logIndex: number;
     isBatch?: boolean;
   }) {
-    console.log({
-      contractAddress,
-      from,
-      to,
-      tokenId,
-      quantity,
-      timestamp,
-      chainId,
-      transactionHash,
-      blockNumber,
-      txIndex
-    })
+    // console.log({
+    //   contractAddress,
+    //   from,
+    //   to,
+    //   tokenId,
+    //   quantity,
+    //   timestamp,
+    //   chainId,
+    //   transactionHash,
+    //   blockNumber,
+    //   txIndex
+    // })
     const tokenTransferHistory =
       await this.prisma.tokenTransferHistory.findFirst({
         where: {
@@ -836,7 +846,7 @@ export class ImportCollectionService {
     let image;
     if (!item || !item.image || !item.name) {
       const metadata = await this.extractMetadata(contract, collection, tokenId, tokenType);
-      console.log({ metadata })
+      // console.log({ metadata })
       name = metadata.name;
       metadataUri = metadata.metadataUri;
       attributes = metadata.attributes;
@@ -957,7 +967,6 @@ export class ImportCollectionService {
     try {
       if (tokenType == TokenType.ERC721) {
         metadataUri = await contract.tokenURI(tokenId);
-        Logger.log({ metadataUri });
         metadataUri = normalizeIpfsUri(metadataUri);
       }
       if (tokenType == TokenType.ERC1155) {
@@ -965,7 +974,6 @@ export class ImportCollectionService {
         metadataUri = normalizeIpfsUri(metadataUri);
       }
       const metadata = await this.getMetadata(metadataUri);
-      Logger.log({ metadata });
       name = metadata.name;
       image = metadata.image;
       if (image.includes('ipfs')) {

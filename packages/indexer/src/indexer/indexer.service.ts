@@ -9,11 +9,11 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { ListingType, TokenType } from '@prisma/client';
 import { MarkeplaceListing, MarketplaceNewOffer } from './interfaces';
 import { WsProvider } from './ws-provider';
-import { Collection, OfferStatus, Prisma, User } from '@nusa-nft/database';
+import { Collection, ListingStatus, OfferStatus, Prisma, User } from '@nusa-nft/database';
 import { normalizeIpfsUri, nusaIpfsGateway } from '../lib/ipfs-uri';
 import axios from 'axios';
 import retry from 'async-retry';
-import { NusaNFT, MarketplaceFacet, OffersFacet, LibRoyalty } from '@nusa-nft/smart-contract/typechain-types/index';
+import { NusaNFT, MarketplaceFacet, OffersFacet, LibRoyalty, ERC721, ERC1155 } from '@nusa-nft/smart-contract/typechain-types/index';
 import { abi as NusaNftAbi } from '@nusa-nft/smart-contract/artifacts/contracts/NusaNFT.sol/NusaNFT.json';
 import { abi as MarketplaceAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/MarketplaceFacet.sol/MarketplaceFacet.json';
 import { abi as OffersAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/OffersFacet.sol/OffersFacet.json';
@@ -21,6 +21,7 @@ import { abi as LibRoyaltyAbi } from  '@nusa-nft/smart-contract/artifacts/contra
 import { OfferStruct, OfferStructOutput } from '@nusa-nft/smart-contract/typechain-types/contracts/facets/OffersFacet';
 import { ISignatureMintERC1155, TokensMintedWithSignatureEvent, TokensMintedWithSignatureEventObject } from '@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT';
 import { LogDescription } from 'ethers/lib/utils';
+import { TypedEvent } from '@nusa-nft/smart-contract/typechain-types/common';
 
 const parseListingType = (listingTypeNumber: number) => {
   if (listingTypeNumber == 0) {
@@ -30,6 +31,21 @@ const parseListingType = (listingTypeNumber: number) => {
     return ListingType.Auction;
   }
 };
+
+const parseListingStatus = (listingStatusNumber: number) => {
+  if (listingStatusNumber == 0) {
+    return ListingStatus.UNSET;
+  }
+  if (listingStatusNumber == 1) {
+    return ListingStatus.CREATED;
+  }
+  if (listingStatusNumber == 2) {
+    return ListingStatus.COMPLETED;
+  }
+  if (listingStatusNumber == 3) {
+    return ListingStatus.CANCELLED;
+  }
+}
 
 const parseOfferStatus = (offerStatus: number) => {
   if (offerStatus == 0) {
@@ -175,7 +191,6 @@ export class IndexerService implements OnModuleInit {
     for (let i = fromBlock; i <= latestBlockNumber; i++) {
       blockNumbers.push(i);
     }
-    console.log({ latestBlockNumber });
     // make chunk of per 3500 block range from previously determined block
     const chunk = _.chunk(blockNumbers, 1000);
     // make array of object fromBlock and toBlock value
@@ -254,16 +269,26 @@ export class IndexerService implements OnModuleInit {
   }
 
   async onModuleInit() {
+    // Old blocks Handlers
     this.indexMarketplaceOldBlocks();
     this.indexNftOldBlocks();
 
+    // NFT New blocks handlers
+    this.queryFilterNftContracts();
+    
+    // TODO: Markplace event listener can be refactored to handle event by listening to blocks.
+    // since queryFilterNftContracts is already listening to new blocks.
+    // marketplace events can be extracted from the block
+
+    // Marketplace event handlers
     this.handleMarketplaceListingAdded();
     this.handleMarketplaceListingRemoved();
     this.handleMarketplaceNewSale();
     this.handleMarketplaceNewOffer();
     this.handleMarketplaceAuctionClosed();
-    this.queryFilterNftContracts();
     this.handleRoyaltyDistributorRoyaltyPaid();
+    this.handleMarketplaceNewBid();
+    this.handleMarketplaceAcceptedOffer();
   }
 
   @OnEvent('ws.closed')
@@ -287,6 +312,7 @@ export class IndexerService implements OnModuleInit {
           buyoutPricePerToken,
           tokenType,
           listingType,
+          status
         } = listing;
         Logger.log('ListingAdded');
         // console.log(listingId, lister, assetContract, listing, log);
@@ -307,6 +333,7 @@ export class IndexerService implements OnModuleInit {
           tokenType,
           listingType,
           createdAt: timestamp,
+          status
         });
         if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
           await this.updateLatestBlock(blockNumber);
@@ -318,7 +345,6 @@ export class IndexerService implements OnModuleInit {
     this.marketplace.on(
       'ListingRemoved',
       async (listingId, listingCreator, log) => {
-        console.log(listingId, log);
         const { blockNumber } = log;
         const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
         await this.indexMarketplaceRemoveListing({
@@ -333,11 +359,9 @@ export class IndexerService implements OnModuleInit {
 
   async handleMarketplaceListingUpdated() {
     this.marketplace.on('ListingUpdated', async (id, listingCreator, log) => {
-      console.log(id, 'ini log', log);
       const { blockNumber } = log;
       const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
       const listing = await this.marketplace.getListing(id);
-      console.log(listing);
       const {
         listingId,
         tokenOwner,
@@ -349,6 +373,7 @@ export class IndexerService implements OnModuleInit {
         currency,
         reservePricePerToken,
         buyoutPricePerToken,
+        status
       } = listing;
       await this.indexMarketplaceUpdateListing({
         listingId,
@@ -362,6 +387,7 @@ export class IndexerService implements OnModuleInit {
         reservePricePerToken,
         buyoutPricePerToken,
         updatedAt: timestamp,
+        status
       });
       if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
         await this.updateLatestBlock(blockNumber);
@@ -380,7 +406,6 @@ export class IndexerService implements OnModuleInit {
         totalPricePaid,
         log,
       ) => {
-        console.log(_listingId, 'ini log', log);
         const { blockNumber, transactionHash } = log;
         const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
 
@@ -396,7 +421,6 @@ export class IndexerService implements OnModuleInit {
         });
 
         const listing = await this.marketplace.getListing(_listingId);
-        console.log(listing);
         const {
           listingId,
           tokenOwner,
@@ -408,6 +432,7 @@ export class IndexerService implements OnModuleInit {
           currency,
           reservePricePerToken,
           buyoutPricePerToken,
+          status
         } = listing;
         await this.indexMarketplaceUpdateListing({
           listingId,
@@ -421,6 +446,7 @@ export class IndexerService implements OnModuleInit {
           reservePricePerToken,
           buyoutPricePerToken,
           updatedAt: timestamp,
+          status
         });
         if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
           await this.updateLatestBlock(blockNumber);
@@ -469,6 +495,67 @@ export class IndexerService implements OnModuleInit {
     );
   }
 
+  async handleMarketplaceAcceptedOffer() {
+    this.offers.on(
+      'AcceptedOffer',
+      async (
+        offeror: string,
+        offerId: ethers.BigNumberish,
+        assetContract: string,
+        tokenId: ethers.BigNumberish,
+        seller: string,
+        quantityBought: ethers.BigNumberish,
+        totalPricePaid: ethers.BigNumberish,
+        log: TypedEvent<any, any>
+      ) => {
+        Logger.log('AcceptedOffer');
+        const { blockNumber, transactionHash } = log;
+        const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
+        const offer = await this.offers.getOffer(offerId);
+        await this.prisma.marketplaceOffer.update({
+          where: { id: Number(offerId) },
+          data: {
+            status: parseOfferStatus(offer.status),
+          }
+        })
+        if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
+          await this.updateLatestBlock(blockNumber);
+      }
+    )
+  }
+
+  async handleMarketplaceNewBid() {
+    this.marketplace.on(
+      'NewBid',
+      async (
+        listingId: ethers.BigNumberish,
+        bidder: string,
+        quantityWanted: ethers.BigNumberish,
+        currency: string,
+        pricePerToken: ethers.BigNumberish,
+        totalPrice: ethers.BigNumberish,
+        log: TypedEvent<any, any>
+      ) => {
+        const { blockNumber, transactionHash } = log;
+        const existingBid = await this.prisma.bid.findFirst({
+          where: { transactionHash }
+        })
+        if (existingBid) return;
+        await this.prisma.bid.create({
+          data: {
+            listingId: listingId.toString(),
+            bidder: bidder,
+            quantityWanted: quantityWanted.toString(),
+            currency: currency.toString(),
+            pricePerToken: pricePerToken.toString(),
+            totalPrice: totalPrice.toString(),
+            transactionHash
+          }
+        });
+      }
+    )
+  }
+
   async handleRoyaltyDistributorRoyaltyPaid() {
     this.royalty.on(
       'RoyaltyPaid',
@@ -515,7 +602,6 @@ export class IndexerService implements OnModuleInit {
   }
 
   async updateLatestBlock(blockNumber: number) {
-    console.log('contract block updated');
     const indexerState = await this.prisma.indexerState.findFirst();
     if (!indexerState) {
       await this.prisma.indexerState.create({
@@ -589,7 +675,6 @@ export class IndexerService implements OnModuleInit {
     ]);
     for (const log of logs) {
       const event = iface.parseLog(log);
-      console.log({ event })
       const timestamp = (await this.provider.getBlock(log.blockNumber))
         .timestamp;
       const transactionHash = log.transactionHash;
@@ -609,6 +694,7 @@ export class IndexerService implements OnModuleInit {
           buyoutPricePerToken: event.args.listing.buyoutPricePerToken,
           tokenType: event.args.listing.tokenType,
           listingType: event.args.listing.listingType,
+          status: event.args.listing.status,
           createdAt: timestamp,
         });
       }
@@ -626,7 +712,6 @@ export class IndexerService implements OnModuleInit {
         const timestamp = (await this.provider.getBlock(log.blockNumber))
           .timestamp;
         const listing = await this.marketplace.getListing(event.args.listingId);
-        console.log(listing);
         const {
           listingId,
           tokenOwner,
@@ -638,6 +723,7 @@ export class IndexerService implements OnModuleInit {
           currency,
           reservePricePerToken,
           buyoutPricePerToken,
+          status,
         } = listing;
         await this.indexMarketplaceUpdateListing({
           listingId,
@@ -651,6 +737,7 @@ export class IndexerService implements OnModuleInit {
           reservePricePerToken,
           buyoutPricePerToken,
           updatedAt: timestamp,
+          status
         });
         // await this.updateLatestBlock(log.blockNumber);
       }
@@ -659,7 +746,6 @@ export class IndexerService implements OnModuleInit {
         const timestamp = (await this.provider.getBlock(log.blockNumber))
           .timestamp;
         const listing = await this.marketplace.getListing(event.args.listingId);
-        console.log(listing);
         const {
           listingId,
           tokenOwner,
@@ -671,6 +757,7 @@ export class IndexerService implements OnModuleInit {
           currency,
           reservePricePerToken,
           buyoutPricePerToken,
+          status
         } = listing;
         await this.indexMarketplaceNewSale({
           listingId,
@@ -694,6 +781,7 @@ export class IndexerService implements OnModuleInit {
           reservePricePerToken,
           buyoutPricePerToken,
           updatedAt: timestamp,
+          status
         });
       }
 
@@ -782,7 +870,6 @@ export class IndexerService implements OnModuleInit {
     }
 
     const listing = await this.marketplace.getListing(args.listingId);
-    console.log(listing);
     const {
       listingId,
       tokenOwner,
@@ -794,6 +881,7 @@ export class IndexerService implements OnModuleInit {
       currency,
       reservePricePerToken,
       buyoutPricePerToken,
+      status
     } = listing;
 
     // If Auction Closed by creator
@@ -811,6 +899,7 @@ export class IndexerService implements OnModuleInit {
         buyoutPricePerToken,
         updatedAt: timestamp,
         isClosedByLister: true,
+        status,
       });
       return;
     }
@@ -840,6 +929,7 @@ export class IndexerService implements OnModuleInit {
       buyoutPricePerToken,
       updatedAt: timestamp,
       isClosedByBidder: true,
+      status,
     });
   }
 
@@ -857,6 +947,7 @@ export class IndexerService implements OnModuleInit {
     buyoutPricePerToken,
     tokenType,
     listingType,
+    status,
     createdAt,
   }) {
     let tokenTypeEnum;
@@ -916,6 +1007,7 @@ export class IndexerService implements OnModuleInit {
           buyoutPricePerToken: buyoutPricePerToken.toString(),
           tokenType: tokenTypeEnum,
           listingType: listingTypeEnum,
+          status: parseListingStatus(status),
           createdAt,
         },
       });
@@ -937,7 +1029,6 @@ export class IndexerService implements OnModuleInit {
         updatedAt,
       },
     });
-    console.log(deleteListing);
     return deleteListing;
   }
 
@@ -955,6 +1046,7 @@ export class IndexerService implements OnModuleInit {
     updatedAt,
     isClosedByLister,
     isClosedByBidder,
+    status
   }: MarkeplaceListing) {
     const _endTime =
       endTime.toNumber() > this.MAX_INTEGER
@@ -984,9 +1076,9 @@ export class IndexerService implements OnModuleInit {
         buyoutPricePerToken: buyoutPricePerToken.toString(),
         isClosedByLister,
         isClosedByBidder,
+        status: parseListingStatus(status)
       },
     });
-    console.log(updateListing);
     return updateListing;
   }
 
@@ -1020,7 +1112,6 @@ export class IndexerService implements OnModuleInit {
         transactionHash,
       },
     });
-    console.log(newSale);
     return newSale;
   }
 
@@ -1029,7 +1120,6 @@ export class IndexerService implements OnModuleInit {
       where: { transactionHash },
     });
     if (_offer) return;
-    console.log({ offer })
 
     await this.prisma.marketplaceOffer.create({
       data: {
@@ -1118,9 +1208,10 @@ export class IndexerService implements OnModuleInit {
     const iface = new ethers.utils.Interface(abi);
     for (const log of logs) {
       const event = iface.parseLog(log);
-      Logger.log('processing event', JSON.stringify(event));
+      Logger.log(event.name);
 
       const { blockNumber, logIndex } = log;
+      console.log({ blockNumber });
       const logIndexParsed = parseInt(logIndex.toString());
       const blockNumberParsed = parseInt(blockNumber.toString());
       const contractAddress: string = log.address;
@@ -1133,29 +1224,35 @@ export class IndexerService implements OnModuleInit {
 
       if (event.name == 'Transfer') {
         tokenId = event.args[2].toString();
+        metadataUri = await (contract as ERC721).tokenURI(tokenId);
       }
       if (event.name == 'TransferBatch') {
         const ids = event.args[3];
         tokenId = ids[0].toString();
+        metadataUri = await (contract as ERC1155).uri(tokenId);
       }
       if (event.name == 'TransferSingle') {
         tokenId = event.args[3].toString();
+        metadataUri = await (contract as ERC1155).uri(tokenId);
       }
-      metadataUri = await contract.uri(tokenId);
       metadata = await this.getMetadata(metadataUri);
       metadata = this.cleanMetadata({ uri: metadataUri, metadata, fallbackName: `${contractAddress}-${tokenId}` });
 
       if (contractAddress.toLowerCase() != nusaContractAddress.toLowerCase()) {
         // Get Collection from imported contract address
         Logger.log('Handling item from imported contract')
-        collection = await this.prisma.collection.findFirstOrThrow({
-          where: {
-            contract_address: {
-              contains: contractAddress,
-              mode: 'insensitive',
-            },
-          },
-        });
+        await retry(
+          async () => {
+            collection = await this.prisma.collection.findFirstOrThrow({
+              where: {
+                contract_address: {
+                  contains: contractAddress,
+                  mode: 'insensitive',
+                },
+              },
+            })
+          }, { retries: 5 }
+        );
       } else {
         // Create nusa-collection (if not exists) for items that do not have a collection
         Logger.log('Handling Item from NusaNFT contract');
@@ -1259,7 +1356,6 @@ export class IndexerService implements OnModuleInit {
               lastIndexedBlock: blockNumberParsed,
             },
           });
-          console.log(update);
           console.log('imported contract block updated');
         }
       }
@@ -1339,9 +1435,8 @@ export class IndexerService implements OnModuleInit {
     const to = event.args[1];
     const tokenId = event.args[2].toString();
     const { blockNumber, transactionHash } = log;
+    console.log({ blockNumber });
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-    const blockNumberHashed = parseInt(blockNumber.toString());
-
     await this.createUpdateImportedContractTokenOwnership({
       contractAddress,
       from,
@@ -1351,7 +1446,7 @@ export class IndexerService implements OnModuleInit {
       timestamp,
       chainId,
       transactionHash,
-      blockNumber: blockNumberHashed,
+      blockNumber: parseInt(blockNumber.toString()),
       txIndex: 0,
       logIndex,
     });
@@ -1399,7 +1494,7 @@ export class IndexerService implements OnModuleInit {
     const value = event.args[4].toNumber();
     const { blockNumber, transactionHash } = log;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-    const blockNumberHashed = parseInt(blockNumber.toString());
+    const blockNumberInt = parseInt(blockNumber.toString());
     Logger.log('handleERC1155TransferSingle');
 
     const tokenOwnershipWrite =
@@ -1412,7 +1507,7 @@ export class IndexerService implements OnModuleInit {
         timestamp: timestamp,
         chainId,
         transactionHash,
-        blockNumber: blockNumberHashed,
+        blockNumber: blockNumberInt,
         txIndex: 0,
         logIndex,
       });
@@ -1460,12 +1555,12 @@ export class IndexerService implements OnModuleInit {
     const ids = event.args[3];
     const values = event.args[4];
     const { blockNumber, transactionHash } = log;
-    const blockNumberHashed = parseInt(blockNumber.toString());
+    const blockNumberInt = parseInt(blockNumber.toString());
 
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     for (let i = 0; i < ids.length; i++) {
-      console.log({ tokenId: ids[i].toString() });
-      console.log({ quantity: values[i].toString() });
+      // console.log({ tokenId: ids[i].toString() });
+      // console.log({ quantity: values[i].toString() });
       const tokenId = ids[i].toString();
       const quantity = values[i].toNumber();
       const metadataUri = await contract.uri(tokenId);
@@ -1482,7 +1577,7 @@ export class IndexerService implements OnModuleInit {
           timestamp: timestamp,
           chainId,
           transactionHash,
-          blockNumber: blockNumberHashed,
+          blockNumber: blockNumberInt,
           txIndex: i,
           logIndex,
           isBatch: true,

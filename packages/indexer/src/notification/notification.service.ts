@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { events } from '../lib/newEventEmitter';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -22,8 +22,8 @@ export class NotificationService {
 
   async handleMarketplaceNotification() {
     events.on('notification', async (eventData) => {
+      Logger.log('notification event received');
       const data = eventData.data;
-      console.log('event masuk', data);
 
       // const dataOfListing = listingData;
       if (eventData.notification == 'offer') {
@@ -175,13 +175,15 @@ export class NotificationService {
       transactionHash,
       createdAt,
     } = eventData;
+
     const notificationDataLister = await this.prisma.notification.create({
       data: {
         notification_type: NotificationType.Sale,
         is_seen: false,
         user: {
-          connect: {
-            wallet_address: lister,
+          connectOrCreate: {
+            where: { wallet_address: lister },
+            create: { wallet_address: lister },
           },
         },
       },
@@ -192,8 +194,9 @@ export class NotificationService {
         notification_type: NotificationType.Sale,
         is_seen: false,
         user: {
-          connect: {
-            wallet_address: buyer,
+          connectOrCreate: {
+            where: { wallet_address: buyer },
+            create: { wallet_address: buyer },
           },
         },
       },
@@ -210,8 +213,8 @@ export class NotificationService {
         transaction_hash: transactionHash,
         Notification: {
           connect: [
-            { id: notificationDataBuyer.id },
-            { id: notificationDataLister.id },
+            { id : notificationDataBuyer.id },
+            { id : notificationDataLister.id }
           ],
         },
         createdAt_timestamp: createdAt,

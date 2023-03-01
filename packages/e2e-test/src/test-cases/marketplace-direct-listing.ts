@@ -95,4 +95,7 @@ export async function testMarketplaceDirectListing({
   }, { retries: 3 });
 
   console.log({ listing })
+
+  // TODO: Assert if royalty correctly paid
+  // TODO: Sell to other person and assert if royalty correctly paid
 }

@@ -103,4 +103,6 @@ export async function testLazyMintItemSale({
   assert(tokenOwnership.quantity == 1, 'assert tokenOwnership.quantity failed');
 
   console.log('Lazy Mint Item Sale test passed');
+
+  // TODO: Assert if marketplace receives platform fee
 }
