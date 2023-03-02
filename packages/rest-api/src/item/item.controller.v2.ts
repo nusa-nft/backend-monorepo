@@ -102,7 +102,7 @@ export class ItemControllerV2 {
   @ApiBearerAuth('jwt')
   @ApiConsumes('multipart/form-data')
   @Post('/upload-metadata')
-  @ApiOkResponse({ description: 'Item has been created' })
+  @ApiOkResponse({ description: 'Metadata uploaded to IPFS' })
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @UseInterceptors(
     FileInterceptor('image', {
@@ -142,5 +142,10 @@ export class ItemControllerV2 {
       +user.id,
       user.wallet_address
     );
+  }
+
+  @Get('uuid/:uuid')
+  getItemByUuid(@Param('uuid') uuid: string) {
+    return this.itemService.getItemByUuid(uuid);
   }
 }

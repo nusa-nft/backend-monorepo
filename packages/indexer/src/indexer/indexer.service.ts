@@ -674,7 +674,13 @@ export class IndexerService implements OnModuleInit {
       'event RoyaltyPaid(uint256 indexed id, address[] recipients, uint64[] bpsPerRecipients, uint256 totalPayout)'
     ]);
     for (const log of logs) {
-      const event = iface.parseLog(log);
+      let event: ethers.utils.LogDescription;
+      try {
+        event = iface.parseLog(log);
+      } catch (err) {
+        Logger.warn(err, log);
+        continue;
+      }
       const timestamp = (await this.provider.getBlock(log.blockNumber))
         .timestamp;
       const transactionHash = log.transactionHash;
@@ -814,8 +820,14 @@ export class IndexerService implements OnModuleInit {
       'event RoyaltyPaid(uint256 indexed listingId, address[] recipients, uint64[] bpsPerRecipients, uint256 totalPayout)',
     ]);
     for (const log of logs) {
+      let event: ethers.utils.LogDescription;
+      try {
+        event = iface.parseLog(log);
+      } catch (err) {
+        Logger.warn(err, log);
+        continue;
+      }
       const { transactionHash } = log;
-      const event = iface.parseLog(log);
       const timestamp = (await this.provider.getBlock(log.blockNumber))
         .timestamp;
       if (event.name == 'RoyaltyPaid') {
@@ -1207,7 +1219,13 @@ export class IndexerService implements OnModuleInit {
 
     const iface = new ethers.utils.Interface(abi);
     for (const log of logs) {
-      const event = iface.parseLog(log);
+      let event: ethers.utils.LogDescription;
+      try {
+        event = iface.parseLog(log);
+      } catch (err) {
+        Logger.warn(err, log);
+        continue;
+      }
       Logger.log(event.name);
 
       const { blockNumber, logIndex } = log;

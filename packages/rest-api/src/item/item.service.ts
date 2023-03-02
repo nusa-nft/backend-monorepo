@@ -158,7 +158,12 @@ export class ItemService {
     await retry (
       async () => {
         try {
-          item = await this.prisma.item.create({ data: createItemData });
+          item = await this.prisma.item.create({
+            data: createItemData,
+            include: {
+              Collection: true
+            }
+          });
         } catch (err) {
           console.log({ err })
           lastInsertUnmintedItem = await this.prisma.item.findFirst({
@@ -183,6 +188,9 @@ export class ItemService {
         data: {
           metadata: `${process.env.API_BASE_URL}/item/metadata/${item.id}`,
         },
+        include: {
+          Collection: true
+        }
       });
     }
 

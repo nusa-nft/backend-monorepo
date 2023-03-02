@@ -1,5 +1,5 @@
 import { ethers } from "ethers"
-import NusaNFTAbi from '../../abi/nusa-nft.json';
+import { abi as NusaNftAbi } from '@nusa-nft/smart-contract/artifacts/contracts/NusaNFT.sol/NusaNFT.json';
 
 const testWalletPrivateKeys = {
   [process.env.TEST_WALLET_ADDRESS]: process.env.TEST_WALLET_PRIVATE_KEY,
@@ -17,7 +17,7 @@ export const mintItem = async (
 
   const contract = new ethers.Contract(
     process.env.NFT_CONTRACT_ADDRESS as string,
-    NusaNFTAbi,
+    NusaNftAbi,
     wallet,
   )
 

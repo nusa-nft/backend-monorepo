@@ -224,7 +224,13 @@ export class ImportCollectionService implements OnModuleInit {
         );
 
         for (const log of logs) {
-          const event = iface.parseLog(log);
+          let event: ethers.utils.LogDescription;
+          try {
+            event = iface.parseLog(log);
+          } catch (err) {
+            Logger.warn(err, log);
+            continue;
+          }
           const { logIndex } = log;
           Logger.log('processing event', JSON.stringify(event));
           if (event.name == 'Transfer') {

@@ -15,7 +15,6 @@ Direct = 0,
 Auction = 1
 }
 
-// TODO: 
 // NFT Minting
 // - [x] Mint NFTs to users
 // Direct Listings

@@ -39,6 +39,7 @@ import { RecentlySoldItem } from '../interfaces';
 import { toString } from '../lib/toString';
 import { v4 as uuidV4 } from 'uuid';
 import standardizeMetadataAttribute from '../lib/standardizeMetadataAttributes';
+import { AttributeType } from '@nusa-nft/database';
 
 @Injectable()
 export class ItemServiceV2 {
@@ -1332,10 +1333,14 @@ export class ItemServiceV2 {
     const ipfsImageData = await this.ipfsService.uploadImage(file.path);
     image = `ipfs://${ipfsImageData.Hash}`;
 
-    try {
-      attributeData = JSON.parse(createItemDto.attributes);
-    } catch (err) {
-      throw new HttpException('Invalid attributes format', HttpStatus.BAD_REQUEST);
+    if (createItemDto.attributes) {
+      try {
+        attributeData = JSON.parse(createItemDto.attributes);
+      } catch (err) {
+        throw new HttpException('Invalid attributes format', HttpStatus.BAD_REQUEST);
+      }
+    } else {
+      attributeData = [];
     }
 
     const standardizedAttributes = standardizeMetadataAttribute(attributeData);
@@ -1354,7 +1359,7 @@ export class ItemServiceV2 {
     });
     ipfsUri = `ipfs://${ipfsMetadata.Hash}`;
 
-    return { ipfsUri };
+    return { ipfsUri, itemUuid: nusa_item_id };
   }
 
   async createDefaultCollection(userId: number, userWalletAddress: string, chainId: number) {
@@ -1381,5 +1386,15 @@ export class ItemServiceV2 {
       },
     );
     return collection.data;
+  }
+
+  async getItemByUuid(itemUuid: string) {
+    const item = await this.prisma.item.findFirst({
+      where: { uuid: itemUuid },
+    });
+    if (!item) {
+      throw new HttpException('Item not found', HttpStatus.NOT_FOUND);
+    }
+    return item;
   }
 }

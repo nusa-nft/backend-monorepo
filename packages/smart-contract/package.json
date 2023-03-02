@@ -4,7 +4,9 @@
   "scripts": {
     "build": "npx thirdweb@latest detect",
     "deploy": "npx thirdweb@latest deploy",
-    "release": "npx thirdweb@latest release"
+    "release": "npx thirdweb@latest release",
+    "deploy-all-local": "npx hardhat deploy-all --network localhost",
+    "deploy-dummy-nfts-local": "npx hardhat deploy-dummy-nfts --network localhost"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.7.0",

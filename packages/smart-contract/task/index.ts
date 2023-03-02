@@ -8,3 +8,4 @@ export * from "./register-voucher";
 export * from "./deploy-marketplace";
 export * from "./deploy-all";
 export * from "./marketplace-simulation";
+export * from "./deploy-dummy-nfts";
