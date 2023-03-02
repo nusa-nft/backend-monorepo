@@ -8,12 +8,17 @@
   "scripts": {
     "db:migrate-dev": "lerna run db:migrate-dev --scope @nusa-nft/database",
     "db:migrate-reset": "lerna run db:migrate-reset --scope @nusa-nft/database",
+    "db:migrate-deploy": "lerna run db:migrate-deploy --scope @nusa-nft/database",
+    "db:migrate-reset-force": "lerna run db:migrate-reset-force --scope @nusa-nft/database",
+    "contracts:deploy-all-local": "lerna run deploy-all-local --scope @nusa-nft/smart-contract",
+    "contracts:deploy-dummy-nfts-local": "lerna run deploy-dummy-nfts-local --scope @nusa-nft/smart-contract",
     "api:dev": "lerna run start:dev --scope @nusa-nft/rest-api",
     "api:build": "lerna run build --scope @nusa-nft/rest-api",
     "indexer:dev": "lerna run start:dev --scope @nusa-nft/indexer",
     "indexer:build": "lerna run build --scope @nusa-nft/indexer",
     "worker:dev": "lerna run start:dev --scope @nusa-nft/worker",
-    "worker:build": "lerna run build --scope @nusa-nft/worker"
+    "worker:build": "lerna run build --scope @nusa-nft/worker",
+    "dev:restart-env": "./restart-dev-env.sh"
   },
   "devDependencies": {
     "lerna": "^6.4.1"

@@ -13,6 +13,7 @@ import {
   Request,
   Headers,
   Delete,
+  ValidationPipe,
 } from '@nestjs/common';
 import { diskStorage } from 'multer';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -37,7 +38,7 @@ import {
   UpdateCollectionDto,
 } from './dto/collection.dto';
 import { SearchDtoParam } from './dto/search.dto';
-import { extractJwt } from 'src/lib/extractJwt';
+import { extractJwt } from '../lib/extractJwt';
 
 const maxFileSize = 5 * 1000 * 1000;
 @ApiTags('collection')
@@ -84,7 +85,11 @@ export class CollectionController {
       feature_image?: Express.Multer.File;
       banner_image?: Express.Multer.File;
     },
-    @Body() createCollectionDto: CollectionDto,
+    @Body(
+      new ValidationPipe({
+        transform: true
+      })
+    ) createCollectionDto: CollectionDto,
     @Request() req: any,
   ) {
     if (files) {
@@ -270,6 +275,11 @@ export class CollectionController {
   @Post('import-queue')
   import(@Body() payload: ImportDto) {
     return this.collectionService.importQueue(payload);
+  }
+
+  @Delete('import-queue')
+  clearImportQueue() {
+    return this.collectionService.clearImportQueue();
   }
 
   @Get('import-queue/status/:jobId')

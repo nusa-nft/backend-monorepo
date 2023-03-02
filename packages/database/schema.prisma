@@ -1,6 +1,10 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
+// TODO:
+// 1. create NotificationDetailBid model
+// 2. Include acceptor in MarketplaceOffer
+
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
@@ -89,7 +93,7 @@ model Collection {
 
 model Item {
   id                 Int                  @unique @default(autoincrement())
-  uuid               String?               @db.Uuid
+  uuid               String?              @db.Uuid
   tokenId            Decimal?             @default(-1) @db.Decimal(78, 0)
   name               String
   description        String?
@@ -221,10 +225,10 @@ model NotificationDetailSale {
   notification_type     NotificationType @default(Sale)
   listingId             Int?
   asset_contract        String           @db.Citext
-  lister                User             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
-  lister_wallet_address String           @db.Citext
-  buyer                 User             @relation("buyer", fields: [buyer_wallet_address], references: [wallet_address])
-  buyer_wallet_address  String           @db.Citext
+  lister                User?             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
+  lister_wallet_address String?           @db.Citext
+  buyer                 User?             @relation("buyer", fields: [buyer_wallet_address], references: [wallet_address])
+  buyer_wallet_address  String?           @db.Citext
   quantity_bought       Int?
   total_price_paid      Decimal          @db.Decimal(78, 0)
   createdAt             DateTime         @default(now())
@@ -239,17 +243,17 @@ model NotificationDetailOffer {
   id                     Int              @unique @default(autoincrement())
   notification_type      NotificationType @default(Offer)
   listingId              Int?
-  lister                 User             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
-  lister_wallet_address  String           @db.Citext
-  offeror                User             @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
-  offeror_wallet_address String           @db.Citext
+  lister                 User?            @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
+  lister_wallet_address  String?          @db.Citext
+  offeror                User?            @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
+  offeror_wallet_address String?          @db.Citext
   listing_type           ListingType
   quantity_wanted        Int?
   total_offer_ammount    Decimal          @db.Decimal(78, 0)
   currency               String           @db.Citext
   createdAt              DateTime         @default(now())
   createdAt_timestamp    Int?
-  expiration_timestamp   Int?
+  expiration_timestamp   Decimal          @db.Decimal(78, 0)
   transaction_hash       String
   Notification           Notification[]   @relation("offer")
 
@@ -281,6 +285,20 @@ enum ListingType {
 enum NotificationType {
   Sale
   Offer
+}
+
+enum ListingStatus {
+  UNSET
+  CREATED
+  COMPLETED
+  CANCELLED
+}
+
+enum OfferStatus {
+  UNSET
+  CREATED
+  COMPLETED
+  CANCELLED
 }
 
 model TokenTransferHistory {
@@ -315,44 +333,57 @@ model TokenOwnerships {
 }
 
 model MarketplaceListing {
-  id                   Int                @unique @default(autoincrement())
-  listingId            Int?               @unique
-  lister               String?            @db.Citext
-  tokenOwner           String?            @db.Citext
-  assetContract        String?            @db.Citext
-  tokenId              Decimal            @db.Decimal(78, 0)
+  id                   Int              @unique @default(autoincrement())
+  listingId            Int?             @unique
+  lister               String?          @db.Citext
+  tokenOwner           String?          @db.Citext
+  assetContract        String?          @db.Citext
+  tokenId              Decimal          @db.Decimal(78, 0)
   startTime            Int?
   endTime              Int?
   quantity             Int?
-  currency             String?            @db.Citext
-  chainId              Int                @default(0)
-  reservePricePerToken Decimal            @db.Decimal(78, 0)
-  buyoutPricePerToken  Decimal            @db.Decimal(78, 0)
+  currency             String?          @db.Citext
+  chainId              Int              @default(0)
+  reservePricePerToken Decimal          @db.Decimal(78, 0)
+  buyoutPricePerToken  Decimal          @db.Decimal(78, 0)
   tokenType            TokenType
   listingType          ListingType
   createdAt            Int?
   updatedAt            Int?
-  isCancelled          Boolean            @default(false)
+  isCancelled          Boolean          @default(false)
   MarketplaceSale      MarketplaceSale?
   isClosedByLister     Boolean?
   isClosedByBidder     Boolean?
-  MarketplaceOffer     MarketplaceOffer[]
   RoyaltyPaid          RoyaltyPaid[]
-  Item                 Item?              @relation(fields: [tokenId, assetContract, chainId], references: [tokenId, contract_address, chainId])
+  Item                 Item?            @relation(fields: [tokenId, assetContract, chainId], references: [tokenId, contract_address, chainId])
+  status               ListingStatus
 }
 
 model MarketplaceOffer {
-  id                  Int                 @unique @default(autoincrement())
-  listing             MarketplaceListing? @relation(fields: [listingId], references: [listingId])
-  listingId           Int?
-  offeror             String              @db.Citext
-  listingType         ListingType
-  quantityWanted      Int?
-  totalOfferAmount    Decimal             @db.Decimal(78, 0)
+  id                  Int         @unique @default(autoincrement())
+  offeror             String      @db.Citext
+  assetContract       String      @db.Citext
+  tokenId             Decimal     @db.Decimal(78, 0)
+  quantity            Decimal     @db.Decimal(78, 0)
+  currency            String?     @db.Citext
+  totalPrice          Decimal     @db.Decimal(78, 0)
+  expirationTimestamp Decimal     @db.Decimal(78, 0)
+  transactionHash     String      @unique
+  status              OfferStatus
+  royaltyInfoId       Int
   createdAt           Int?
-  currency            String?             @db.Citext
-  expirationTimestamp Int
-  transactionHash     String              @unique
+}
+
+model Bid {
+  listingId       Decimal @db.Decimal(78, 0)
+  bidder          String  @db.Citext
+  quantityWanted  Decimal @db.Decimal(78, 0)
+  currency        String  @db.Citext
+  pricePerToken   Decimal @db.Decimal(78, 0)
+  totalPrice      Decimal @db.Decimal(78, 0)
+  transactionHash String
+
+  @@unique([listingId, bidder, transactionHash])
 }
 
 model MarketplaceSale {
@@ -392,12 +423,12 @@ model Voucher {
 }
 
 model VoucherLeaf {
-  id      Int     @unique @default(autoincrement())
-  hash    String
-  num     Int     @default(0)
-  tokenId Int
+  id       Int     @unique @default(autoincrement())
+  hash     String
+  num      Int     @default(0)
+  tokenId  Int
   itemUuid String? @db.Uuid
-  deleted Boolean @default(false)
+  deleted  Boolean @default(false)
 }
 
 model CuratedCollection {

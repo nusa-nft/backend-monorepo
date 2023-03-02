@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.11;
 
-import "@thirdweb-dev/contracts/base/ERC1155Base.sol";
-import { ERC1155 } from "@thirdweb-dev/contracts/eip/ERC1155.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155URIStorageUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/interfaces/IERC2981Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-import "@thirdweb-dev/contracts/extension/ContractMetadata.sol";
-import "@thirdweb-dev/contracts/extension/Multicall.sol";
-import "@thirdweb-dev/contracts/extension/Ownable.sol";
-import "@thirdweb-dev/contracts/extension/Royalty.sol";
-import "@thirdweb-dev/contracts/extension/BatchMintMetadata.sol";
 import "@thirdweb-dev/contracts/lib/TWStrings.sol";
-import "@thirdweb-dev/contracts/extension/SignatureMintERC1155.sol";
-import "@thirdweb-dev/contracts/lib/CurrencyTransferLib.sol";
-import "@thirdweb-dev/contracts/extension/Upgradeable.sol";
-import "@thirdweb-dev/contracts/extension/Initializable.sol";
-import "@thirdweb-dev/contracts/extension/PermissionsEnumerable.sol";
+import "./SignatureMintERC1155Upgradeable.sol";
+import "./libraries/LibCurrencyTransfer.sol";
 
 /**
  *  The `NusaNFT` smart contract implements the ERC1155 NFT standard.
@@ -32,17 +29,18 @@ import "@thirdweb-dev/contracts/extension/PermissionsEnumerable.sol";
  *
  */
 contract NusaNFT_V2_Test_Only is
-    ERC1155,
-    ContractMetadata,
-    Ownable,
-    Multicall,
-    BatchMintMetadata,
-    SignatureMintERC1155,
-    Upgradeable,
-    Initializable,
-    PermissionsEnumerable
+    UUPSUpgradeable,
+    ERC1155Upgradeable,
+    ERC1155URIStorageUpgradeable,
+    ERC2981Upgradeable,
+    OwnableUpgradeable,
+    AccessControlEnumerableUpgradeable,
+    SignatureMintERC1155Upgradeable
 {
-   using TWStrings for uint256;
+    using TWStrings for uint256;
+
+    string public name;
+    string public symbol;
 
     /*//////////////////////////////////////////////////////////////
                         State variables
@@ -97,21 +95,18 @@ contract NusaNFT_V2_Test_Only is
         _;
     }
 
+
     /*//////////////////////////////////////////////////////////////
                             Constructor
     //////////////////////////////////////////////////////////////*/
-
-    constructor() ERC1155("", "") {
-        _setupOwner(msg.sender);
-    }
 
     function initialize(
         string memory _name,
         string memory _symbol
     ) external initializer {
-        ERC1155.name = _name;
-        ERC1155.symbol = _symbol;
-        _setupOwner(msg.sender);
+        name = _name;
+        symbol = _symbol;
+        __Ownable_init_unchained();
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -120,12 +115,18 @@ contract NusaNFT_V2_Test_Only is
         string memory _symbol,
         uint8 version
     ) external onlyOwner reinitializer(version) {
-        ERC1155.name = _name;
-        ERC1155.symbol = _symbol;
+        name = _name;
+        symbol = _symbol;
+        __Ownable_init_unchained();
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function _authorizeUpgrade(address) internal view override {
+    function _authorizeUpgrade(address) internal override view {
         require(msg.sender == owner() || hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
+    }
+
+    function _canSetRoyaltyInfo() internal view returns (bool) {
+        return (msg.sender == owner() || hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -133,14 +134,8 @@ contract NusaNFT_V2_Test_Only is
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Returns the metadata URI for the given tokenId.
-    function uri(uint256 _tokenId) public view virtual override returns (string memory) {
-        string memory uriForToken = _uri[_tokenId];
-        if (bytes(uriForToken).length > 0) {
-            return uriForToken;
-        }
-
-        string memory batchUri = _getBaseURI(_tokenId);
-        return string(abi.encodePacked(batchUri, _tokenId.toString()));
+    function uri(uint256 _tokenId) public view virtual override(ERC1155Upgradeable, ERC1155URIStorageUpgradeable) returns (string memory) {
+        return ERC1155URIStorageUpgradeable.uri(_tokenId);
     }
 
     function creator(uint256 _tokenId) public view returns(address){
@@ -157,7 +152,7 @@ contract NusaNFT_V2_Test_Only is
         currentTokenId = nextTokenId;
         nextTokenId_ += 1;
         _creators[nextTokenId] = _to;
-        _setTokenURI(currentTokenId, _tokenURI);
+        _setURI(currentTokenId, _tokenURI);
 
         emit TokenCreated(currentTokenId);
     }
@@ -188,7 +183,7 @@ contract NusaNFT_V2_Test_Only is
             tokenIdToMint = nextIdToMint;
             nextTokenId_ += 1;
             _creators[nextIdToMint] = msg.sender;
-            _setTokenURI(nextIdToMint, _tokenURI);
+            _setURI(nextIdToMint, _tokenURI);
         } else {
             require(_tokenId < nextIdToMint, "invalid id");
             tokenIdToMint = _tokenId;
@@ -197,30 +192,18 @@ contract NusaNFT_V2_Test_Only is
         _mint(_to, tokenIdToMint, _amount, "");
     }
 
-    /**
-     *  @notice          Lets an authorized address mint multiple NEW NFTs at once to a recipient.
-     *  @dev             The logic in the `_canMint` function determines whether the caller is authorized to mint NFTs.
-     *                   If `_tokenIds[i] == type(uint256).max` a new NFT at tokenId `nextTokenIdToMint` is minted. If the given
-     *                   `tokenIds[i] < nextTokenIdToMint`, then additional supply of an existing NFT is minted.
-     *                   The metadata for each new NFT is stored at `baseURI/{tokenID of NFT}`
-     *
-     *  @param _to       The recipient of the NFT to mint.
-     *  @param _tokenIds The tokenIds of the NFTs to mint.
-     *  @param _amounts  The amounts of each NFT to mint.
-     *  @param _baseURI  The baseURI for the `n` number of NFTs minted. The metadata for each NFT is `baseURI/tokenId`
-     */
     function batchMintTo(
         address _to,
         uint256[] memory _tokenIds,
         uint256[] memory _amounts,
-        string memory _baseURI
+        string[] memory _uris
     ) public virtual {
         require(_canMint(), "Not authorized to mint.");
         require(_amounts.length > 0, "Minting zero tokens.");
         require(_tokenIds.length == _amounts.length, "Length mismatch.");
 
         uint256 nextIdToMint = nextTokenIdToMint();
-        uint256 startNextIdToMint = nextIdToMint;
+        // uint256 startNextIdToMint = nextIdToMint;
 
         uint256 numOfNewNFTs;
 
@@ -228,15 +211,12 @@ contract NusaNFT_V2_Test_Only is
             if (_tokenIds[i] == type(uint256).max) {
                 _tokenIds[i] = nextIdToMint;
                 _creators[nextIdToMint] = msg.sender;
+                _setURI(nextIdToMint, _uris[i]);
                 nextIdToMint += 1;
                 numOfNewNFTs += 1;
             } else {
                 require(_tokenIds[i] < nextIdToMint, "invalid id");
             }
-        }
-
-        if (numOfNewNFTs > 0) {
-            _batchMintMetadata(startNextIdToMint, numOfNewNFTs, _baseURI);
         }
 
         nextTokenId_ = nextIdToMint;
@@ -257,8 +237,8 @@ contract NusaNFT_V2_Test_Only is
     ) external virtual {
         address caller = msg.sender;
 
-        require(caller == _owner || isApprovedForAll[_owner][caller], "Unapproved caller");
-        require(balanceOf[_owner][_tokenId] >= _amount, "Not enough tokens owned");
+        require(caller == _owner || isApprovedForAll(_owner, caller), "Unapproved caller");
+        require(balanceOf(_owner, _tokenId) >= _amount, "Not enough tokens owned");
 
         _burn(_owner, _tokenId, _amount);
     }
@@ -277,11 +257,11 @@ contract NusaNFT_V2_Test_Only is
     ) external virtual {
         address caller = msg.sender;
 
-        require(caller == _owner || isApprovedForAll[_owner][caller], "Unapproved caller");
+        require(caller == _owner || isApprovedForAll(_owner, caller), "Unapproved caller");
         require(_tokenIds.length == _amounts.length, "Length mismatch");
 
         for (uint256 i = 0; i < _tokenIds.length; i += 1) {
-            require(balanceOf[_owner][_tokenIds[i]] >= _amounts[i], "Not enough tokens owned");
+            require(balanceOf(_owner, _tokenIds[i]) >= _amounts[i], "Not enough tokens owned");
         }
 
         _burnBatch(_owner, _tokenIds, _amounts);
@@ -292,11 +272,11 @@ contract NusaNFT_V2_Test_Only is
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Returns whether this contract supports the given interface.
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155Upgradeable, AccessControlEnumerableUpgradeable, ERC2981Upgradeable) returns (bool) {
         return
             interfaceId == 0xd9b67a26 || // ERC165 Interface ID for ERC1155
             interfaceId == 0x0e89341c || // ERC165 Interface ID for ERC1155MetadataURI
-            interfaceId == type(IERC2981).interfaceId; // ERC165 ID for ERC2981
+            interfaceId == type(IERC2981Upgradeable).interfaceId; // ERC165 ID for ERC2981
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -312,11 +292,6 @@ contract NusaNFT_V2_Test_Only is
                     Internal (overrideable) functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Returns whether contract metadata can be set in the given execution context.
-    function _canSetContractURI() internal view virtual override returns (bool) {
-        return msg.sender == owner();
-    }
-
     /// @dev Returns whether a token can be minted in the given execution context.
     function _canMint() internal view virtual returns (bool) {
         return true;
@@ -324,7 +299,7 @@ contract NusaNFT_V2_Test_Only is
     }
 
     /// @dev Returns whether owner can be set in the given execution context.
-    function _canSetOwner() internal view virtual override returns (bool) {
+    function _canSetOwner() internal view virtual returns (bool) {
         return msg.sender == owner();
     }
 
@@ -392,13 +367,13 @@ contract NusaNFT_V2_Test_Only is
         _collectPriceOnClaim(_req.primarySaleRecipient, _req.quantity, _req.currency, _req.pricePerToken);
 
         // Set royalties, if applicable.
-        // if (_req.royaltyRecipient != address(0)) {
-        //     _setupRoyaltyInfoForToken(tokenIdToMint, _req.royaltyRecipient, _req.royaltyBps);
-        // }
+        if (_req.royaltyRecipient != address(0)) {
+            _setTokenRoyalty(tokenIdToMint, _req.royaltyRecipient, uint96(_req.royaltyBps));
+        }
 
         // Set URI
         if (_req.tokenId == type(uint256).max) {
-            _setTokenURI(tokenIdToMint, _req.uri);
+            _setURI(tokenIdToMint, _req.uri);
         }
 
         // Mint tokens.
@@ -412,7 +387,11 @@ contract NusaNFT_V2_Test_Only is
     //////////////////////////////////////////////////////////////*/
 
     /// @dev Returns whether a given address is authorized to sign mint requests.
-    function _canSignMintRequest(address _signer) internal view virtual override returns (bool) {
+    function _canSignMintRequest(address _signer) internal view virtual returns (bool) {
+        return _signer == owner();
+    }
+
+    function _isAuthorizedSigner(address _signer) internal view virtual override returns (bool) {
         return _signer == owner();
     }
 
@@ -434,13 +413,13 @@ contract NusaNFT_V2_Test_Only is
 
         uint256 totalPrice = _quantityToClaim * _pricePerToken;
 
-        if (_currency == CurrencyTransferLib.NATIVE_TOKEN) {
+        if (_currency == LibCurrencyTransfer.NATIVE_TOKEN) {
             require(msg.value == totalPrice, "Must send total price.");
         }
 
         // address saleRecipient = _primarySaleRecipient == address(0) ? primarySaleRecipient() : _primarySaleRecipient;
         address saleRecipient = _primarySaleRecipient;
-        CurrencyTransferLib.transferCurrency(_currency, msg.sender, saleRecipient, totalPrice);
+        LibCurrencyTransfer.transferCurrency(_currency, msg.sender, saleRecipient, totalPrice);
     }
 
      /*//////////////////////////////////////////////////////////////
@@ -546,7 +525,7 @@ contract NusaNFT_V2_Test_Only is
 
     function setTokenURI(uint256 _tokenId, string calldata _tokenURI) external onlyCreator(_tokenId) {
         require(!contains("ipfs", uri(_tokenId)), "metadata is already frozen");
-        _setTokenURI(_tokenId, _tokenURI);
+        _setURI(_tokenId, _tokenURI);
     }
 
     function contains (string memory what, string memory where) internal pure returns(bool) {
@@ -571,7 +550,7 @@ contract NusaNFT_V2_Test_Only is
         return found;
     }
 
-    function testV2Function() external pure returns (string memory) {
+    function testV2Function() external pure returns(string memory) {
         return "from contract v2";
     }
 }

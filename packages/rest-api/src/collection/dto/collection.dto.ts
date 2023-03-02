@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Display } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import { ToBoolean } from '../../lib/toBoolean';
 
 export enum PriceHistorySortBy {
@@ -83,7 +84,8 @@ export class CollectionDto {
     type: Number,
     description: 'collection category id',
   })
-  category_id: any;
+  @Transform(val => Number(val.value))
+  category_id: number;
 
   @ApiProperty({
     type: String,
@@ -96,6 +98,7 @@ export class CollectionDto {
     type: Number,
     description: 'blockchain chain id',
   })
+  @Transform(val => Number(val.value))
   chainId: number;
 
   @ApiProperty({

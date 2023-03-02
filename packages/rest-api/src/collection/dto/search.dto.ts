@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
-import { ToBoolean } from 'src/lib/toBoolean';
+import { ToBoolean } from '../../lib/toBoolean';
 
 export class SearchDtoParam {
   @ApiProperty({

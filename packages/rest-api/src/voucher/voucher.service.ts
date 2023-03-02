@@ -7,7 +7,7 @@ import keccak256 from 'keccak256';
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Job, Queue } from 'bull';
 import { ClaimDTO, CreateNftDTO, RegisterDTO } from './voucher.dto';
-import * as AsyncLock from 'async-lock';
+import AsyncLock from 'async-lock';
 import { BlockchainTxPayload } from '../interfaces';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -125,8 +125,20 @@ export class VoucherService {
     await this.processJobWithWallet('create-nft', job, async (txReceipt) => {
       const { logs } = txReceipt;
       if (logs.length == 0) throw new Error('create-nft job failed. no logs');
+      let event: ethers.utils.LogDescription;
+      let parseLogErr;
+      for (const log of logs) {
+        try {
+          event = this.nusaNFTInterface.parseLog(log);
+        } catch (err) {
+          parseLogErr = err;
+          continue;
+        }
+      }
+      if (!event) {
+        await job.moveToFailed(parseLogErr, true);
+      }
 
-      const event = this.nusaNFTInterface.parseLog(logs[0]);
       if (event.name == 'TokenCreated') {
         const tokenId = event.args[0].toNumber();
         const {
@@ -179,16 +191,20 @@ export class VoucherService {
         // const to = event.args[2];
         const tokenId = event.args[3].toString();
         const value = event.args[4].toNumber();
-        await this.prisma.item.updateMany({
-          where: {
-            contract_address: process.env.NFT_CONTRACT_ADDRESS,
-            chainId: Number(process.env.CHAIN_ID),
-            tokenId
-          },
-          data: {
-            quantity_minted: { increment: value }
-          }
-        })
+
+        // Wait for indexer to update tokenOwnerships
+        // TODO: find a better way to do this
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        // await this.prisma.item.updateMany({
+        //   where: {
+        //     contract_address: process.env.NFT_CONTRACT_ADDRESS,
+        //     chainId: Number(process.env.CHAIN_ID),
+        //     tokenId
+        //   },
+        //   data: {
+        //     quantity_minted: { increment: value }
+        //   }
+        // })
         await job.progress(200);
       }
     });

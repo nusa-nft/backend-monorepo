@@ -1,8 +1,8 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { ListingType, Prisma } from '@prisma/client';
-import { SaleHistoryQueryParams } from 'src/item/dto/item.dto';
-import { toString } from 'src/lib/toString';
+import { SaleHistoryQueryParams } from '../item/dto/item.dto';
+import { toString } from '../lib/toString';
 
 @Injectable()
 export class IndexerService {

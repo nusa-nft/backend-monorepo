@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { expect } from "chai";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Diamond, MarketplaceFacet, NusaNFT, NusaNFT__factory, OffersFacet, WETH9 } from "../typechain-types";
+import { Diamond, LibRoyalty__factory, MarketplaceFacet, NusaNFT, NusaNFT__factory, OffersFacet, WETH9 } from "../typechain-types";
 import { ListingAddedEventObject, ListingUpdatedEventObject } from "../typechain-types/contracts/interfaces/INusaMarketplace";
 import { ethers } from "ethers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
@@ -71,16 +71,17 @@ describe("Marketplace Test", async () => {
 
     // Deploy NFT Contract Logic
     const NusaNFT = await hre.ethers.getContractFactory("NusaNFT");
-    const nftContractLogic = await NusaNFT.deploy();
-    // encode initialize data
-    const nusaNFTInitializeData = nftContractLogic.interface.encodeFunctionData("initialize", [
-      NAME,
-      SYMBOL
-    ]);
-    // Deploy proxy and pass in logic initialize data
-    const ProxyNusaNFT = await hre.ethers.getContractFactory("ProxyNusaNFT");
-    const proxy = await ProxyNusaNFT.deploy(nftContractLogic.address, nusaNFTInitializeData) as NusaNFT;
-    nftContract = NusaNFT__factory.connect(proxy.address, contractOwner);
+    nftContract = await hre.upgrades.deployProxy(
+      NusaNFT,
+      [NAME, SYMBOL],
+      {
+        initializer: "initialize",
+        kind: "uups",
+        unsafeAllow: ["constructor", "delegatecall", "state-variable-immutable"]
+      }
+    ) as NusaNFT;
+
+    await nftContract.deployed();
 
     // Deploy Wrap Token
     const WrappedToken = await hre.ethers.getContractFactory("WETH9");
@@ -235,7 +236,21 @@ describe("Marketplace Test", async () => {
             value: NFT_PRICE_UPDATED.mul(2)
           }
         )
-      await tx.wait();
+      const receipt = await tx.wait();
+      const events = receipt.events?.find(event => event.address == diamond.address);
+      // console.log({ events })
+      const royalty = await hre.ethers.getContractAt("LibRoyalty", diamond.address);
+      receipt.events?.forEach(e => {
+        try {
+          const decoded = royalty.interface.decodeEventLog(
+            'RoyaltyPaid',
+            e.data,
+            e.topics
+          )
+          console.log({ decoded })
+        } catch (err) { }
+      })
+
 
       const nftBalanceOfSeller = await nftContract.balanceOf(nftMinter.address, 0);
       const nftBalanceOfBuyer = await nftContract.balanceOf(nftBuyer.address, 0);
@@ -423,6 +438,11 @@ describe("Marketplace Test", async () => {
       const nftBalanceAfterClose = await nftContract.balanceOf(nftBuyer.address, 0);
 
       expect(nftBalanceAfterClose).to.equal(nftBalanceBeforeClose.add(2), "Incorrect NFT transferred to winning bidder");
+    })
+
+    it("Listing status is COMPLETED", async () => {
+      const listing = await marketplace.attach(diamond.address).getListing(createdListingId_1);
+      expect(listing.status).to.equal(2, "Listing status is not COMPLETED");
     })
   })
 

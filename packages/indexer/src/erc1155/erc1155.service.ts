@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ethers } from 'ethers';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   OnSaleParams,
   PaginationParams,
@@ -185,7 +185,7 @@ export class Erc1155Service {
   }
 
   async getOnSale(params: OnSaleParams) {
-    const { owner, page, listingType, hasOffers, priceMin, priceMax } = params;
+    const { owner, page, listingType, priceMin, priceMax } = params;
     const limit = 10;
     const offset = limit * (page - 1);
 
@@ -224,20 +224,6 @@ export class Erc1155Service {
         where: {
           ...query.where,
           listingType,
-        },
-      };
-    }
-
-    if (hasOffers) {
-      query = {
-        ...query,
-        where: {
-          ...query.where,
-          MarketplaceOffer: {
-            some: {
-              expirationTimestamp: { gt: Math.floor(Date.now() / 1000) },
-            },
-          },
         },
       };
     }

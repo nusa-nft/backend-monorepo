@@ -1,3 +1,4 @@
+import { ListingStatus } from "@nusa-nft/database";
 import { BigNumber } from "ethers";
 
 export interface MarketplaceNewOffer {
@@ -26,6 +27,7 @@ export interface MarkeplaceListing {
   updatedAt: number,
   isClosedByLister?: boolean,
   isClosedByBidder?: boolean,
+  status?: number
 }
 
 export interface MarketplaceSale {

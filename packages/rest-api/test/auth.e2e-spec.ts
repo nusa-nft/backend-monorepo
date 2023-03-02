@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { ethers } from 'ethers';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AuthModule } from '../src/auth/auth.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 

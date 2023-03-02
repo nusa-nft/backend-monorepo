@@ -5,7 +5,7 @@ import { ethers } from 'ethers';
 import { AuthModule } from '../src/auth/auth.module';
 import { ItemModule } from '../src/item/item.module';
 import { CollectionModule } from '../src/collection/collection.module';
-import * as request from 'supertest';
+import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PrismaModule } from '../src/prisma/prisma.module';
 

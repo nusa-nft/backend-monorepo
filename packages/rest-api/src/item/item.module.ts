@@ -5,9 +5,9 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { IpfsModule } from '../ipfs/ipfs.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
-import { IndexerModule } from 'src/indexer/indexer.module';
-import { UsersModule } from 'src/users/users.module';
-import { CollectionModule } from 'src/collection/collection.module';
+import { IndexerModule } from '../indexer/indexer.module';
+import { UsersModule } from '../users/users.module';
+import { CollectionModule } from '../collection/collection.module';
 import { ItemControllerV2 } from './item.controller.v2';
 import { ItemServiceV2 } from './item.service.v2';
 

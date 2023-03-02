@@ -2,9 +2,9 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { ListingType } from '@prisma/client';
 import { differenceInDays, format, formatDistance, subDays } from 'date-fns';
 import { BigNumber, ethers, FixedNumber } from 'ethers';
-import { Erc1155Service } from 'src/erc1155/erc1155.service';
-import { toString } from 'src/lib/toString';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Erc1155Service } from '../erc1155/erc1155.service';
+import { toString } from '../lib/toString';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   OnSaleItemSortBy,
   OnSaleQueryParams,
@@ -51,9 +51,6 @@ export class MarketplaceService {
             ],
           },
         ],
-      },
-      include: {
-        MarketplaceOffer: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -116,14 +113,14 @@ export class MarketplaceService {
     return orderBy;
   }
 
-  async getMarketplaceListingOffers(listingId: number) {
-    const offers = await this.prisma.marketplaceOffer.findMany({
-      where: { listingId },
-      orderBy: { createdAt: 'desc' },
-    });
+  // async getMarketplaceListingOffers(listingId: number) {
+  //   const offers = await this.prisma.marketplaceOffer.findMany({
+  //     where: { listingId },
+  //     orderBy: { createdAt: 'desc' },
+  //   });
 
-    return offers;
-  }
+  //   return offers;
+  // }
 
   async getCollectionStatus(collectionStatus: CollectionStatusQueryParams) {
     const {
@@ -186,25 +183,29 @@ export class MarketplaceService {
 
       //compiling current price of each item
       for (const listing of listings) {
-        const auctionPrice = await this.prisma.marketplaceOffer.findMany({
-          where: {
-            listingId: listing.listingId,
-            listingType: 'Auction',
-          },
-          orderBy: {
-            totalOfferAmount: 'desc',
-          },
-        });
+        // FIXME:
+        const auctionPrice = [];
+        // const auctionPrice = await this.prisma.marketplaceOffer.findMany({
+        //   where: {
+        //     listingId: listing.listingId,
+        //     listingType: 'Auction',
+        //   },
+        //   orderBy: {
+        //     totalOfferAmount: 'desc',
+        //   },
+        // });
 
-        const directPrice = await this.prisma.marketplaceOffer.findMany({
-          where: {
-            listingId: listing.listingId,
-            listingType: 'Direct',
-          },
-          orderBy: {
-            totalOfferAmount: 'desc',
-          },
-        });
+        // FIXME:
+        const directPrice = [];
+        // const directPrice = await this.prisma.marketplaceOffer.findMany({
+        //   where: {
+        //     listingId: listing.listingId,
+        //     listingType: 'Direct',
+        //   },
+        //   orderBy: {
+        //     totalOfferAmount: 'desc',
+        //   },
+        // });
 
         if (auctionPrice.length) {
           const auctionPriceValue = ethers.utils.formatEther(
@@ -353,120 +354,121 @@ export class MarketplaceService {
     };
   }
 
-  async getMarketplaceOfferHistory(
-    tokenId: number,
-    page: number,
-    floorPrice: number,
-  ) {
-    const offerHistory = await this.prisma.marketplaceOffer.findMany({
-      skip: 10 * (+page - 1),
-      take: 10,
-      where: {
-        listing: {
-          tokenId: +tokenId,
-          quantity: {
-            gt: 0,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: {
-        listing: true,
-      },
-    });
-    const histories = [];
+  // FIXME: 
+  // async getMarketplaceOfferHistory(
+  //   tokenId: number,
+  //   page: number,
+  //   floorPrice: number,
+  // ) {
+  //   const offerHistory = await this.prisma.marketplaceOffer.findMany({
+  //     skip: 10 * (+page - 1),
+  //     take: 10,
+  //     where: {
+  //       listing: {
+  //         tokenId: +tokenId,
+  //         quantity: {
+  //           gt: 0,
+  //         },
+  //       },
+  //     },
+  //     orderBy: {
+  //       createdAt: 'desc',
+  //     },
+  //     include: {
+  //       listing: true,
+  //     },
+  //   });
+  //   const histories = [];
 
-    const metadata = {
-      page,
-      perPage: 10,
-    };
+  //   const metadata = {
+  //     page,
+  //     perPage: 10,
+  //   };
 
-    if (!offerHistory.length) {
-      histories;
-    } else {
-      for (const offer of offerHistory) {
-        const {
-          totalOfferAmount,
-          expirationTimestamp,
-          listing,
-          offeror,
-          quantityWanted,
-          currency,
-        } = offer;
+  //   if (!offerHistory.length) {
+  //     histories;
+  //   } else {
+  //     for (const offer of offerHistory) {
+  //       const {
+  //         totalOfferAmount,
+  //         expirationTimestamp,
+  //         listing,
+  //         offeror,
+  //         quantityWanted,
+  //         currency,
+  //       } = offer;
 
-        let _expirationTimestamp;
-        if (expirationTimestamp == 0) {
-          _expirationTimestamp = listing.endTime * 1000;
-        } else {
-          _expirationTimestamp = expirationTimestamp * 1000;
-        }
+  //       let _expirationTimestamp;
+  //       if (expirationTimestamp == 0) {
+  //         _expirationTimestamp = listing.endTime * 1000;
+  //       } else {
+  //         _expirationTimestamp = expirationTimestamp * 1000;
+  //       }
 
-        const weiPrice = ethers.BigNumber.from(totalOfferAmount.toString()).div(
-          +quantityWanted,
-        );
+  //       const weiPrice = ethers.BigNumber.from(totalOfferAmount.toString()).div(
+  //         +quantityWanted,
+  //       );
 
-        const maticPrice = ethers.utils.formatEther(weiPrice.toString());
-        const buyoutPriceBigNumber = ethers.BigNumber.from(
-          toString(listing.buyoutPricePerToken),
-        );
-        const maticBuyoutPricePerToken = ethers.utils.formatEther(
-          buyoutPriceBigNumber.toString(),
-        );
-        const price = `${maticPrice} MATIC`;
+  //       const maticPrice = ethers.utils.formatEther(weiPrice.toString());
+  //       const buyoutPriceBigNumber = ethers.BigNumber.from(
+  //         toString(listing.buyoutPricePerToken),
+  //       );
+  //       const maticBuyoutPricePerToken = ethers.utils.formatEther(
+  //         buyoutPriceBigNumber.toString(),
+  //       );
+  //       const price = `${maticPrice} MATIC`;
 
-        let _floorPrice;
-        if (floorPrice == 0) {
-          _floorPrice = +maticBuyoutPricePerToken;
-        } else {
-          _floorPrice = +floorPrice;
-        }
+  //       let _floorPrice;
+  //       if (floorPrice == 0) {
+  //         _floorPrice = +maticBuyoutPricePerToken;
+  //       } else {
+  //         _floorPrice = +floorPrice;
+  //       }
 
-        const floorDifferenceValue =
-          ((+maticPrice - _floorPrice) / _floorPrice) * 100;
+  //       const floorDifferenceValue =
+  //         ((+maticPrice - _floorPrice) / _floorPrice) * 100;
 
-        let floorDifference;
-        if (Math.sign(floorDifferenceValue) == -1) {
-          floorDifference = `${Math.abs(
-            Math.floor(floorDifferenceValue),
-          )}% below`;
-        }
-        if (floorDifferenceValue == 0) {
-          floorDifference = `equal`;
-        }
-        if (Math.sign(floorDifferenceValue) == 1) {
-          floorDifference = `${Math.round(floorDifferenceValue)}% above`;
-        }
+  //       let floorDifference;
+  //       if (Math.sign(floorDifferenceValue) == -1) {
+  //         floorDifference = `${Math.abs(
+  //           Math.floor(floorDifferenceValue),
+  //         )}% below`;
+  //       }
+  //       if (floorDifferenceValue == 0) {
+  //         floorDifference = `equal`;
+  //       }
+  //       if (Math.sign(floorDifferenceValue) == 1) {
+  //         floorDifference = `${Math.round(floorDifferenceValue)}% above`;
+  //       }
 
-        let expiration;
-        if (_expirationTimestamp - Date.now() <= 0) {
-          expiration = `${formatDistance(Date.now(), _expirationTimestamp)} ago`;
-        } else {
-          expiration = formatDistance(Date.now(), _expirationTimestamp);
-        }
+  //       let expiration;
+  //       if (_expirationTimestamp - Date.now() <= 0) {
+  //         expiration = `${formatDistance(Date.now(), _expirationTimestamp)} ago`;
+  //       } else {
+  //         expiration = formatDistance(Date.now(), _expirationTimestamp);
+  //       }
 
-        const fromAddress = offeror;
+  //       const fromAddress = offeror;
 
-        histories.push({
-          price,
-          floorDifference,
-          expiration,
-          fromAddress,
-          listing,
-          totalOfferAmount,
-          expirationTimestamp,
-          quantityWanted,
-          currency,
-        });
-      }
-    }
+  //       histories.push({
+  //         price,
+  //         floorDifference,
+  //         expiration,
+  //         fromAddress,
+  //         listing,
+  //         totalOfferAmount,
+  //         expirationTimestamp,
+  //         quantityWanted,
+  //         currency,
+  //       });
+  //     }
+  //   }
 
-    return {
-      metadata,
-      records: histories,
-    };
-  }
+  //   return {
+  //     metadata,
+  //     records: histories,
+  //   };
+  // }
 
   async getPriceHistory(tokenId: number, sortRange: SaleHistoryQueryParams) {
     let rangeInSecond;

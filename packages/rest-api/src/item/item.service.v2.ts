@@ -20,13 +20,12 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ethers } from 'ethers';
 import { ConfigService } from '@nestjs/config';
-import { IndexerService } from 'src/indexer/indexer.service';
-import { UsersService } from 'src/users/users.service';
+import { IndexerService } from '../indexer/indexer.service';
+import { UsersService } from '../users/users.service';
 import { NATIVE_CURRENCY } from './web3/constants';
-import { CollectionService } from 'src/collection/collection.service';
+import { CollectionService } from '../collection/collection.service';
 import { MintRequestStruct, signMintRequest } from './web3/erc1155-lazy-mint';
 import { isArray, isObject } from 'class-validator';
-
 import {
   ItemDetail,
   ItemListResponse,
@@ -35,9 +34,12 @@ import {
   OnChainListing,
 } from './item.interface';
 import { HttpStatusCode } from 'axios';
-import { ItemQueryParamsV2 } from './dto/item.dto';
-import { RecentlySoldItem } from 'src/interfaces';
-import { toString } from 'src/lib/toString';
+import { ItemDto, ItemQueryParamsV2 } from './dto/item.dto';
+import { RecentlySoldItem } from '../interfaces';
+import { toString } from '../lib/toString';
+import { v4 as uuidV4 } from 'uuid';
+import standardizeMetadataAttribute from '../lib/standardizeMetadataAttributes';
+import { AttributeType } from '@nusa-nft/database';
 
 @Injectable()
 export class ItemServiceV2 {
@@ -449,12 +451,13 @@ export class ItemServiceV2 {
       };
 
     if (hasOffers) {
-      marketplaceListingFilter = {
-        some: {
-          ...marketplaceListingFilter.some,
-          MarketplaceOffer: { some: {} },
-        },
-      };
+      // FIXME:
+      // marketplaceListingFilter = {
+      //   some: {
+      //     ...marketplaceListingFilter.some,
+      //     MarketplaceOffer: { some: {} },
+      //   },
+      // };
     }
 
     if (priceMin) {
@@ -1308,5 +1311,90 @@ export class ItemServiceV2 {
       },
       records: sale,
     };
+  }
+
+  async uploadIpfsItemMetadata(createItemDto: ItemDto, file: Express.Multer.File, userId: number, userWalletAddress: string) {
+    let image = '';
+    let ipfsUri = '';
+    let attributeData = [];
+    let collection_id = +createItemDto.collection_id;
+    let collection: Collection;
+    let nusa_item_id: string = uuidV4();
+
+    // If no collection, create collection automatically
+    if (!collection_id) {
+      collection = await this.createDefaultCollection(userId, userWalletAddress, createItemDto.chainId);
+    } else {
+      collection = await this.prisma.collection.findFirst({
+        where: { id: collection_id }
+      })
+    }
+
+    const ipfsImageData = await this.ipfsService.uploadImage(file.path);
+    image = `ipfs://${ipfsImageData.Hash}`;
+
+    if (createItemDto.attributes) {
+      try {
+        attributeData = JSON.parse(createItemDto.attributes);
+      } catch (err) {
+        throw new HttpException('Invalid attributes format', HttpStatus.BAD_REQUEST);
+      }
+    } else {
+      attributeData = [];
+    }
+
+    const standardizedAttributes = standardizeMetadataAttribute(attributeData);
+    const ipfsMetadata = await this.ipfsService.uploadMetadata({
+      name: createItemDto.name,
+      description: createItemDto.description,
+      image,
+      attributes: standardizedAttributes,
+      nusa_collection: {
+        name: collection.name,
+        slug: collection.slug,
+      },
+      external_link: createItemDto.external_link,
+      explicit_sensitive: createItemDto.explicit_sensitive,
+      nusa_item_id,
+    });
+    ipfsUri = `ipfs://${ipfsMetadata.Hash}`;
+
+    return { ipfsUri, itemUuid: nusa_item_id };
+  }
+
+  async createDefaultCollection(userId: number, userWalletAddress: string, chainId: number) {
+    const myCollection = await this.collectionService.findMyCollection(
+      userId,
+      { page: 1 },
+    );
+    let collectionName = `Untitled Collection ${userWalletAddress}`;
+    if (myCollection.records.length > 0) {
+      collectionName += ` ${myCollection.records[0].id + 1}`;
+    }
+    const { slug } = await this.collectionService.getSlug(collectionName);
+    const collection = await this.collectionService.createCollection(
+      userWalletAddress,
+      {
+        category_id: 1,
+        name: collectionName,
+        chainId: chainId,
+        creator_address: userWalletAddress,
+        slug,
+        explicit_sensitive: false,
+        // TODO: Set default logo image to a variable
+        logo_image: 'ipfs://QmaTCGzpQBRy1rmCcwqtY1t8MPj4NkfhjdqLRStoPPbpPC', // default logo image
+      },
+    );
+    return collection.data;
+  }
+
+  async getItemByUuid(itemUuid: string) {
+    const item = await this.prisma.item.findFirst({
+      where: { uuid: itemUuid },
+    });
+    if (!item) {
+      throw new HttpException('Item not found', HttpStatus.NOT_FOUND);
+    }
+    return item;
   }
 }

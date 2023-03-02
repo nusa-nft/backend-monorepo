@@ -41,7 +41,7 @@ export class ItemDto {
     type: Number,
     description: 'Item collection ID',
   })
-  collection_id: any;
+  collection_id: number;
 
   @ApiProperty({
     format: 'binary',

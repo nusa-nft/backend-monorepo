@@ -10,7 +10,7 @@ dotenv.config({ path: '../../../.env'});
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    cors: true
+    cors: true,
   });
 
   app.setGlobalPrefix('indexer/api');

@@ -22,7 +22,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SearchDtoParam } from './dto/search.dto';
 import { slugify } from '../lib/slugify';
 import { JwtService } from '@nestjs/jwt';
-import { IndexerService } from 'src/indexer/indexer.service';
+import { IndexerService } from '../indexer/indexer.service';
 import { Item, Prisma, TokenType, Collection, User } from '@prisma/client';
 import { ItemService } from '../item/item.service';
 import { formatDistance } from 'date-fns';
@@ -33,7 +33,7 @@ import axios from 'axios';
 @Injectable()
 @Processor('import-collection')
 export class CollectionService {
-  private provider: ethers.providers.JsonRpcProvider;
+  // private provider: ethers.providers.JsonRpcProvider;
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -42,16 +42,20 @@ export class CollectionService {
     private itemService: ItemService,
     @InjectQueue('import-collection') private importCollectionQueue: Queue,
   ) {
-    this.provider = new ethers.providers.WebSocketProvider(
-      process.env.WSS_RPC_URL,
-    );
+    // this.provider = new ethers.providers.WebSocketProvider(
+    //   process.env.WSS_RPC_URL,
+    // );
   }
 
   async createCollection(
     creatorAddress: string,
     createCollectionDto: CollectionDto,
   ) {
-    const slug = await this.slugValidator(createCollectionDto.slug);
+    let slug: string;
+    if (!createCollectionDto.slug) {
+      slug = (await this.getSlug(createCollectionDto.name)).slug;
+    }
+    slug = await this.slugValidator(slug);
     const contract_address = process.env.NFT_CONTRACT_ADDRESS;
     let royaltyData = [];
     try {
@@ -1124,6 +1128,15 @@ export class CollectionService {
       {},
     );
     return job;
+  }
+
+  async clearImportQueue() {
+    await this.importCollectionQueue.clean(0, 'delayed');
+    await this.importCollectionQueue.clean(0, 'wait');
+    await this.importCollectionQueue.clean(0, 'active');
+    await this.importCollectionQueue.clean(0, 'completed');
+    await this.importCollectionQueue.clean(0, 'failed');
+    return true;
   }
 
   async getJobStatus(jobId: number) {

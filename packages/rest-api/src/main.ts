@@ -9,8 +9,8 @@ import { ScientificNumberInterceptor } from './interceptors/scientific-number.in
 import { createBullBoard } from '@bull-board/api';
 import { ExpressAdapter } from '@bull-board/express';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
-import * as Bull from 'bull';
-import * as dotenv from 'dotenv';
+import Bull from 'bull';
+import dotenv from 'dotenv';
 dotenv.config({ path: '../../../.env' });
 
 async function bootstrap() {

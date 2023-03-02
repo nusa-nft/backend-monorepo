@@ -1,11 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { events } from 'src/lib/newEventEmitter';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Injectable, Logger } from '@nestjs/common';
+import { events } from '../lib/newEventEmitter';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   NotificationType,
   MarketplaceListing,
   MarketplaceOffer,
   MarketplaceSale,
+  OfferStatus,
+  Prisma,
+  ListingType,
 } from '@prisma/client';
 import retry from 'async-retry';
 
@@ -19,38 +22,53 @@ export class NotificationService {
 
   async handleMarketplaceNotification() {
     events.on('notification', async (eventData) => {
+      Logger.log('notification event received');
       const data = eventData.data;
-      console.log('event masuk', data);
 
-      const listingData = await this.prisma.marketplaceListing.findFirst({
-        where: {
-          listingId: +data.listingId,
-        },
-      });
-
-      const dataOfListing = listingData;
+      // const dataOfListing = listingData;
       if (eventData.notification == 'offer') {
-        let marketplaceOffer;
-        await retry(
-          async () => {
-            marketplaceOffer =
-              await this.prisma.marketplaceOffer.findFirstOrThrow({
-                where: {
-                  listingId: +dataOfListing.listingId,
-                  createdAt: +data.createdAt,
-                },
-              });
-            return marketplaceOffer;
-          },
-          {
-            forever: true,
-          },
-        );
+        // FIXME:
+        // let marketplaceOffer;
+        let marketplaceOffer = {
+          id: 0,
+          offeror: 'TODO',
+          assetContract: 'TODO',
+          tokenId: new Prisma.Decimal(0),             
+          quantity: new Prisma.Decimal(0),            
+          currency: 'TODO',
+          totalPrice: new Prisma.Decimal(0),          
+          expirationTimestamp: new Prisma.Decimal(0), 
+          transactionHash: '',
+          status: OfferStatus.COMPLETED,
+          royaltyInfoId: 0,
+          createdAt: 0
+        }
+        // await retry(
+        //   async () => {
+        //     marketplaceOffer =
+        //       await this.prisma.marketplaceOffer.findFirstOrThrow({
+        //         where: {
+        //           id: +data.offerId,
+        //           createdAt: +data.createdAt,
+        //         },
+        //       });
+        //     return marketplaceOffer;
+        //   },
+        //   {
+        //     forever: true,
+        //   },
+        // );
 
-        this.newOfferNotification(dataOfListing, marketplaceOffer);
+        this.newOfferNotification(marketplaceOffer);
       }
 
       if (eventData.notification == 'sale') {
+        const listingData = await this.prisma.marketplaceListing.findFirst({
+          where: {
+            listingId: +data.listingId,
+          },
+        });
+
         let marketplaceSale;
         await retry(
           async () => {
@@ -72,28 +90,37 @@ export class NotificationService {
     });
   }
 
+  // FIXME:
   async newOfferNotification(
-    listingData: MarketplaceListing,
+    // listingData: MarketplaceListing,
     eventData: MarketplaceOffer,
   ) {
     const {
-      listingId,
+      id,
       offeror,
-      listingType,
-      quantityWanted,
-      totalOfferAmount,
+      quantity,
+      totalPrice,
       transactionHash,
       currency,
       createdAt,
       expirationTimestamp,
+      assetContract,
+      tokenId
     } = eventData;
-    const notificationDataLister = await this.prisma.notification.create({
+    const tokenOwner = await this.prisma.tokenOwnerships.findFirst({
+      where: {
+        tokenId,
+        contractAddress: assetContract
+      }
+    })
+    if (!tokenOwner) return 
+    const notificationDataOwner = await this.prisma.notification.create({
       data: {
         notification_type: NotificationType.Offer,
         is_seen: false,
         user: {
           connect: {
-            wallet_address: listingData.lister,
+            wallet_address: tokenOwner.ownerAddress,
           },
         },
       },
@@ -111,21 +138,22 @@ export class NotificationService {
       },
     });
 
+    // FIXME:
     const offerNotification = await this.prisma.notificationDetailOffer.create({
       data: {
-        listingId: listingId,
-        lister_wallet_address: listingData.lister,
+        id: id,
+        lister_wallet_address: tokenOwner.ownerAddress, // TODO: fix. should be tokenOwnerAddress 
         offeror_wallet_address: offeror,
-        listing_type: listingType,
-        quantity_wanted: quantityWanted,
-        total_offer_ammount: totalOfferAmount,
+        listing_type: ListingType.Direct,
+        quantity_wanted: quantity.toNumber(),
+        total_offer_ammount: totalPrice,
         currency,
         expiration_timestamp: expirationTimestamp,
         transaction_hash: transactionHash,
         Notification: {
           connect: [
             { id: notificationDataOfferor.id },
-            { id: notificationDataLister.id },
+            { id: notificationDataOwner.id },
           ],
         },
         createdAt_timestamp: createdAt,
@@ -147,13 +175,15 @@ export class NotificationService {
       transactionHash,
       createdAt,
     } = eventData;
+
     const notificationDataLister = await this.prisma.notification.create({
       data: {
         notification_type: NotificationType.Sale,
         is_seen: false,
         user: {
-          connect: {
-            wallet_address: lister,
+          connectOrCreate: {
+            where: { wallet_address: lister },
+            create: { wallet_address: lister },
           },
         },
       },
@@ -164,8 +194,9 @@ export class NotificationService {
         notification_type: NotificationType.Sale,
         is_seen: false,
         user: {
-          connect: {
-            wallet_address: buyer,
+          connectOrCreate: {
+            where: { wallet_address: buyer },
+            create: { wallet_address: buyer },
           },
         },
       },
@@ -182,8 +213,8 @@ export class NotificationService {
         transaction_hash: transactionHash,
         Notification: {
           connect: [
-            { id: notificationDataBuyer.id },
-            { id: notificationDataLister.id },
+            { id : notificationDataBuyer.id },
+            { id : notificationDataLister.id }
           ],
         },
         createdAt_timestamp: createdAt,

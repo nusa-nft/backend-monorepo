@@ -51,7 +51,7 @@ const config: HardhatUserConfig = {
       '@openzeppelin/contracts/token/ERC20/ERC20.sol',
       './contracts/facets'
     ],
-  }
+  },
 };
 
 export default config;

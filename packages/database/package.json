@@ -11,7 +11,8 @@
     "dotenv": "^16.0.3",
     "ethers": "^5.7.2",
     "form-data": "^4.0.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "@nusa-nft/smart-contract": "*"
   },
   "devDependencies": {
     "@tsconfig/node16": "^1.0.3",
@@ -28,7 +29,9 @@
     "postinstall": "npx prisma@4.4.0 generate",
     "db:seed": "dotenv -e ../../.env npx ts-node ./seed/seed.ts",
     "db:migrate-dev": "dotenv -e ../../.env npx prisma migrate dev",
-    "db:migrate-reset": "dotenv -e ../../.env npx prisma migrate reset"
+    "db:migrate-reset": "dotenv -e ../../.env npx prisma migrate reset",
+    "db:migrate-reset-force": "dotenv -e ../../.env npx prisma migrate reset -- --force",
+    "db:migrate-deploy": "dotenv -e ../../.env npx prisma migrate deploy"
   },
   "prisma": {
     "seed": "ts-node ./seed/seed.ts"
