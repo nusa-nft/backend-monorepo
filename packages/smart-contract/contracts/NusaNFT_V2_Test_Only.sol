@@ -13,6 +13,8 @@ import "@thirdweb-dev/contracts/lib/TWStrings.sol";
 import "./SignatureMintERC1155Upgradeable.sol";
 import "./libraries/LibCurrencyTransfer.sol";
 
+import "hardhat/console.sol";
+
 /**
  *  The `NusaNFT` smart contract implements the ERC1155 NFT standard.
  *  It includes the following additions to standard ERC1155 logic:
@@ -174,8 +176,16 @@ contract NusaNFT_V2_Test_Only is
         string memory _tokenURI,
         uint256 _amount
     ) public virtual {
-        require(_canMint(), "Not authorized to mint.");
+        require(_canMint(_tokenId), "Not authorized to mint.");
+        _mintTo(_to, _tokenId, _tokenURI, _amount);
+    }
 
+    function _mintTo(
+        address _to,
+        uint256 _tokenId,
+        string memory _tokenURI,
+        uint256 _amount
+    ) internal {
         uint256 tokenIdToMint;
         uint256 nextIdToMint = nextTokenIdToMint();
 
@@ -198,7 +208,6 @@ contract NusaNFT_V2_Test_Only is
         uint256[] memory _amounts,
         string[] memory _uris
     ) public virtual {
-        require(_canMint(), "Not authorized to mint.");
         require(_amounts.length > 0, "Minting zero tokens.");
         require(_tokenIds.length == _amounts.length, "Length mismatch.");
 
@@ -208,6 +217,7 @@ contract NusaNFT_V2_Test_Only is
         uint256 numOfNewNFTs;
 
         for (uint256 i = 0; i < _tokenIds.length; i += 1) {
+            require(_canMint(_tokenIds[i]), "Not authorized to mint.");
             if (_tokenIds[i] == type(uint256).max) {
                 _tokenIds[i] = nextIdToMint;
                 _creators[nextIdToMint] = msg.sender;
@@ -293,7 +303,10 @@ contract NusaNFT_V2_Test_Only is
     //////////////////////////////////////////////////////////////*/
 
     /// @dev Returns whether a token can be minted in the given execution context.
-    function _canMint() internal view virtual returns (bool) {
+    function _canMint(uint256 _tokenId) internal view virtual returns (bool) {
+        if (_tokenId < type(uint256).max) {
+            return _creators[_tokenId] == _msgSender();
+        }
         return true;
         // return msg.sender == owner();
     }
@@ -434,7 +447,7 @@ contract NusaNFT_V2_Test_Only is
         bytes32[] calldata merkleProof
     ) public onlyMintersOrOwner {
         require(_verifyVoucher(voucher, _tokenId, merkleProof), "Voucher not valid");
-        mintTo(_to,
+        _mintTo(_to,
             _tokenId, "", 1);
         bytes32 hashVoucher = keccak256(abi.encodePacked(voucher));
         _isUsed[hashVoucher] = true;

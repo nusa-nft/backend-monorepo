@@ -8,6 +8,7 @@ import { NusaNFT_V2_Test_Only, NusaNFT__factory } from "../typechain-types";
 import { ISignatureMintERC1155 } from "../typechain-types/contracts/interfaces/ISignatureMintERC1155";
 import { NusaNFT } from "../typechain-types/contracts/NusaNFT";
 import { v4 as uuidv4 } from "uuid";
+import { TransferSingleEvent } from "../typechain-types/contracts/ERC1155_dummy";
 
 const MintRequest1155 = [
   { name: "to", type: "address" },
@@ -68,6 +69,8 @@ describe("NusaNFT Mint With Signature", async () => {
   let nftMinter: SignerWithAddress;
   let adminMinter1: SignerWithAddress;
   let adminMinter2: SignerWithAddress;
+  let user1: SignerWithAddress;
+  let user2: SignerWithAddress;
   let vouchers: string[] = [];
   let leaves: string[] = [];
   let voucherExpTime: ethers.BigNumberish;
@@ -85,6 +88,8 @@ describe("NusaNFT Mint With Signature", async () => {
       nftMinter,
       adminMinter1,
       adminMinter2,
+      user1,
+      user2
     ] = await hre.ethers.getSigners();
 
     chainId = hre.network.config.chainId as number;
@@ -211,6 +216,8 @@ describe("NusaNFT Mint With Signature", async () => {
 
     const balanceAfterUpgrade = await upgradedNftContract.balanceOf(nftMinter.address, 0);
     expect(balanceAfterUpgrade).to.equal(balanceBeforeUpgrade);
+
+    nftContract = upgradedNftContract;
   })
 
   // TODO:
@@ -221,23 +228,23 @@ describe("NusaNFT Mint With Signature", async () => {
       ethers.utils.toUtf8Bytes("ADMIN_MINTER_ROLE")
     );
 
-    let tx = await upgradedNftContract.grantRole(roleBytes, adminMinter1.address);
+    let tx = await nftContract.grantRole(roleBytes, adminMinter1.address);
     await tx.wait();
-    let hasRole = await upgradedNftContract.hasRole(roleBytes, adminMinter1.address);
+    let hasRole = await nftContract.hasRole(roleBytes, adminMinter1.address);
     expect(hasRole).to.be.true;
 
-    tx = await upgradedNftContract.grantRole(roleBytes, adminMinter2.address);
+    tx = await nftContract.grantRole(roleBytes, adminMinter2.address);
     await tx.wait();
-    hasRole = await upgradedNftContract.hasRole(roleBytes, adminMinter2.address);
+    hasRole = await nftContract.hasRole(roleBytes, adminMinter2.address);
     expect(hasRole).to.be.true;
   })
 
   it("Create an NFT, not mint it (For future minting by way of claim voucher)", async () => {
-    let tx = await upgradedNftContract.connect(adminMinter1).create(nftMinter.address, "token_uri");
+    let tx = await nftContract.connect(adminMinter1).create(nftMinter.address, "token_uri");
     await tx.wait();
 
-    const createdTokenId = (await upgradedNftContract.nextTokenIdToMint()).sub(1);
-    const creator = await upgradedNftContract.creator(createdTokenId);
+    const createdTokenId = (await nftContract.nextTokenIdToMint()).sub(1);
+    const creator = await nftContract.creator(createdTokenId);
 
     expect(creator).to.equal(nftMinter.address);
   })
@@ -255,10 +262,10 @@ describe("NusaNFT Mint With Signature", async () => {
     voucherMerkleTree = new MerkleTree(leaves, ethers.utils.keccak256, {sortPairs: true});
     const root = voucherMerkleTree.getHexRoot();
 
-    const tx = await upgradedNftContract.registerVoucher(1, root);
+    const tx = await nftContract.registerVoucher(1, root);
     const recpt = await tx.wait();
 
-    const rootHashVoucherRegistered = await upgradedNftContract._rootHashVoucher(1);
+    const rootHashVoucherRegistered = await nftContract._rootHashVoucher(1);
     expect(rootHashVoucherRegistered).to.equal(root);
   })
 
@@ -275,21 +282,21 @@ describe("NusaNFT Mint With Signature", async () => {
     // const sig = await signer.signMessage(ethers.utils.arrayify(hash));
     const proof = voucherMerkleTree.getHexProof(leaf);
 
-    const isValidVoucher = await upgradedNftContract.isValidVoucher(voucher, tokenId, proof);
+    const isValidVoucher = await nftContract.isValidVoucher(voucher, tokenId, proof);
     console.log({ isValidVoucher });
 
-    let tx = await upgradedNftContract
+    let tx = await nftContract
       .connect(adminMinter1)
       .claimVoucher(voucher, tokenId, signer.address, proof)
     let receipt = await tx.wait();
 
-    let balanceOfSigner = await upgradedNftContract.balanceOf(signer.address, tokenId);
+    let balanceOfSigner = await nftContract.balanceOf(signer.address, tokenId);
     expect(balanceOfSigner).to.equal("1");
 
     /**
      * Can not use the same voucher twice
      */
-    await expect(upgradedNftContract
+    await expect(nftContract
       .connect(adminMinter1)
       .claimVoucher(voucher, tokenId, signer.address, proof)).to.be.reverted;
 
@@ -305,12 +312,12 @@ describe("NusaNFT Mint With Signature", async () => {
     // const sig2 = await signer.signMessage(ethers.utils.arrayify(hash2));
     const proof2 = voucherMerkleTree.getHexProof(leaf2);
 
-    tx = await upgradedNftContract
+    tx = await nftContract
       .connect(adminMinter1)
       .claimVoucher(voucher2, tokenId, signer.address, proof2)
     receipt = await tx.wait();
 
-    balanceOfSigner = await upgradedNftContract.balanceOf(signer.address, tokenId);
+    balanceOfSigner = await nftContract.balanceOf(signer.address, tokenId);
     expect(balanceOfSigner).to.equal("2");
   })
 
@@ -330,5 +337,28 @@ describe("NusaNFT Mint With Signature", async () => {
 
     const uri = await nftContract.uri(tokenId);
     expect(uri).to.equal(ipfsUri);
+  })
+
+  it("Only nft creator can mint", async () => {
+    let tx = await nftContract.connect(user1).mintTo(
+      nftMinter.address,
+      ethers.constants.MaxUint256,
+      "https://metadata-uri",
+      1,
+    );
+    let receipt = await tx.wait();
+    let tfSingleEvent = receipt.events?.find((item: any) => item.event === 'TransferSingle') as TransferSingleEvent;
+    let { to, id } = tfSingleEvent?.args;
+
+    // mint tokenId of id using user2 
+    // expect to be reverted
+    await expect(
+      nftContract.connect(user2).mintTo(
+        nftMinter.address,
+        id,
+        "https://metadata-uri",
+        1,
+      )
+    ).to.be.revertedWith("Not authorized to mint.");
   })
 });
