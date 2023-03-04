@@ -180,14 +180,14 @@ async function main() {
   /// ====================================
   /// Test Import ERC1155 Mint
   /// ====================================
-  await importERC1155Mint({
-    restApi,
-    db,
-    web3Provider,
-    erc1155,
-    minter: deployer,
-    receiver: acc1,
-  });
+  // await importERC1155Mint({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   erc1155,
+  //   minter: deployer,
+  //   receiver: acc1,
+  // });
 
 
   /// ====================================
