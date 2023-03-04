@@ -1253,7 +1253,18 @@ export class IndexerService implements OnModuleInit {
         tokenId = event.args[3].toString();
         metadataUri = await (contract as ERC1155).uri(tokenId);
       }
-      metadata = await this.getMetadata(metadataUri);
+      try {
+        metadata = await this.getMetadata(metadataUri);
+      } catch (err) {
+        Logger.warn(err);
+        metadata = {
+          uri: metadataUri,
+          name: '',
+          image: '',
+          description: '',
+          attributes: []
+        }
+      }
       metadata = this.cleanMetadata({ uri: metadataUri, metadata, fallbackName: `${contractAddress}-${tokenId}` });
 
       if (contractAddress.toLowerCase() != nusaContractAddress.toLowerCase()) {
@@ -1582,7 +1593,19 @@ export class IndexerService implements OnModuleInit {
       const tokenId = ids[i].toString();
       const quantity = values[i].toNumber();
       const metadataUri = await contract.uri(tokenId);
-      let metadata = await this.getMetadata(metadataUri);
+      let metadata;
+      try {
+        metadata = await this.getMetadata(metadataUri);
+      } catch (err) {
+        Logger.warn(err);
+        metadata = {
+          uri: metadataUri,
+          name: '',
+          image: '',
+          description: '',
+          attributes: []
+        }
+      }
       metadata = this.cleanMetadata({ uri: metadataUri, metadata, fallbackName: `${contractAddress}-${tokenId}` });
 
       const tokenOwnershipWrite =
@@ -1769,10 +1792,15 @@ export class IndexerService implements OnModuleInit {
       }),
     );
 
-    const result = await this.prisma.$transaction(transactions, {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-    });
-    return result;
+    try {
+      const result = await this.prisma.$transaction(transactions, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (err) {
+      Logger.warn('createUpdateImportedContractTokenOwnership transaction failed');
+      Logger.warn(err);
+    }
+    return [];
   }
 
   async createOrMintItem({
@@ -1981,6 +2009,12 @@ export class IndexerService implements OnModuleInit {
     const res = await axios.get(uri, {
       headers: { Accept: 'application/json', 'Accept-Encoding': 'identity' },
       timeout,
+    })
+    .catch(err => {
+      Logger.error('fetch metadata failed');
+      Logger.error(uri);
+      Logger.error(err);
+      throw new Error(err);
     });
     return this.parseJson(res.data);
   }

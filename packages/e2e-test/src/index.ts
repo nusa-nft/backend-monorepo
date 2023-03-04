@@ -27,7 +27,8 @@ import {
   offer,
   importERC1155BatchMint,
   importERC1155Mint,
-  importERC721Mint
+  importERC721Mint,
+  itemMultiQuantityListings
 } from "./test-cases";
 
 let ipfsProcess: ChildProcess;
@@ -179,14 +180,14 @@ async function main() {
   /// ====================================
   /// Test Import ERC1155 Mint
   /// ====================================
-  // await importERC1155Mint({
-  //   restApi,
-  //   db,
-  //   web3Provider,
-  //   erc1155,
-  //   minter: deployer,
-  //   receiver: acc1,
-  // });
+  await importERC1155Mint({
+    restApi,
+    db,
+    web3Provider,
+    erc1155,
+    minter: deployer,
+    receiver: acc1,
+  });
 
 
   /// ====================================
@@ -204,14 +205,28 @@ async function main() {
   /// ====================================
   /// Test Import ERC721 Mint
   /// ====================================
-  await importERC721Mint({
+  // await importERC721Mint({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   erc721,
+  //   minter: deployer,
+  //   receiver: acc1,
+  // });
+
+  /// ====================================
+  /// Test Multi Quantity Listing
+  /// ====================================
+  await itemMultiQuantityListings({
     restApi,
     db,
     web3Provider,
-    erc721,
-    minter: deployer,
-    receiver: acc1,
-  });
+    marketplace,
+    nft,
+    minter: acc1,
+    user1: acc2,
+    user2: acc3,
+  })
 }
 
 /**
