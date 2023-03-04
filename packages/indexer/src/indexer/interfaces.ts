@@ -13,7 +13,7 @@ export interface MarketplaceNewOffer {
   transactionHash: string,
 }
 
-export interface MarkeplaceListing {
+export interface MarketplaceListing {
   listingId: BigNumber,
   tokenOwner: string,
   assetContract: string,
