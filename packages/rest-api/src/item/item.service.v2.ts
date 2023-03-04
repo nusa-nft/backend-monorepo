@@ -774,7 +774,7 @@ export class ItemServiceV2 {
         chainId: Number(process.env.CHAIN_ID)
       }
     })
-    const redeemed = item.quantity_minted;
+    const redeemed = item ? item.quantity_minted : 0;
 
     return { supply, redeemed };
   }
