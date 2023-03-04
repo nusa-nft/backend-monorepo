@@ -137,6 +137,7 @@ describe("NusaNFT Mint With Signature", async () => {
     const pricePerToken = ethers.utils.parseEther('1');
     const quantity = 100;
 
+    // TODO: Should add marketplace fee
     const mintRequest: ISignatureMintERC1155.MintRequestStruct = {
       to: nftMinter.address,
       royaltyRecipient: contractOwner.address,
@@ -305,11 +306,6 @@ describe("NusaNFT Mint With Signature", async () => {
      */
     const voucher2 = vouchers[1];
     const leaf2 = leaves[1];
-    // const hash2 = ethers.utils.solidityKeccak256(
-    //   [ "string", "uint256", "address" ], 
-    //   [ voucher2, tokenId, signer.address]
-    // );
-    // const sig2 = await signer.signMessage(ethers.utils.arrayify(hash2));
     const proof2 = voucherMerkleTree.getHexProof(leaf2);
 
     tx = await nftContract

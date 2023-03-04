@@ -5,7 +5,7 @@ pkill ipfs
 # Kill ganache
 kill $(lsof -t -i:8545)
 
-ganache -d &
+ganache -m "knock adjust glance excite point model dish armed diagram mimic secret wear" &
 ipfs daemon &
 
 # Wait for ganache & IPFS to be initialized

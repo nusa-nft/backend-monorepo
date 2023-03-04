@@ -27,8 +27,6 @@ import "hardhat/console.sol";
  *      - Ownership of the contract, with the ability to restrict certain functions to
  *        only be called by the contract's owner.
  *
- *      - Multicall capability to perform multiple actions atomically
- *
  */
 contract NusaNFT is
     UUPSUpgradeable,

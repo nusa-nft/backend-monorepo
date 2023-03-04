@@ -54,6 +54,8 @@ export class CollectionService {
     let slug: string;
     if (!createCollectionDto.slug) {
       slug = (await this.getSlug(createCollectionDto.name)).slug;
+    } else {
+      slug = createCollectionDto.slug;
     }
     slug = await this.slugValidator(slug);
     const contract_address = process.env.NFT_CONTRACT_ADDRESS;
@@ -301,6 +303,7 @@ export class CollectionService {
         },
       },
     });
+    console.log({ collectionData });
 
     if (collectionData) {
       this.collectionIdOrSlugItemCount(collectionData);
@@ -542,8 +545,10 @@ export class CollectionService {
 
   async slugValidator(slug: string) {
     const token = null;
-    const slugUnAvailable = await this.findCollectionSlug(slug, token);
-    if (slugUnAvailable) {
+    const collection = await this.prisma.collection.findFirst({
+      where: { slug },
+    });
+    if (collection) {
       const uniqueSlug = await this.getSlug(slug);
       return uniqueSlug.slug;
     } else {
