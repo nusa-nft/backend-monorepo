@@ -6,7 +6,8 @@
     "deploy": "npx thirdweb@latest deploy",
     "release": "npx thirdweb@latest release",
     "deploy-all-local": "npx hardhat deploy-all --network localhost",
-    "deploy-dummy-nfts-local": "npx hardhat deploy-dummy-nfts --network localhost"
+    "deploy-dummy-nfts-local": "npx hardhat deploy-dummy-nfts --network localhost",
+    "copy-typechain-fe": "cp -r ./typechain-types ../../../frontend_nft/types/"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.7.0",

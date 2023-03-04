@@ -57,7 +57,10 @@ async function seedData(db: PrismaClient) {
 export function setupBlockchain() {
   const blockchain = Ganache.server({
     deterministic: true,
-    quiet: true
+    quiet: true,
+    wallet: {
+      mnemonic: "knock adjust glance excite point model dish armed diagram mimic secret wear"
+    }
   });
   blockchain.listen(8545);
 

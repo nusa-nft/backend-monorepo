@@ -14,12 +14,15 @@ task("deploy-marketplace")
       platformFeeBps
     } = params
     const { ethers } = hre;
+    console.log({ ethers });
+    console.log(ethers.provider)
     const { chainId, name } = await ethers.provider.getNetwork();
     const deployedContracts = await readFromCsv("./deployed-contract.csv") as any[];
     const deployer = (await ethers.getSigners())[0];
 
     // Deploy 
     if (chainId == 1337) {
+      console.log({ deployerAddress: deployer.address })
       // Deploy Wrapped Token
       const WrappedToken = await ethers.getContractFactory("WETH9");
       const wrappedTokenContract = await WrappedToken.deploy();
