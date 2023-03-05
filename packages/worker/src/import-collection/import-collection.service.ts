@@ -807,10 +807,16 @@ export class ImportCollectionService implements OnModuleInit {
       }),
     );
 
-    const result = await this.prisma.$transaction(transactions, {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-    });
-    return result;
+    try {
+      const result = await this.prisma.$transaction(transactions, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+      return result;
+    } catch (err) {
+      Logger.warn('createUpdateImportedContractTokenOwnership transaction failed');
+      Logger.warn(err);
+    }
+    return [];
   }
 
   async createItemIfNotExists({

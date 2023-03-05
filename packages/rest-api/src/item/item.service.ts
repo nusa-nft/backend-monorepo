@@ -178,7 +178,8 @@ export class ItemService {
         }
       },
       {
-        forever: true
+        forever: true,
+        minTimeout: 500
       }
     )
 

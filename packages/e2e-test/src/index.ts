@@ -28,7 +28,8 @@ import {
   importERC1155BatchMint,
   importERC1155Mint,
   importERC721Mint,
-  itemMultiQuantityListings
+  itemMultiQuantityListings,
+  voucherRedeemableItems
 } from "./test-cases";
 
 let ipfsProcess: ChildProcess;
@@ -219,16 +220,29 @@ async function main() {
   /// ====================================
   /// Test Multi Quantity Listing
   /// ====================================
-  await itemMultiQuantityListings({
+  // await itemMultiQuantityListings({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   marketplace,
+  //   nft,
+  //   minter: acc1,
+  //   user1: acc2,
+  //   user2: acc3,
+  // })
+
+  /// ====================================
+  /// Test Voucher Redeemable Item
+  /// ====================================
+  await voucherRedeemableItems({
     restApi,
     db,
     web3Provider,
-    marketplace,
     nft,
-    minter: acc1,
+    creator: acc1,
     user1: acc2,
-    user2: acc3,
-  })
+    user2: acc3
+  });
 }
 
 /**
