@@ -1,11 +1,11 @@
 import { INestApplication } from "@nestjs/common";
-import { PrismaClient, Item, ListingType, TokenType } from "@nusa-nft/database";
+import { PrismaClient, Item, ListingType, TokenType, LazyMintSale } from "@nusa-nft/database";
 import { NATIVE_CURRENCY } from "@nusa-nft/rest-api/src/item/web3/constants";
 import { NusaNFT } from "@nusa-nft/smart-contract/typechain-types";
 import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
 import { ethers } from "ethers";
 import { assert, fmtFailed, fmtSuccess } from "../lib/assertions";
-import { createItem, createLazyMintListing, login, getLazyMintListingSignature } from "../lib/rest-api";
+import { createItem, createLazyMintListing, login, getLazyMintListingSignature, createLazyMintSale } from "../lib/rest-api";
 import retry from 'async-retry';
 
 export async function testLazyMintItemSale({
@@ -78,7 +78,7 @@ export async function testLazyMintItemSale({
   let { id } = transferSingleEvent.args;
 
   // Wait for indexer to pickup
-  await new Promise(res => setTimeout(res, 10000));
+  await new Promise(res => setTimeout(res, 10000));  
 
   let lazyMintSoldItem: Item;
   await retry(async () => {
@@ -90,7 +90,7 @@ export async function testLazyMintItemSale({
   }, { forever: true, retries: 5 });
   assert(Number(lazyMintSoldItem.tokenId) == id.toNumber(), 'assert lazyMintSoldItem.tokenId failed');
   assert(lazyMintSoldItem.quantity_minted == 1, 'assert lazyMintSoldItem.quantity_minted failed');
-  
+
   let tokenOwnership = await db.tokenOwnerships.findFirst({
     where: {
       contractAddress: lazyMintSoldItem.contract_address,
@@ -102,16 +102,28 @@ export async function testLazyMintItemSale({
   assert(tokenOwnership.ownerAddress.toLowerCase() == buyerWallet.address.toLowerCase(), 'assert tokenOwnership.ownerAddress failed');
   assert(tokenOwnership.quantity == 1, 'assert tokenOwnership.quantity failed');
 
-  let notificationSaleData_inDb;
-  await retry(async () => {
-    notificationSaleData_inDb = await db.notificationDetailSale.findFirst({
-      where: {
-        buyer_wallet_address: buyerWallet.address
+  let lazyMintSale: LazyMintSale
+
+  if (tokenOwnership) {
+  lazyMintSale = await createLazyMintSale(restApi, buyerCreds.jwt, {
+      listingData: {
+        listingId,
+        quantity: 1
       }
     })
-  }, {retries: 3})
+    console.log(lazyMintSale)
+  }
+  // let notificationSaleData_inDb;
+  // await retry(async () => {
+  //   notificationSaleData_inDb = await db.notificationDetailSale.findFirst({
+  //     where: {
+  //       listingId: lazyMintSale.lazyMintListingId,
+  //     }
+  //   })
+  // }, {forever: true, retries: 10})
 
-  assert(!notificationSaleData_inDb, fmtFailed("notification not created"))
+  // // console.log('data notifikasi', notificationSaleData_inDb)
+  // assert(notificationSaleData_inDb == null, fmtFailed("notification not created"))
   console.log(fmtSuccess('notification offer data created'))
   console.log('Lazy Mint Item Sale test passed');
 

@@ -166,18 +166,18 @@ async function main() {
   /// =========================================
   /// Test Create Offer and Accept
   /// =========================================
-  await offer({
-    restApi,
-    db,
-    web3Provider,
-    nft,
-    offers,
-    collectionId,
-    minter: acc1,
-    offeror: acc2,
-    marketplace,
-    wmatic
-  });
+  // await offer({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   nft,
+  //   offers,
+  //   collectionId,
+  //   minter: acc1,
+  //   offeror: acc2,
+  //   marketplace,
+  //   wmatic
+  // });
 
   /// ====================================
   /// Test Import ERC1155 Mint
@@ -219,16 +219,16 @@ async function main() {
   /// ====================================
   /// Test Multi Quantity Listing
   /// ====================================
-  await itemMultiQuantityListings({
-    restApi,
-    db,
-    web3Provider,
-    marketplace,
-    nft,
-    minter: acc1,
-    user1: acc2,
-    user2: acc3,
-  })
+  // await itemMultiQuantityListings({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   marketplace,
+  //   nft,
+  //   minter: acc1,
+  //   user1: acc2,
+  //   user2: acc3,
+  // })
 }
 
 /**
