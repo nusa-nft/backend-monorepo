@@ -75,6 +75,8 @@ async function main() {
   process.env.NFT_CONTRACT_OWNER_PRIVATE_KEY = deployer.privateKey;
   process.env.CHAIN_ID = '1337';
   process.env.WORKER_IMPORT_COLLECTION_START_BLOCK = '0';
+  process.env.RPC_URL = 'http://localhost:8545'
+  process.env.WSS_RPC_URL = 'ws://localhost:8545'
 
 
   // Setup indexer, rest api, ipfs
@@ -124,14 +126,14 @@ async function main() {
   /// =========================================
   /// Test Create Lazy Mint Item, Sell, and Buy
   /// =========================================
-  // await testLazyMintItemSale({
-  //   restApi,
-  //   db,
-  //   nft,
-  //   collectionId,
-  //   sellerWallet: acc1,
-  //   buyerWallet: acc2,
-  // });
+  await testLazyMintItemSale({
+    restApi,
+    db,
+    nft,
+    collectionId,
+    sellerWallet: acc1,
+    buyerWallet: acc2,
+  });
 
   /// =========================================
   /// Test Create Direct Listing and Buy
@@ -164,18 +166,18 @@ async function main() {
   /// =========================================
   /// Test Create Offer and Accept
   /// =========================================
-  // await offer({
-  //   restApi,
-  //   db,
-  //   web3Provider,
-  //   nft,
-  //   offers,
-  //   collectionId,
-  //   minter: acc1,
-  //   offeror: acc2,
-  //   marketplace,
-  //   wmatic
-  // });
+  await offer({
+    restApi,
+    db,
+    web3Provider,
+    nft,
+    offers,
+    collectionId,
+    minter: acc1,
+    offeror: acc2,
+    marketplace,
+    wmatic
+  });
 
   /// ====================================
   /// Test Import ERC1155 Mint

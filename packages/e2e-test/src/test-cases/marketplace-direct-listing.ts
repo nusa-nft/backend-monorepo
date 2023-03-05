@@ -52,7 +52,6 @@ export async function testMarketplaceDirectListing({
   let receipt = await tx.wait();
   let transferSingleEvent = await receipt.events.find(ev => ev.event == 'TransferSingle') as TransferSingleEvent;
   let { id } = transferSingleEvent.args;
-
   console.log({ marketplaceAddress: marketplace.address })
 
   tx = await nft.connect(sellerWallet).setApprovalForAll(marketplace.address, true);

@@ -60,7 +60,6 @@ export function setupBlockchain() {
     quiet: true,
   });
   blockchain.listen(8545);
-
   return blockchain;
 }
 

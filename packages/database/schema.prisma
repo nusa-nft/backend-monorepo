@@ -225,11 +225,11 @@ model NotificationDetailSale {
   notification_type     NotificationType @default(Sale)
   listingId             Int?
   asset_contract        String           @db.Citext
-  lister                User?            @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
-  lister_wallet_address String?          @db.Citext
-  buyer                 User?            @relation("buyer", fields: [buyer_wallet_address], references: [wallet_address])
-  buyer_wallet_address  String?          @db.Citext
-  quantity_bought       Int?
+  lister                User?             @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
+  lister_wallet_address String?           @db.Citext
+  buyer                 User?             @relation("buyer", fields: [buyer_wallet_address], references: [wallet_address])
+  buyer_wallet_address  String?           @db.Citext
+  quantity_bought       Decimal?     @db.Decimal(78, 0)
   total_price_paid      Decimal          @db.Decimal(78, 0)
   createdAt             DateTime         @default(now())
   createdAt_timestamp   Int?
@@ -248,7 +248,7 @@ model NotificationDetailOffer {
   offeror                User?            @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
   offeror_wallet_address String?          @db.Citext
   listing_type           ListingType
-  quantity_wanted        Int?
+  quantity_wanted        Decimal?     @db.Decimal(78, 0)
   total_offer_ammount    Decimal          @db.Decimal(78, 0)
   currency               String           @db.Citext
   createdAt              DateTime         @default(now())

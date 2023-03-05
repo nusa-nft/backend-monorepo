@@ -24,25 +24,39 @@ export class NotificationService {
     events.on('notification', async (eventData) => {
       Logger.log('notification event received');
       const data = eventData.data;
-
+      const {
+        id,
+        offeror,
+        quantity,
+        totalPrice,
+        transactionHash,
+        currency,
+        createdAt,
+        expirationTimestamp,
+        assetContract,
+        royaltyInfoId,
+        tokenId,
+        status,
+      } = data;
+      let marketplaceOffer;
       // const dataOfListing = listingData;
       if (eventData.notification == 'offer') {
         // FIXME:
         // let marketplaceOffer;
-        let marketplaceOffer = {
-          id: 0,
-          offeror: 'TODO',
-          assetContract: 'TODO',
-          tokenId: new Prisma.Decimal(0),             
-          quantity: new Prisma.Decimal(0),            
-          currency: 'TODO',
-          totalPrice: new Prisma.Decimal(0),          
-          expirationTimestamp: new Prisma.Decimal(0), 
-          transactionHash: '',
-          status: OfferStatus.COMPLETED,
-          royaltyInfoId: 0,
-          createdAt: 0
-        }
+        marketplaceOffer = {
+          id,
+          offeror,
+          assetContract,
+          tokenId,
+          quantity,
+          currency,
+          totalPrice,
+          expirationTimestamp,
+          transactionHash,
+          status,
+          royaltyInfoId,
+          createdAt,
+        };
         // await retry(
         //   async () => {
         //     marketplaceOffer =
@@ -95,6 +109,7 @@ export class NotificationService {
     // listingData: MarketplaceListing,
     eventData: MarketplaceOffer,
   ) {
+    console.log('event data', eventData);
     const {
       id,
       offeror,
@@ -105,15 +120,17 @@ export class NotificationService {
       createdAt,
       expirationTimestamp,
       assetContract,
-      tokenId
+      tokenId,
     } = eventData;
     const tokenOwner = await this.prisma.tokenOwnerships.findFirst({
       where: {
         tokenId,
-        contractAddress: assetContract
-      }
-    })
-    if (!tokenOwner) return 
+        contractAddress: assetContract,
+      },
+    });
+
+    if (!tokenOwner) return;
+
     const notificationDataOwner = await this.prisma.notification.create({
       data: {
         notification_type: NotificationType.Offer,
@@ -131,8 +148,13 @@ export class NotificationService {
         notification_type: NotificationType.Offer,
         is_seen: false,
         user: {
-          connect: {
-            wallet_address: offeror,
+          connectOrCreate: {
+            create: {
+              wallet_address: offeror,
+            },
+            where: {
+              wallet_address: offeror,
+            },
           },
         },
       },
@@ -142,10 +164,10 @@ export class NotificationService {
     const offerNotification = await this.prisma.notificationDetailOffer.create({
       data: {
         id: id,
-        lister_wallet_address: tokenOwner.ownerAddress, // TODO: fix. should be tokenOwnerAddress 
+        lister_wallet_address: tokenOwner.ownerAddress, // TODO: fix. should be tokenOwnerAddress
         offeror_wallet_address: offeror,
         listing_type: ListingType.Direct,
-        quantity_wanted: quantity.toNumber(),
+        quantity_wanted: quantity,
         total_offer_ammount: totalPrice,
         currency,
         expiration_timestamp: expirationTimestamp,
@@ -160,7 +182,10 @@ export class NotificationService {
       },
     });
 
-    console.log('offer notif data', offerNotification);
+    if (offerNotification) {
+      Logger.log('notification offer data created');
+    }
+
     return offerNotification;
   }
 
@@ -213,15 +238,17 @@ export class NotificationService {
         transaction_hash: transactionHash,
         Notification: {
           connect: [
-            { id : notificationDataBuyer.id },
-            { id : notificationDataLister.id }
+            { id: notificationDataBuyer.id },
+            { id: notificationDataLister.id },
           ],
         },
         createdAt_timestamp: createdAt,
       },
     });
 
-    console.log('sale notif data', saleNotification);
+    if (saleNotification) {
+      Logger.log('notification sale data created');
+    }
 
     return saleNotification;
   }
