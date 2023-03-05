@@ -31,7 +31,8 @@
     "db:migrate-dev": "dotenv -e ../../.env npx prisma migrate dev",
     "db:migrate-reset": "dotenv -e ../../.env npx prisma migrate reset",
     "db:migrate-reset-force": "dotenv -e ../../.env npx prisma migrate reset -- --force",
-    "db:migrate-deploy": "dotenv -e ../../.env npx prisma migrate deploy"
+    "db:migrate-deploy": "dotenv -e ../../.env npx prisma migrate deploy",
+    "studio": "dotenv -e ../../.env -- prisma studio"
   },
   "prisma": {
     "seed": "ts-node ./seed/seed.ts"
