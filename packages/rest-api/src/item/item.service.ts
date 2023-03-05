@@ -783,6 +783,9 @@ export class ItemService {
         assetContract: itemData.contract_address,
         tokenId: itemData.tokenId,
         status: { notIn: [ OfferStatus.COMPLETED, OfferStatus.CANCELLED ] }
+      },
+      orderBy: {
+        totalPrice: 'desc'
       }
     });
     const records = offers.map((o) => {
