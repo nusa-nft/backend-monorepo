@@ -178,7 +178,6 @@ export async function offer({
       }
     })
   }, {retries: 3})
-  console.log(notificationOfferDataLister_inDb)
 
   assert(notificationOfferDataLister_inDb, fmtFailed("notification not created"))
   console.log(fmtSuccess('notification offer data created'))

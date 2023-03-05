@@ -1261,8 +1261,6 @@ export class IndexerService implements OnModuleInit {
       },
     });
 
-    console.log('masuk ke handle indexing')
-
     // to get array of contracts
     const contractAdresses = importedContracts.map(
       (contract) => contract.contractAddress,

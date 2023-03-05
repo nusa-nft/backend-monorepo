@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatDistance } from 'date-fns';
 import { NotificationQueryParam, Take } from './dto/notification.dto';
@@ -207,24 +207,31 @@ export class NotificationService {
         const total_price_paid =
           +lazyMintListing.buyoutPricePerToken * lazyMintListing.quantity;
 
-        await this.prisma.notificationDetailSale.create({
-          data: {
-            listingId: +data.lazyMintListingId,
-            asset_contract: lazyMintListing.assetContract,
-            lister_wallet_address: listerData.wallet_address,
-            buyer_wallet_address: buyerDataWallet,
-            quantity_bought: lazyMintListing.quantity,
-            total_price_paid,
-            transaction_hash: transferHistory.transactionHash,
-            Notification: {
-              connect: [
-                { id: notificationDataBuyer.id },
-                { id: notificationDataLister.id },
-              ],
+        const saleNotification =
+          await this.prisma.notificationDetailSale.create({
+            data: {
+              listingId: +data.lazyMintListingId,
+              asset_contract: lazyMintListing.assetContract,
+              lister_wallet_address: listerData.wallet_address,
+              buyer_wallet_address: buyerDataWallet,
+              quantity_bought: lazyMintListing.quantity,
+              total_price_paid,
+              transaction_hash: transferHistory.transactionHash,
+              Notification: {
+                connect: [
+                  { id: notificationDataBuyer.id },
+                  { id: notificationDataLister.id },
+                ],
+              },
+              createdAt_timestamp: transferHistory.createdAt,
             },
-            createdAt_timestamp: transferHistory.createdAt,
-          },
-        });
+          });
+
+        if (saleNotification) {
+          Logger.log('notification sale data created');
+        }
+
+        return saleNotification;
       }
     });
   }

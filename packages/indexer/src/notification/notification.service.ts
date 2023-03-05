@@ -24,7 +24,6 @@ export class NotificationService {
     events.on('notification', async (eventData) => {
       Logger.log('notification event received');
       const data = eventData.data;
-      console.log('data middleware', data);
       const {
         id,
         offeror,
@@ -183,7 +182,10 @@ export class NotificationService {
       },
     });
 
-    console.log('offer notif data', offerNotification);
+    if (offerNotification) {
+      Logger.log('notification offer data created');
+    }
+
     return offerNotification;
   }
 
@@ -244,7 +246,9 @@ export class NotificationService {
       },
     });
 
-    console.log('sale notif data', saleNotification);
+    if (saleNotification) {
+      Logger.log('notification sale data created');
+    }
 
     return saleNotification;
   }
