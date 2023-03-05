@@ -527,6 +527,10 @@ contract MarketplaceFacet is
         return (s.platformFeeRecipient, uint16(s.platformFeeBps));
     }
 
+    function getRoyaltyInfo(uint256 id) external view returns(Royalty memory) {
+        return s.royalties[id];
+    }
+
     /*///////////////////////////////////////////////////////////////
                             Setter functions
     //////////////////////////////////////////////////////////////*/

@@ -379,7 +379,7 @@ export class ItemServiceV2 {
             MarketplaceListing: {
               some: {
                 MarketplaceSale: {
-                  id: { gt: 0 },
+                  // id: { gt: 0 },
                 },
               },
             },
@@ -743,7 +743,6 @@ export class ItemServiceV2 {
       item.LazyMintListing,
       item.Creator,
     );
-    const voucherRedeemable = await this.getItemVoucherRedeemableData(item.tokenId.toNumber());
 
     return {
       ...item,
@@ -755,28 +754,7 @@ export class ItemServiceV2 {
         (accum, val) => accum + val.percentage,
         0,
       ),
-      voucherRedeemable
     };
-  }
-
-  async getItemVoucherRedeemableData(tokenId: number) {
-    const voucherLeaves = await this.prisma.voucherLeaf.findMany({
-      where: {
-        tokenId,
-      }
-    })
-    console.log({ voucherLeaves });
-    const supply = voucherLeaves.length;
-    const item = await this.prisma.item.findFirst({ 
-      where: {
-        tokenId,
-        contract_address: process.env.NFT_CONTRACT_ADDRESS,
-        chainId: Number(process.env.CHAIN_ID)
-      }
-    })
-    const redeemed = item ? item.quantity_minted : 0;
-
-    return { supply, redeemed };
   }
 
   async aggregateListings(

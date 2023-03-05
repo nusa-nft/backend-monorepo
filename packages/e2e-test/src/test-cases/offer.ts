@@ -1,7 +1,7 @@
 import { INestApplication } from "@nestjs/common";
 import { NusaNFT, WETH9, MarketplaceFacet, OffersFacet } from "@nusa-nft/smart-contract/typechain-types";
 import { ethers } from "ethers";
-import { Item, MarketplaceOffer, OfferStatus, PrismaClient } from "@nusa-nft/database";
+import { Item, MarketplaceOffer, OfferStatus, PrismaClient, RoyaltyPaid } from "@nusa-nft/database";
 import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
 import { assert, fmtFailed, fmtSuccess } from "../lib/assertions";
 import { login, uploadMetadataToIpfs } from "../lib/rest-api";
@@ -183,6 +183,19 @@ export async function offer({
   assert(notificationOfferDataLister_inDb, fmtFailed("notification not created"))
   console.log(fmtSuccess('notification offer data created'))
 
+  
+  let royaltyPaid: RoyaltyPaid;
+  await retry(async () => {
+    royaltyPaid = await db.royaltyPaid.findFirstOrThrow({
+      where: {
+        offerId: offerId.toNumber(),
+        recipient: minter.address,
+      }
+    });
+  }, { retries: 3 })
+  assert(royaltyPaid.amount.toString() == ethers.utils.parseEther("1").mul(500).div(10000).toString(), fmtFailed("royalty paid amount not equal to db"));
+  assert(royaltyPaid.currency == wmatic.address, fmtFailed("royalty paid currency not equal to db"));
+  console.log(fmtSuccess("Royalty paid check passed"));
 
   // TODO: test offer notification
   // Need to modify NotificationOfferDetails to include offerId, remove listingId

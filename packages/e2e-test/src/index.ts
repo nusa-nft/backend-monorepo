@@ -27,7 +27,8 @@ import {
   offer,
   importERC1155BatchMint,
   importERC1155Mint,
-  importERC721Mint
+  importERC721Mint,
+  itemMultiQuantityListings
 } from "./test-cases";
 
 let ipfsProcess: ChildProcess;
@@ -214,6 +215,20 @@ async function main() {
   //   minter: deployer,
   //   receiver: acc1,
   // });
+
+  /// ====================================
+  /// Test Multi Quantity Listing
+  /// ====================================
+  await itemMultiQuantityListings({
+    restApi,
+    db,
+    web3Provider,
+    marketplace,
+    nft,
+    minter: acc1,
+    user1: acc2,
+    user2: acc3,
+  })
 }
 
 /**

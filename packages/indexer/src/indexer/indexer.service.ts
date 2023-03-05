@@ -7,13 +7,14 @@ import { ConfigService } from '@nestjs/config';
 import _ from 'lodash';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { ListingType, TokenType } from '@prisma/client';
-import { MarkeplaceListing, MarketplaceNewOffer } from './interfaces';
+import { MarketplaceListing, MarketplaceNewOffer } from './interfaces';
 import { WsProvider } from './ws-provider';
-import { Collection, ListingStatus, OfferStatus, Prisma, User } from '@nusa-nft/database';
+import { Collection, ListingStatus, MarketplaceOffer, OfferStatus, Prisma, User } from '@nusa-nft/database';
 import { normalizeIpfsUri, nusaIpfsGateway } from '../lib/ipfs-uri';
 import axios from 'axios';
 import retry from 'async-retry';
 import { NusaNFT, MarketplaceFacet, OffersFacet, LibRoyalty, ERC721, ERC1155 } from '@nusa-nft/smart-contract/typechain-types/index';
+import { ListingStructOutput } from '@nusa-nft/smart-contract/typechain-types/contracts/facets/MarketplaceFacet';
 import { abi as NusaNftAbi } from '@nusa-nft/smart-contract/artifacts/contracts/NusaNFT.sol/NusaNFT.json';
 import { abi as MarketplaceAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/MarketplaceFacet.sol/MarketplaceFacet.json';
 import { abi as OffersAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/OffersFacet.sol/OffersFacet.json';
@@ -22,6 +23,8 @@ import { OfferStruct, OfferStructOutput } from '@nusa-nft/smart-contract/typecha
 import { ISignatureMintERC1155, TokensMintedWithSignatureEvent, TokensMintedWithSignatureEventObject } from '@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT';
 import { LogDescription } from 'ethers/lib/utils';
 import { TypedEvent } from '@nusa-nft/smart-contract/typechain-types/common';
+import { MarketplaceListing as DbMarketplaceListing } from '@nusa-nft/database';
+import { RoyaltyPaidEvent, RoyaltyPaidEventObject } from '@nusa-nft/smart-contract/typechain-types/contracts/libraries/LibRoyalty';
 
 const parseListingType = (listingTypeNumber: number) => {
   if (listingTypeNumber == 0) {
@@ -301,7 +304,7 @@ export class IndexerService implements OnModuleInit {
   async handleMarketplaceListingAdded() {
     this.marketplace.on(
       'ListingAdded',
-      async (listingId, assetContract, lister, listing, log) => {
+      async (listingId, assetContract, lister, listing: ListingStructOutput, log) => {
         const {
           tokenOwner,
           tokenId,
@@ -313,7 +316,8 @@ export class IndexerService implements OnModuleInit {
           buyoutPricePerToken,
           tokenType,
           listingType,
-          status
+          status,
+          royaltyInfoId
         } = listing;
         Logger.log('ListingAdded');
         // console.log(listingId, lister, assetContract, listing, log);
@@ -334,7 +338,8 @@ export class IndexerService implements OnModuleInit {
           tokenType,
           listingType,
           createdAt: timestamp,
-          status
+          status,
+          royaltyInfoId
         });
         if (this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED)
           await this.updateLatestBlock(blockNumber);
@@ -561,18 +566,23 @@ export class IndexerService implements OnModuleInit {
     this.royalty.on(
       'RoyaltyPaid',
       async (
-        listingId: BigNumber,
+        id: BigNumber,
         recipients: string[],
         bpsPerRecipients: BigNumber[],
         totalPayout: BigNumber,
+        currency: string,
         log: any,
       ) => {
-        const listing = await this.prisma.marketplaceListing.findFirst({
-          where: {
-            listingId: listingId.toNumber(),
-          },
+        Logger.log('RoyaltyPaid');
+        // const royaltyInfo = await this.marketplace.getRoyaltyInfo(id);
+        let offer = await this.prisma.marketplaceOffer.findFirst({
+          where: { royaltyInfoId: id.toNumber() }
+        })
+        let listing = await this.prisma.marketplaceListing.findFirst({
+          where: { royaltyInfoId: id.toNumber() }
         });
-        if (!listing) return;
+
+        if (!offer && !listing) return;
 
         const { blockNumber, transactionHash } = log;
         const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
@@ -587,15 +597,30 @@ export class IndexerService implements OnModuleInit {
             .mul(bps)
             .div(10000);
 
+          let royaltyPaidData: Prisma.RoyaltyPaidCreateInput = {
+            // listingId: listingId.toNumber(),
+            recipient: rec,
+            bps: bps.toNumber(),
+            amount: amount.toString(),
+            createdAt: timestamp,
+            transactionHash,
+            currency
+          }
+          if (offer) {
+            royaltyPaidData = {
+              ...royaltyPaidData,
+              offer: { connect: { id: offer.id } }
+            }
+          }
+          if (listing) {
+            royaltyPaidData = {
+              ...royaltyPaidData,
+              listing: { connect: { id: listing.id } }
+            }
+          }
+
           await this.prisma.royaltyPaid.create({
-            data: {
-              listingId: listingId.toNumber(),
-              recipient: rec,
-              bps: bps.toNumber(),
-              amount: amount.toString(),
-              createdAt: timestamp,
-              transactionHash,
-            },
+            data: royaltyPaidData,
           });
         }
       },
@@ -702,6 +727,7 @@ export class IndexerService implements OnModuleInit {
           tokenType: event.args.listing.tokenType,
           listingType: event.args.listing.listingType,
           status: event.args.listing.status,
+          royaltyInfoId: event.args.royaltyInfoId,
           createdAt: timestamp,
         });
       }
@@ -802,13 +828,21 @@ export class IndexerService implements OnModuleInit {
         const offer: OfferStructOutput = event.args[3];
         await this.indexMarketplaceNewOffer(offer, transactionHash, timestamp);
       }
+
       if (event.name == 'AuctionClosed') {
         Logger.log('AuctionClosed');
         await this.handleAuctionClosed(event.args, log);
       }
+
+      if (event.name == 'RoyaltyPaid') {
+        Logger.log('RoyaltyPaid');
+        await this.indexRoyaltyPaid((event as unknown as RoyaltyPaidEvent).args, log);
+      }
     }
   }
 
+  // FIXME: should query from marketplace contract.
+  // Not royalty contract
   async queryFilterRoyaltyDistributor(fromBlock: number, toBlock: number) {
     const logs = await this.royalty.queryFilter(
       {
@@ -818,7 +852,7 @@ export class IndexerService implements OnModuleInit {
       toBlock,
     );
     const iface = new ethers.utils.Interface([
-      'event RoyaltyPaid(uint256 indexed listingId, address[] recipients, uint64[] bpsPerRecipients, uint256 totalPayout)',
+      'event RoyaltyPaid(uint256 indexed listingId, address[] recipients, uint64[] bpsPerRecipients, uint256 totalPayout, string currency)',
     ]);
     for (const log of logs) {
       let event: ethers.utils.LogDescription;
@@ -832,7 +866,7 @@ export class IndexerService implements OnModuleInit {
       const timestamp = (await this.provider.getBlock(log.blockNumber))
         .timestamp;
       if (event.name == 'RoyaltyPaid') {
-        const { listingId, recipients, bpsPerRecipients, totalPayout } =
+        const { listingId, recipients, bpsPerRecipients, totalPayout, currency } =
           event.args;
 
         const listing = await this.prisma.marketplaceListing.findFirst({
@@ -860,10 +894,64 @@ export class IndexerService implements OnModuleInit {
               amount: amount.toString(),
               createdAt: timestamp,
               transactionHash,
+              currency
             },
           });
         }
       }
+    }
+  }
+
+  async indexRoyaltyPaid(eventArgs: RoyaltyPaidEventObject, log: TypedEvent<any, any>) {
+    const { id, recipients, bpsPerRecipients, currency, totalPayout } = eventArgs;
+    // const royaltyInfo = await this.marketplace.getRoyaltyInfo(id);
+    let offer = await this.prisma.marketplaceOffer.findFirst({
+      where: { royaltyInfoId: id.toNumber() }
+    })
+    let listing = await this.prisma.marketplaceListing.findFirst({
+      where: { royaltyInfoId: id.toNumber() }
+    });
+
+    if (!offer && !listing) return;
+
+    const { blockNumber, transactionHash } = log;
+    const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
+    for (const [i, rec] of (recipients as Array<string>).entries()) {
+      const royaltyPaid = await this.prisma.royaltyPaid.findFirst({
+        where: { transactionHash, recipient: rec },
+      });
+      if (royaltyPaid) continue;
+
+      const bps: ethers.BigNumber = bpsPerRecipients[i];
+      const amount: ethers.BigNumber = (totalPayout as ethers.BigNumber)
+        .mul(bps)
+        .div(10000);
+
+      let royaltyPaidData: Prisma.RoyaltyPaidCreateInput = {
+        // listingId: listingId.toNumber(),
+        recipient: rec,
+        bps: bps.toNumber(),
+        amount: amount.toString(),
+        createdAt: timestamp,
+        transactionHash,
+        currency
+      }
+      if (offer) {
+        royaltyPaidData = {
+          ...royaltyPaidData,
+          offer: { connect: { id: offer.id } }
+        }
+      }
+      if (listing) {
+        royaltyPaidData = {
+          ...royaltyPaidData,
+          listing: { connect: { id: listing.id } }
+        }
+      }
+
+      await this.prisma.royaltyPaid.create({
+        data: royaltyPaidData,
+      });
     }
   }
 
@@ -910,9 +998,9 @@ export class IndexerService implements OnModuleInit {
         currency,
         reservePricePerToken,
         buyoutPricePerToken,
+        status,
         updatedAt: timestamp,
         isClosedByLister: true,
-        status,
       });
       return;
     }
@@ -962,6 +1050,7 @@ export class IndexerService implements OnModuleInit {
     listingType,
     status,
     createdAt,
+    royaltyInfoId
   }) {
     let tokenTypeEnum;
     let listingTypeEnum;
@@ -1022,6 +1111,7 @@ export class IndexerService implements OnModuleInit {
           listingType: listingTypeEnum,
           status: parseListingStatus(status),
           createdAt,
+          royaltyInfoId: royaltyInfoId.toNumber(),
         },
       });
       return listingHistory;
@@ -1060,7 +1150,7 @@ export class IndexerService implements OnModuleInit {
     isClosedByLister,
     isClosedByBidder,
     status
-  }: MarkeplaceListing) {
+  }: MarketplaceListing) {
     const _endTime =
       endTime.toNumber() > this.MAX_INTEGER
         ? this.MAX_INTEGER
@@ -1256,7 +1346,18 @@ export class IndexerService implements OnModuleInit {
         tokenId = event.args[3].toString();
         metadataUri = await (contract as ERC1155).uri(tokenId);
       }
-      metadata = await this.getMetadata(metadataUri);
+      try {
+        metadata = await this.getMetadata(metadataUri);
+      } catch (err) {
+        Logger.warn(err);
+        metadata = {
+          uri: metadataUri,
+          name: '',
+          image: '',
+          description: '',
+          attributes: []
+        }
+      }
       metadata = this.cleanMetadata({ uri: metadataUri, metadata, fallbackName: `${contractAddress}-${tokenId}` });
 
       if (contractAddress.toLowerCase() != nusaContractAddress.toLowerCase()) {
@@ -1585,7 +1686,19 @@ export class IndexerService implements OnModuleInit {
       const tokenId = ids[i].toString();
       const quantity = values[i].toNumber();
       const metadataUri = await contract.uri(tokenId);
-      let metadata = await this.getMetadata(metadataUri);
+      let metadata;
+      try {
+        metadata = await this.getMetadata(metadataUri);
+      } catch (err) {
+        Logger.warn(err);
+        metadata = {
+          uri: metadataUri,
+          name: '',
+          image: '',
+          description: '',
+          attributes: []
+        }
+      }
       metadata = this.cleanMetadata({ uri: metadataUri, metadata, fallbackName: `${contractAddress}-${tokenId}` });
 
       const tokenOwnershipWrite =
@@ -1772,10 +1885,16 @@ export class IndexerService implements OnModuleInit {
       }),
     );
 
-    const result = await this.prisma.$transaction(transactions, {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-    });
-    return result;
+    try {
+      const result = await this.prisma.$transaction(transactions, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+      return result;
+    } catch (err) {
+      Logger.warn('createUpdateImportedContractTokenOwnership transaction failed');
+      Logger.warn(err);
+    }
+    return [];
   }
 
   async createOrMintItem({
@@ -1984,6 +2103,12 @@ export class IndexerService implements OnModuleInit {
     const res = await axios.get(uri, {
       headers: { Accept: 'application/json', 'Accept-Encoding': 'identity' },
       timeout,
+    })
+    .catch(err => {
+      Logger.error('fetch metadata failed');
+      Logger.error(uri);
+      Logger.error(err);
+      throw new Error(err);
     });
     return this.parseJson(res.data);
   }

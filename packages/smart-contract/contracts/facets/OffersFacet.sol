@@ -115,7 +115,7 @@ contract OffersFacet is INusaOffers, Modifiers {
             _payer,
             _totalPayoutAmount,
             _currencyToUse,
-            _currencyToUse
+            s.nativeTokenWrapper
         );
 
         // TODO: If royaltyCut is 0, then royalty is not set offchain
