@@ -10,6 +10,7 @@ import { UsersModule } from '../users/users.module';
 import { CollectionModule } from '../collection/collection.module';
 import { ItemControllerV2 } from './item.controller.v2';
 import { ItemServiceV2 } from './item.service.v2';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ItemServiceV2 } from './item.service.v2';
     JwtModule.register({ secret: process.env.JWT_SECRET_KEY }),
     IndexerModule,
     UsersModule,
+    NotificationModule,
     forwardRef(() => CollectionModule),
   ],
   providers: [ItemService, ItemServiceV2],

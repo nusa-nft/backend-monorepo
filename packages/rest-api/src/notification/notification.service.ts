@@ -3,16 +3,21 @@ import { PrismaService } from '../prisma/prisma.service';
 import { formatDistance } from 'date-fns';
 import { NotificationQueryParam, Take } from './dto/notification.dto';
 import { events } from '../lib/newEventEmitter';
-import { NotificationType } from '@prisma/client';
+import {
+  LazyMintListing,
+  LazyMintSale,
+  NotificationType,
+  TokenTransferHistory,
+} from '@prisma/client';
 import retry from 'async-retry';
 
 @Injectable()
 export class NotificationService {
   constructor(private prisma: PrismaService) {}
 
-  async onModuleInit() {
-    this.handleLazyMintedSale();
-  }
+  // async onModuleInit() {
+  //   this.handleLazyMintedSale();
+  // }
 
   async getNotificationData(
     userId: number,
@@ -136,106 +141,6 @@ export class NotificationService {
     };
   }
 
-  async handleLazyMintedSale() {
-    events.on('notification', async (eventData) => {
-      if (eventData.notification) {
-        const data = eventData.data;
-        const tokenId = data.tokenId;
-        const lazyMintListing =
-          await this.prisma.lazyMintListing.findUniqueOrThrow({
-            where: {
-              id: +data.lazyMintListingId,
-            },
-          });
-
-        const listerData = await this.prisma.user.findFirst({
-          where: {
-            assets: {
-              some: {
-                id: lazyMintListing.itemId,
-              },
-            },
-          },
-        });
-
-        let transferHistory;
-
-        const contractAddress = process.env.NFT_CONTRACT_ADDRESS;
-
-        await retry(
-          async () => {
-            transferHistory =
-              await this.prisma.tokenTransferHistory.findFirstOrThrow({
-                where: {
-                  tokenId,
-                  contractAddress,
-                },
-              });
-            return transferHistory;
-          },
-          {
-            forever: true,
-          },
-        );
-
-        const buyerDataWallet = transferHistory.to;
-
-        const notificationDataLister = await this.prisma.notification.create({
-          data: {
-            notification_type: NotificationType.Sale,
-            is_seen: false,
-            user: {
-              connect: {
-                wallet_address: listerData.wallet_address,
-              },
-            },
-          },
-        });
-
-        const notificationDataBuyer = await this.prisma.notification.create({
-          data: {
-            notification_type: NotificationType.Sale,
-            is_seen: false,
-            user: {
-              connect: {
-                wallet_address: buyerDataWallet,
-              },
-            },
-          },
-        });
-
-        const total_price_paid =
-          +lazyMintListing.buyoutPricePerToken * lazyMintListing.quantity;
-
-        const saleNotification =
-          await this.prisma.notificationDetailSale.create({
-            data: {
-              listingId: +data.lazyMintListingId,
-              asset_contract: lazyMintListing.assetContract,
-              lister_wallet_address: listerData.wallet_address,
-              buyer_wallet_address: buyerDataWallet,
-              quantity_bought: lazyMintListing.quantity,
-              total_price_paid,
-              transaction_hash: transferHistory.transactionHash,
-              Notification: {
-                connect: [
-                  { id: notificationDataBuyer.id },
-                  { id: notificationDataLister.id },
-                ],
-              },
-              createdAt_timestamp: transferHistory.createdAt,
-            },
-          });
-
-        if (saleNotification) {
-          Logger.log('notification sale data created');
-        }
-
-        return saleNotification;
-      }
-    });
-  }
-
   async getItemName(listingId: number) {
     const item = await this.prisma.item.findFirst({
       where: {
@@ -259,5 +164,92 @@ export class NotificationService {
     });
 
     return item.name;
+  }
+
+  async lazyMintNotification(data: LazyMintSale, listingData: LazyMintListing) {
+    let transferHistory: TokenTransferHistory;
+    await retry(
+      async () => {
+        transferHistory =
+          await this.prisma.tokenTransferHistory.findFirstOrThrow({
+            where: {
+              tokenId: data.tokenId,
+              contractAddress: listingData.assetContract,
+            },
+          });
+        return transferHistory;
+      },
+      {
+        forever: true,
+      },
+    );
+
+    const listerData = await this.prisma.user.findFirst({
+      where: {
+        assets: {
+          some: {
+            id: data.itemId,
+          },
+        },
+      },
+    });
+    console.log('lister data', listerData);
+
+    const notificationDataLister = await this.prisma.notification.create({
+      data: {
+        notification_type: NotificationType.Sale,
+        is_seen: false,
+        user: {
+          connectOrCreate: {
+            create: {
+              wallet_address: listerData.wallet_address,
+            },
+            where: {
+              wallet_address: listerData.wallet_address,
+            },
+          },
+        },
+      },
+    });
+
+    const notificationDataBuyer = await this.prisma.notification.create({
+      data: {
+        notification_type: NotificationType.Sale,
+        is_seen: false,
+        user: {
+          connectOrCreate: {
+            create: {
+              wallet_address: transferHistory.to,
+            },
+            where: {
+              wallet_address: transferHistory.to,
+            },
+          },
+        },
+      },
+    });
+
+    const saleNotification = await this.prisma.notificationDetailSale.create({
+      data: {
+        listingId: +data.lazyMintListingId,
+        asset_contract: listingData.assetContract,
+        lister_wallet_address: listerData.wallet_address,
+        buyer_wallet_address: transferHistory.to,
+        quantity_bought: data.quantityBought,
+        total_price_paid: data.totalPricePaid,
+        transaction_hash: transferHistory.transactionHash,
+        Notification: {
+          connect: [
+            { id: notificationDataBuyer.id },
+            { id: notificationDataLister.id },
+          ],
+        },
+        createdAt_timestamp: transferHistory.createdAt,
+      },
+    });
+
+    if (saleNotification) {
+      Logger.log('notification sale data created');
+    }
   }
 }
