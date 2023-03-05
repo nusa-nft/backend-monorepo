@@ -123,6 +123,7 @@ export class IndexerService implements OnModuleInit {
       this.eventEmitter,
     );
 
+    console.log('contract_address', this.configService.get<string>('MARKETPLACE_CONTRACT_ADDRESS'));
     this.provider = wsProvider.provider;
 
     this.erc1155 = new ethers.Contract(
@@ -1169,6 +1170,8 @@ export class IndexerService implements OnModuleInit {
         isImportFinish: true,
       },
     });
+
+    console.log('masuk ke handle indexing')
 
     // to get array of contracts
     const contractAdresses = importedContracts.map(

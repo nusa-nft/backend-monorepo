@@ -170,6 +170,19 @@ export async function offer({
   assert(tokenOwnershipAcceptor.toNumber() == tokenOwnershipAcceptor_inDb.quantity, fmtFailed("tokenOwnership Acceptor incorrect"));
   console.log(fmtSuccess('Token ownership recorded correctly by indexer'));
 
+  let notificationOfferDataLister_inDb;
+  await retry(async () => {
+    notificationOfferDataLister_inDb = await db.notificationDetailOffer.findFirst({
+      where: {
+        lister_wallet_address: minter.address
+      }
+    })
+  }, {retries: 3})
+  console.log(notificationOfferDataLister_inDb)
+
+  assert(notificationOfferDataLister_inDb, fmtFailed("notification not created"))
+  console.log(fmtSuccess('notification offer data created'))
+
 
   // TODO: test offer notification
   // Need to modify NotificationOfferDetails to include offerId, remove listingId
