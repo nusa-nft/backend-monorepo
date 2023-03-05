@@ -8,6 +8,7 @@ import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/co
 import { ListingAddedEvent, NewSaleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/facets/MarketplaceFacet";
 import retry from "async-retry";
 import { assert, fmtFailed, fmtSuccess } from "../lib/assertions";
+import request from 'supertest';
 
 export async function itemMultiQuantityListings({
   restApi,
@@ -73,27 +74,29 @@ export async function itemMultiQuantityListings({
   receipt = await tx.wait();
   let listingAddedEvent = await receipt.events.find(ev => ev.event == 'ListingAdded') as ListingAddedEvent;
   let { listingId } = listingAddedEvent.args;
+  const listingId1 = listingId;
 
   let listing: MarketplaceListing;
   await retry(async () => {
     listing = await db.marketplaceListing.findFirstOrThrow({
-      where: { listingId: listingId.toNumber() }
+      where: { listingId: listingId1.toNumber() }
     })
   }, { retries: 3 });
+  console.log("minter listing", listing);
 
   await increaseTime(web3Provider, 200);
 
   // ===================
-  // User 1 Buy 5 items
+  // User 1 Buy 3 items
   // ===================
   tx = await marketplace.connect(user1).buy(
     listingId,
     user1.address,
-    5,
+    3,
     NATIVE_CURRENCY,
-    ethers.utils.parseEther("0.5").mul(5),
+    ethers.utils.parseEther("0.5").mul(3),
     {
-      value: ethers.utils.parseEther("0.5").mul(5),
+      value: ethers.utils.parseEther("0.5").mul(3),
     }
   );
   receipt = await tx.wait();
@@ -103,9 +106,14 @@ export async function itemMultiQuantityListings({
   let sale: MarketplaceSale;
   await retry(async () => {
     sale = await db.marketplaceSale.findFirstOrThrow({
-      where: { listingId: listingId.toNumber() }
+      where: {
+        listingId: listingId.toNumber(),
+        buyer: buyer
+      }
     })
   }, { retries: 3 });
+  assert(sale.buyer == user1.address, fmtFailed("sale buyer address not equal to user1 address"));
+  console.log("user1 buy nft", sale);
 
   await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -138,16 +146,16 @@ export async function itemMultiQuantityListings({
   console.log(fmtSuccess("Item multi quantity listing 1 check passed"));
 
   // ===================
-  // User 2 Buy 5 items
+  // User 2 Buy 3 items
   // ===================
   tx = await marketplace.connect(user2).buy(
     listingId,
     user2.address,
-    5,
+    3,
     NATIVE_CURRENCY,
-    ethers.utils.parseEther("0.5").mul(5),
+    ethers.utils.parseEther("0.5").mul(3),
     {
-      value: ethers.utils.parseEther("0.5").mul(5),
+      value: ethers.utils.parseEther("0.5").mul(3),
     }
   );
   receipt = await tx.wait();
@@ -157,9 +165,13 @@ export async function itemMultiQuantityListings({
   // sale: MarketplaceSale;
   await retry(async () => {
     sale = await db.marketplaceSale.findFirstOrThrow({
-      where: { listingId: listingId.toNumber() }
+      where: {
+        listingId: listingId.toNumber(),
+        buyer: buyer
+      }
     })
   }, { retries: 3 });
+  console.log("user2 buy nft", sale);
 
   await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -193,16 +205,16 @@ export async function itemMultiQuantityListings({
 
   now = await getTime(web3Provider);
 
+  /// User 1 List 3 items
   tx = await nft.connect(user1).setApprovalForAll(marketplace.address, true);
-  // List 5 items
   tx = await marketplace.connect(
     user1,
   ).createListing({
     assetContract: nft.address,
     tokenId: id,
-    buyoutPricePerToken: ethers.utils.parseEther("0.5"),
+    buyoutPricePerToken: ethers.utils.parseEther("0.4"),
     currencyToAccept: NATIVE_CURRENCY,
-    quantityToList: 5,
+    quantityToList: 3,
     reservePricePerToken: 0,
     startTime: now + 100,
     secondsUntilEndTime: 2147483647,
@@ -215,23 +227,78 @@ export async function itemMultiQuantityListings({
   receipt = await tx.wait();
   listingAddedEvent = await receipt.events.find(ev => ev.event == 'ListingAdded') as ListingAddedEvent;
   ({ listingId } = listingAddedEvent.args);
+  const listingId2 = listingAddedEvent.args.listingId;
 
   await retry(async () => {
     listing = await db.marketplaceListing.findFirstOrThrow({
-      where: { listingId: listingId.toNumber() }
+      where: {
+        listingId: listingId2.toNumber(),
+      }
     })
   }, { retries: 3 });
+  console.log("user1 listing", listing);
+
+  now = await getTime(web3Provider);
+  /// User 2 list 3 items
+  tx = await nft.connect(user2).setApprovalForAll(marketplace.address, true);
+  tx = await marketplace.connect(
+    user2,
+  ).createListing({
+    assetContract: nft.address,
+    tokenId: id,
+    buyoutPricePerToken: ethers.utils.parseEther("0.3"),
+    currencyToAccept: NATIVE_CURRENCY,
+    quantityToList: 3,
+    reservePricePerToken: 0,
+    startTime: now + 100,
+    secondsUntilEndTime: 2147483647,
+    listingType: 0,
+    royaltyParams: {
+      recipients: [minter.address],
+      bpsPerRecipients: [500]
+    }
+  });
+  receipt = await tx.wait();
+  listingAddedEvent = await receipt.events.find(ev => ev.event == 'ListingAdded') as ListingAddedEvent;
+  // ({ listingId } = listingAddedEvent.args);
+  const listingId3 = listingAddedEvent.args.listingId;
+
+  await retry(async () => {
+    listing = await db.marketplaceListing.findFirstOrThrow({
+      where: {
+        listingId: listingId3.toNumber()
+      }
+    });
+  }, { retries: 3 });
+  console.log("user2 listing", listing);
+
+  item = await db.item.findFirst({
+    where: {
+      tokenId: id.toString(),
+    }
+  });
+
+  const resp = await request(restApi.getHttpServer())
+    .get(`/item/${item.id}`)
+  const _item = resp.body;
+  const listing1Price = _item.listings[0].buyoutPricePerToken.toString();
+  const listing2Price = _item.listings[1].buyoutPricePerToken.toString();
+  const listing3Price = _item.listings[2].buyoutPricePerToken.toString();
+  assert(listing1Price == ethers.utils.parseEther("0.3").toString(), fmtFailed("Item multi quantity listings are ordered by price ascending check failed"));
+  assert(listing2Price == ethers.utils.parseEther("0.4").toString(), fmtFailed("Item multi quantity listings are ordered by price ascending check failed"));
+  assert(listing3Price == ethers.utils.parseEther("0.5").toString(), fmtFailed("Item multi quantity listings are ordered by price ascending check failed"));
+  console.log(fmtSuccess("Item multi quantity listings are ordered by price ascending check passed"));
 
   await increaseTime(web3Provider, 200);
 
   tx = await marketplace.connect(user2).buy(
-    listingId,
+    listingId2,
     user2.address,
-    5,
+    3,
     NATIVE_CURRENCY,
-    ethers.utils.parseEther("0.5").mul(5),
+    ethers.utils.parseEther("0.4").mul(3),
     {
-      value: ethers.utils.parseEther("0.5").mul(5),
+      value: ethers.utils.parseEther("0.4").mul(3),
     }
   );
   receipt = await tx.wait();
@@ -277,6 +344,6 @@ export async function itemMultiQuantityListings({
       }
     });
   }, { retries: 3 })
-  assert(royaltyPaid.amount.toString() == ethers.utils.parseEther("0.5").mul(5).mul(500).div(10000).toString(), fmtFailed("royalty paid amount not equal to db"));
+  assert(royaltyPaid.amount.toString() == ethers.utils.parseEther("0.4").mul(3).mul(500).div(10000).toString(), fmtFailed("royalty paid amount not equal to db"));
   console.log(fmtSuccess("Royalty paid check passed"));
 }

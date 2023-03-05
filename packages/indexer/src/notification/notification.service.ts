@@ -122,6 +122,7 @@ export class NotificationService {
       assetContract,
       tokenId,
     } = eventData;
+    // console.log({ eventData });
     const tokenOwner = await this.prisma.tokenOwnerships.findFirst({
       where: {
         tokenId,
@@ -167,7 +168,7 @@ export class NotificationService {
         lister_wallet_address: tokenOwner.ownerAddress, // TODO: fix. should be tokenOwnerAddress
         offeror_wallet_address: offeror,
         listing_type: ListingType.Direct,
-        quantity_wanted: quantity,
+        quantity_wanted: Number(quantity),
         total_offer_ammount: totalPrice,
         currency,
         expiration_timestamp: expirationTimestamp,

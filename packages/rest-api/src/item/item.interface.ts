@@ -3,7 +3,9 @@ import {
   Collection,
   Item,
   ItemViews,
+  ListingStatus,
   ListingType,
+  MarketplaceOffer,
   TokenType,
   User,
 } from '@prisma/client';
@@ -34,6 +36,8 @@ export interface OnChainListing {
   isCancelled: boolean;
   isClosedByLister: boolean | null;
   isClosedByBidder: boolean | null;
+  royaltyInfoId: number;
+  status: ListingStatus;
 }
 
 export interface Listing {
@@ -81,6 +85,7 @@ export interface ItemDetail extends Item {
   isLiked: boolean;
   relatedItems: Partial<ItemDetail>[];
   listings: Listing[];
+  offers: MarketplaceOffer[];
   creatorEarnings: number;
   voucherRedeemable?: {
     supply: number;

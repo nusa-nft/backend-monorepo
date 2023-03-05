@@ -39,8 +39,9 @@ import { RecentlySoldItem } from '../interfaces';
 import { toString } from '../lib/toString';
 import { v4 as uuidV4 } from 'uuid';
 import standardizeMetadataAttribute from '../lib/standardizeMetadataAttributes';
-import { AttributeType } from '@nusa-nft/database';
+import { AttributeType, MarketplaceListing, OfferStatus } from '@nusa-nft/database';
 import { NotificationService } from '../notification/notification.service';
+
 
 @Injectable()
 export class ItemServiceV2 {
@@ -745,6 +746,7 @@ export class ItemServiceV2 {
       item.LazyMintListing,
       item.Creator,
     );
+    const offers = await this.getItemOffers(item);
 
     return {
       ...item,
@@ -752,6 +754,7 @@ export class ItemServiceV2 {
       owners,
       relatedItems,
       listings,
+      offers,
       creatorEarnings: item.Collection.royalty.reduce(
         (accum, val) => accum + val.percentage,
         0,
@@ -760,7 +763,7 @@ export class ItemServiceV2 {
   }
 
   async aggregateListings(
-    onChainListings: OnChainListing[],
+    onChainListings: MarketplaceListing[],
     offChainListings: LazyMintListing[],
     creator: User,
   ) {
@@ -774,25 +777,36 @@ export class ItemServiceV2 {
           username: user.username,
           profile_picture: user.profile_picture,
         };
-        listings.push({ ...l, lister, isLazyMint: false });
+        listings.push({
+          ...l,
+          listingId: l.listingId,
+          tokenId: l.tokenId.toNumber(),
+          startTime: l.startTime,
+          endTime: l.endTime,
+          quantity: l.quantity,
+          reservePricePerToken: l.reservePricePerToken.toString(),
+          buyoutPricePerToken: l.buyoutPricePerToken.toString(),
+          lister,
+          isLazyMint: false
+        });
 
         continue;
       }
 
       listings.push({
         ...l,
+        listingId: l.listingId,
+        tokenId: l.tokenId.toNumber(),
+        startTime: l.startTime,
+        endTime: l.endTime,
+        quantity: l.quantity,
+        reservePricePerToken: l.reservePricePerToken.toString(),
+        buyoutPricePerToken: l.buyoutPricePerToken.toString(),
         lister: {
           wallet_address: l.lister,
         },
         isLazyMint: false,
       });
-    }
-    // Retrieve Listing Offers
-    if (listings.length > 0) {
-      for (let i = 0; i < listings.length; i++) {
-        const listing = await this.retrieveListingOffers(listings[i]);
-        listings[i] = listing;
-      }
     }
 
     for (const l of offChainListings) {
@@ -809,7 +823,30 @@ export class ItemServiceV2 {
       });
     }
 
+    listings.sort((a, b) => {
+      const aPrice = ethers.BigNumber.from(a.buyoutPricePerToken);
+      const bPrice = ethers.BigNumber.from(b.buyoutPricePerToken);
+      if (aPrice.gt(bPrice)) return 1;
+      return -1;
+    });
+
     return listings;
+  }
+
+  async getItemOffers(item: Item) {
+    const offers = await this.prisma.marketplaceOffer.findMany({
+      where: {
+        tokenId: item.tokenId,
+        assetContract: item.contract_address,
+        status: OfferStatus.CREATED 
+      },
+      orderBy: {
+        totalPrice: 'desc'
+      },
+      take: 100
+    })
+
+    return offers;
   }
 
   async createLazyMintSale(listingId: number, quantity: number) {
@@ -1162,12 +1199,13 @@ export class ItemServiceV2 {
     return ret;
   }
 
-  async getOnChainListings(item: Item & any): Promise<OnChainListing[]> {
-    const onChainListings: OnChainListing[] =
-      await this.indexerService.getItemActiveListing(
-        item.contract_address,
-        item.tokenId,
-      );
+  async getOnChainListings(item: Item & any): Promise<MarketplaceListing[]> {
+    const onChainListings = await this.prisma.marketplaceListing.findMany({
+      where: {
+        Item: { id: item.id, }
+      }
+    });
+
     return onChainListings;
   }
 

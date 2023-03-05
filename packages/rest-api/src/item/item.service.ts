@@ -19,6 +19,7 @@ import {
   Collection,
   Item,
   ItemViews,
+  OfferStatus,
   Prisma,
   TokenType,
 } from '@prisma/client';
@@ -773,45 +774,65 @@ export class ItemService {
     const collectionStatus = await this.collectionService.getCollectionStatus(
       +itemData.Collection.id,
     );
+    const floorPrice = collectionStatus.floorPrice || 0;
 
-    const floorPrice = collectionStatus.floorPrice;
-    const tokenId = itemData.tokenId;
-
-    const offerHistory = await this.indexerService.getItemOfferHistory(
-      +tokenId,
-      +page,
-      +floorPrice,
-    );
-    const metadata = offerHistory.metadata;
-
-    let records;
-    let pageCount;
-    let totalCount;
-    if (!offerHistory || !offerHistory.records) {
-      records = 0;
-    } else {
-      for (const offer of offerHistory.records) {
-        const user = await this.prisma.user.findFirst({
-          where: {
-            wallet_address: offer.fromAddress,
-          },
-        });
-
-        let from;
-        if (!user || !user.username) {
-          from = null;
-          Object.assign(offer, { from });
-        } else {
-          from = user.username;
-          Object.assign(offer, { from });
-        }
+    const offers = await this.prisma.marketplaceOffer.findMany({
+      skip: 10 * (+page - 1),
+      take: 10,
+      where: {
+        assetContract: itemData.contract_address,
+        tokenId: itemData.tokenId,
+        status: { notIn: [ OfferStatus.COMPLETED, OfferStatus.CANCELLED ] }
+      },
+      orderBy: {
+        totalPrice: 'desc'
       }
-      records = offerHistory.records;
+    });
+    const records = offers.map((o) => {
+      const pricePerTokenWei = o.totalPrice.div(o.quantity);
+      const pricePerTokenEth = Number(ethers.utils.formatEther(pricePerTokenWei.toString()));
 
-      pageCount = Math.ceil(offerHistory.records.length / 10);
-      totalCount = offerHistory.records.length;
-      Object.assign(metadata, { pageCount, totalCount });
-    }
+      let _floorPrice;
+      if (floorPrice == 0) {
+        _floorPrice = pricePerTokenEth;
+      } else {
+        _floorPrice = +floorPrice;
+      }
+
+      const floorDifferenceValue = pricePerTokenEth - _floorPrice / _floorPrice * 100;
+      let floorDifference = '';
+      if (Math.sign(floorDifferenceValue) == -1) {
+        floorDifference = `${Math.abs(
+          Math.floor(floorDifferenceValue),
+        )}% below`;
+      }
+      if (floorDifferenceValue == 0) {
+        floorDifference = `equal`;
+      }
+      if (Math.sign(floorDifferenceValue) == 1) {
+        floorDifference = `${Math.round(floorDifferenceValue)}% above`;
+      }
+
+      let expirationTimestamp = o.expirationTimestamp.toNumber() * 1000;
+      let expiration;
+      if (expirationTimestamp - Date.now() <= 0) {
+        expiration = `${formatDistance(Date.now(), expirationTimestamp)} ago`;
+      } else {
+        expiration = formatDistance(Date.now(), expirationTimestamp);
+      }
+
+      return {
+        ...o,
+        floorDifference,
+        expiration,
+      }
+    });
+
+    const metadata = {
+      page,
+      perPage: 10,
+    };
+
     return {
       status: HttpStatus.OK,
       message: 'success',
