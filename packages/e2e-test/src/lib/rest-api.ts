@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { INestApplication } from '@nestjs/common';
 import { ethers } from "ethers";
-import { LazyMintListingDto } from '@nusa-nft/rest-api/src/item/dto/item.dto';
+import { LazyMintListingDto, LazyMintSale } from '@nusa-nft/rest-api/src/item/dto/item.dto';
 
 export async function login(restApi: INestApplication, user: ethers.Wallet) {
   const date = new Date().toUTCString();
@@ -176,6 +176,23 @@ export async function getLazyMintListingSignature(restApi: INestApplication, jwt
       .set('Authorization', 'Bearer ' + jwt)
     return resp.body;
 
+  } catch (err) {
+    throw err;
+  }
+}
+
+export async function createLazyMintSale(restApi: INestApplication, jwt: string, {
+  listingData,
+}: {
+  listingData: LazyMintSale
+}) {
+  try {
+    const resp = await request(restApi.getHttpServer())
+      .post(`/item/lazy-mint-sale/`)
+      .set('Authorization', 'Bearer ' + jwt)
+      .send(listingData)
+
+    return resp.body;
   } catch (err) {
     throw err;
   }
