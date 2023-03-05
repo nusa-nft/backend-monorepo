@@ -40,6 +40,7 @@ import { toString } from '../lib/toString';
 import { v4 as uuidV4 } from 'uuid';
 import standardizeMetadataAttribute from '../lib/standardizeMetadataAttributes';
 import { AttributeType } from '@nusa-nft/database';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class ItemServiceV2 {
@@ -54,6 +55,7 @@ export class ItemServiceV2 {
     private usersService: UsersService,
     @Inject(forwardRef(() => CollectionService))
     private collectionService: CollectionService,
+    private notificationService: NotificationService,
   ) {}
 
   async getItems(
@@ -852,6 +854,11 @@ export class ItemServiceV2 {
         createdAt,
       },
     });
+
+    await this.notificationService.lazyMintNotification(
+      lazyMintSale,
+      lazyMintListing,
+    );
 
     return lazyMintSale;
   }
