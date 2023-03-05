@@ -206,10 +206,6 @@ export class IndexerService implements OnModuleInit {
     for (const range of blockRange) {
       const { fromBlock, toBlock } = range;
       await this.queryFilterMarketplace(Number(fromBlock), Number(toBlock));
-      await this.queryFilterRoyaltyDistributor(
-        Number(fromBlock),
-        Number(toBlock),
-      );
       await this.updateLatestBlock(Number(toBlock));
     }
     this.INDEX_MARKETPLACE_PREVIOUS_BLOCK_FINISHED = true;
@@ -1287,11 +1283,13 @@ export class IndexerService implements OnModuleInit {
       // ERC721
       'function tokenURI(uint256 tokenId) public view returns (string memory)',
       'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
+      'function balanceOf(address) public view returns (uint256)',
       // ERC1155
       'function uri(uint256 _id) external view returns (string memory)',
       'function totalSupply(uint256 id) public view returns(uint256)',
       'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
       'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)',
+      'function balanceOf(address account, uint256 id) public view returns (uint256)'
     ];
 
     const arrayOfTopics = [];
@@ -1556,12 +1554,15 @@ export class IndexerService implements OnModuleInit {
     const { blockNumber, transactionHash } = log;
     console.log({ blockNumber });
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
-    await this.createUpdateImportedContractTokenOwnership({
+
+    await this.createUpdateTokenOwnership({
       contractAddress,
       from,
       to,
       tokenId,
       quantity: 1,
+      balanceFrom: 0,
+      balanceTo: 1,
       timestamp,
       chainId,
       transactionHash,
@@ -1616,13 +1617,22 @@ export class IndexerService implements OnModuleInit {
     const blockNumberInt = parseInt(blockNumber.toString());
     Logger.log('handleERC1155TransferSingle');
 
+    const balanceFrom = from != ethers.constants.AddressZero
+      ? await contract['balanceOf(address,uint256)'](from, tokenId)
+      : ethers.BigNumber.from(0);
+    const balanceTo = to != ethers.constants.AddressZero
+      ? await contract['balanceOf(address,uint256)'](to, tokenId)
+      : ethers.BigNumber.from(0);
+
     const tokenOwnershipWrite =
-      await this.createUpdateImportedContractTokenOwnership({
+      await this.createUpdateTokenOwnership({
         contractAddress,
         from,
         to,
         tokenId,
         quantity: value,
+        balanceFrom: balanceFrom.toNumber(),
+        balanceTo: balanceTo.toNumber(),
         timestamp: timestamp,
         chainId,
         transactionHash,
@@ -1697,14 +1707,21 @@ export class IndexerService implements OnModuleInit {
         }
       }
       metadata = this.cleanMetadata({ uri: metadataUri, metadata, fallbackName: `${contractAddress}-${tokenId}` });
-
+      const balanceFrom = from != ethers.constants.AddressZero
+        ? await contract['balanceOf(address,uint256)'](from, ids[i])
+        : ethers.BigNumber.from(0);
+      const balanceTo = to != ethers.constants.AddressZero
+        ? await contract['balanceOf(address,uint256)'](to, ids[i])
+        : ethers.BigNumber.from(0);
       const tokenOwnershipWrite =
-        await this.createUpdateImportedContractTokenOwnership({
+        await this.createUpdateTokenOwnership({
           contractAddress,
           from,
           to,
           tokenId,
           quantity,
+          balanceFrom: balanceFrom.toNumber(),
+          balanceTo: balanceTo.toNumber(),
           timestamp: timestamp,
           chainId,
           transactionHash,
@@ -1730,12 +1747,14 @@ export class IndexerService implements OnModuleInit {
     }
   }
 
-  async createUpdateImportedContractTokenOwnership({
+  async createUpdateTokenOwnership({
     contractAddress,
     from,
     to,
     tokenId,
     quantity,
+    balanceFrom,
+    balanceTo,
     timestamp,
     chainId,
     transactionHash,
@@ -1749,6 +1768,8 @@ export class IndexerService implements OnModuleInit {
     to: string;
     tokenId: Prisma.Decimal;
     quantity: number;
+    balanceFrom: number;
+    balanceTo: number;
     timestamp: number;
     chainId: number;
     transactionHash: string;
@@ -1768,9 +1789,9 @@ export class IndexerService implements OnModuleInit {
       });
     if (tokenTransferHistory) return [];
 
-    const transactions = [];
-    transactions.push(
-      this.prisma.tokenTransferHistory.upsert({
+    // const transactions = [];
+    // transactions.push(
+    await this.prisma.tokenTransferHistory.upsert({
         where: {
           transactionHash_chainId_txIndex_logIndex: {
             transactionHash,
@@ -1794,8 +1815,8 @@ export class IndexerService implements OnModuleInit {
           isBatch,
         },
         update: {},
-      }),
-    );
+      })
+    // );
 
     const _from = await this.prisma.tokenOwnerships.findFirst({
       where: {
@@ -1829,8 +1850,8 @@ export class IndexerService implements OnModuleInit {
     
     // Upsert From
     if (_from && _from.ownerAddress != ethers.constants.AddressZero) {
-      transactions.push(
-        this.prisma.tokenOwnerships.upsert({
+      // transactions.push(
+      await this.prisma.tokenOwnerships.upsert({
           where: {
             contractAddress_chainId_tokenId_ownerAddress: {
               contractAddress,
@@ -1843,21 +1864,21 @@ export class IndexerService implements OnModuleInit {
             contractAddress,
             tokenId,
             ownerAddress: from,
-            quantity: _from ? _from.quantity - quantity : 0,
+            quantity: balanceFrom,
             timestamp,
             chainId,
             transactionHash,
           },
           update: {
-            quantity: _from ? _from?.quantity - quantity : 0,
+            quantity: balanceFrom,
             transactionHash,
           },
-        }),
-      );
+        })
+      // );
     }
     // Upsert To
-    transactions.push(
-      this.prisma.tokenOwnerships.upsert({
+    // transactions.push(
+    await this.prisma.tokenOwnerships.upsert({
         where: {
           contractAddress_chainId_tokenId_ownerAddress: {
             contractAddress,
@@ -1870,28 +1891,33 @@ export class IndexerService implements OnModuleInit {
           contractAddress,
           tokenId,
           ownerAddress: to,
-          quantity: _to ? _to.quantity + quantity : quantity,
+          quantity: balanceTo,
           timestamp,
           chainId,
           transactionHash,
         },
         update: {
-          quantity: _to ? _to?.quantity + quantity : quantity,
+          quantity: balanceTo,
           transactionHash,
         },
-      }),
-    );
+      })
+    // );
 
-    try {
-      const result = await this.prisma.$transaction(transactions, {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      });
-      return result;
-    } catch (err) {
-      Logger.warn('createUpdateImportedContractTokenOwnership transaction failed');
-      Logger.warn(err);
-    }
-    return [];
+    // let result = [];
+    // await retry(async () => {
+    //   try {
+    //     result = await this.prisma.$transaction(transactions, {
+    //       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    //     });
+    //     return result;
+    //   } catch (err) {
+    //     Logger.warn('createUpdateTokenOwnership transaction failed');
+    //     Logger.warn(err);
+    //     throw err;
+    //   }
+    // }, { retries: 10 });
+
+    // return result;
   }
 
   async createOrMintItem({
