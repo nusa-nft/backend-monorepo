@@ -17,7 +17,13 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -125,9 +131,10 @@ export class ItemControllerV2 {
     @Request() req: any,
     @Body(
       new ValidationPipe({
-        transform: true
-      })
-    ) createItemDto: ItemDto,
+        transform: true,
+      }),
+    )
+    createItemDto: ItemDto,
     @UploadedFile(
       new ParseFilePipe({
         validators: [new MaxFileSizeValidator({ maxSize: maxFileSize })],
@@ -140,7 +147,7 @@ export class ItemControllerV2 {
       createItemDto,
       file,
       +user.id,
-      user.wallet_address
+      user.wallet_address,
     );
   }
 

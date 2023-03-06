@@ -85,12 +85,12 @@ export interface ItemDetail extends Item {
   isLiked: boolean;
   relatedItems: Partial<ItemDetail>[];
   listings: Listing[];
-  offers: MarketplaceOffer[];
+  // offers: MarketplaceOffer[];
   creatorEarnings: number;
   voucherRedeemable?: {
     supply: number;
     redeemed: number;
-  }
+  };
 }
 
 export interface ItemListResponse {

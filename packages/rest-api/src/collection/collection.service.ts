@@ -819,7 +819,7 @@ export class CollectionService {
     const tokenIdsString = tokenIds.toString();
 
     const volumeData = await this.getStatusData({
-    // const volumeData = await this.indexerService.getStatusData(
+      // const volumeData = await this.indexerService.getStatusData(
       tokenIds: tokenIdsString,
       totalItems,
       lazyMintedOwners: uniqueLazyMintedOwnerAddresses,
@@ -999,7 +999,7 @@ export class CollectionService {
       0,
     );
 
-    const volume = (mintedVolume + lazyMintedVolume);
+    const volume = mintedVolume + lazyMintedVolume;
 
     let finalVolume;
     if (volume <= 0.0000001) {
@@ -1015,7 +1015,9 @@ export class CollectionService {
       lastSale = 0;
       lastSaleTimestamp = 0;
     } else {
-      lastSale = ethers.utils.formatEther(soldListingData[0].totalPricePaid.toString());
+      lastSale = ethers.utils.formatEther(
+        soldListingData[0].totalPricePaid.toString(),
+      );
       lastSaleTimestamp = soldListingData[0].createdAt;
     }
 
@@ -1025,8 +1027,8 @@ export class CollectionService {
       const tokenOwnerships = await this.prisma.tokenOwnerships.findMany({
         where: {
           tokenId: tokenId,
-        }
-      })
+        },
+      });
       const ownersValue: Record<string, number> = {};
       for (const tokenOwnership of tokenOwnerships) {
         ownersValue[tokenOwnership.ownerAddress] = tokenOwnership.quantity;

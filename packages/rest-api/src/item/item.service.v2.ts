@@ -39,9 +39,12 @@ import { RecentlySoldItem } from '../interfaces';
 import { toString } from '../lib/toString';
 import { v4 as uuidV4 } from 'uuid';
 import standardizeMetadataAttribute from '../lib/standardizeMetadataAttributes';
-import { AttributeType, MarketplaceListing, OfferStatus } from '@nusa-nft/database';
+import {
+  AttributeType,
+  MarketplaceListing,
+  OfferStatus,
+} from '@nusa-nft/database';
 import { NotificationService } from '../notification/notification.service';
-
 
 @Injectable()
 export class ItemServiceV2 {
@@ -746,7 +749,6 @@ export class ItemServiceV2 {
       item.LazyMintListing,
       item.Creator,
     );
-    const offers = await this.getItemOffers(item);
 
     return {
       ...item,
@@ -754,7 +756,6 @@ export class ItemServiceV2 {
       owners,
       relatedItems,
       listings,
-      offers,
       creatorEarnings: item.Collection.royalty.reduce(
         (accum, val) => accum + val.percentage,
         0,
@@ -779,7 +780,7 @@ export class ItemServiceV2 {
         };
         listings.push({
           ...l,
-          listingId: l.listingId,
+          listingId: l.listingId.toNumber(),
           tokenId: l.tokenId.toNumber(),
           startTime: l.startTime,
           endTime: l.endTime,
@@ -787,7 +788,7 @@ export class ItemServiceV2 {
           reservePricePerToken: l.reservePricePerToken.toString(),
           buyoutPricePerToken: l.buyoutPricePerToken.toString(),
           lister,
-          isLazyMint: false
+          isLazyMint: false,
         });
 
         continue;
@@ -795,7 +796,7 @@ export class ItemServiceV2 {
 
       listings.push({
         ...l,
-        listingId: l.listingId,
+        listingId: l.listingId.toNumber(),
         tokenId: l.tokenId.toNumber(),
         startTime: l.startTime,
         endTime: l.endTime,
@@ -831,22 +832,6 @@ export class ItemServiceV2 {
     });
 
     return listings;
-  }
-
-  async getItemOffers(item: Item) {
-    const offers = await this.prisma.marketplaceOffer.findMany({
-      where: {
-        tokenId: item.tokenId,
-        assetContract: item.contract_address,
-        status: OfferStatus.CREATED 
-      },
-      orderBy: {
-        totalPrice: 'desc'
-      },
-      take: 100
-    })
-
-    return offers;
   }
 
   async createLazyMintSale(listingId: number, quantity: number) {
@@ -901,7 +886,7 @@ export class ItemServiceV2 {
   }
 
   async setMinted(itemId: number, tokenId: number, quantityMinted: number) {
-    console.log('setMinted')
+    console.log('setMinted');
     console.log({ itemId, tokenId, quantityMinted });
     if (!tokenId && tokenId != 0) {
       throw new HttpException('tokenId is required', HttpStatus.BAD_REQUEST);
@@ -950,7 +935,7 @@ export class ItemServiceV2 {
           contractAddress: item.contract_address,
           chainId: item.chainId,
           tokenId: item.tokenId,
-          quantity: { gt: 0 }
+          quantity: { gt: 0 },
         },
       });
       console.log(ownerships);
@@ -1134,6 +1119,8 @@ export class ItemServiceV2 {
     return records;
   }
 
+  // FIXME:
+  // This should be retrieve listing Bids
   async retrieveListingOffers(listing) {
     const rawOffersData = await this.indexerService.getListingOffers(
       listing.listingId,
@@ -1202,8 +1189,13 @@ export class ItemServiceV2 {
   async getOnChainListings(item: Item & any): Promise<MarketplaceListing[]> {
     const onChainListings = await this.prisma.marketplaceListing.findMany({
       where: {
-        Item: { id: item.id, }
-      }
+        Item: { id: item.id },
+      },
+      include: {
+        bids: {
+          orderBy: { totalPrice: 'desc' },
+        },
+      },
     });
 
     return onChainListings;
@@ -1336,21 +1328,30 @@ export class ItemServiceV2 {
     };
   }
 
-  async uploadIpfsItemMetadata(createItemDto: ItemDto, file: Express.Multer.File, userId: number, userWalletAddress: string) {
+  async uploadIpfsItemMetadata(
+    createItemDto: ItemDto,
+    file: Express.Multer.File,
+    userId: number,
+    userWalletAddress: string,
+  ) {
     let image = '';
     let ipfsUri = '';
     let attributeData = [];
-    let collection_id = +createItemDto.collection_id;
+    const collection_id = +createItemDto.collection_id;
     let collection: Collection;
-    let nusa_item_id: string = uuidV4();
+    const nusa_item_id: string = uuidV4();
 
     // If no collection, create collection automatically
     if (!collection_id) {
-      collection = await this.createDefaultCollection(userId, userWalletAddress, createItemDto.chainId);
+      collection = await this.createDefaultCollection(
+        userId,
+        userWalletAddress,
+        createItemDto.chainId,
+      );
     } else {
       collection = await this.prisma.collection.findFirst({
-        where: { id: collection_id }
-      })
+        where: { id: collection_id },
+      });
     }
 
     const ipfsImageData = await this.ipfsService.uploadImage(file.path);
@@ -1360,7 +1361,10 @@ export class ItemServiceV2 {
       try {
         attributeData = JSON.parse(createItemDto.attributes);
       } catch (err) {
-        throw new HttpException('Invalid attributes format', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'Invalid attributes format',
+          HttpStatus.BAD_REQUEST,
+        );
       }
     } else {
       attributeData = [];
@@ -1385,11 +1389,14 @@ export class ItemServiceV2 {
     return { ipfsUri, itemUuid: nusa_item_id };
   }
 
-  async createDefaultCollection(userId: number, userWalletAddress: string, chainId: number) {
-    const myCollection = await this.collectionService.findMyCollection(
-      userId,
-      { page: 1 },
-    );
+  async createDefaultCollection(
+    userId: number,
+    userWalletAddress: string,
+    chainId: number,
+  ) {
+    const myCollection = await this.collectionService.findMyCollection(userId, {
+      page: 1,
+    });
     let collectionName = `Untitled Collection ${userWalletAddress}`;
     if (myCollection.records.length > 0) {
       collectionName += ` ${myCollection.records[0].id + 1}`;
