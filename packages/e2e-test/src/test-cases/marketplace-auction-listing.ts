@@ -139,6 +139,32 @@ export async function testMarketplacAuctionListing({
       }
     })
   }, { retries: 3 });
+
+  let notificationBidDataLister_inDb;
+  await retry(async () => {
+    notificationBidDataLister_inDb = await db.notificationDetailBid.findFirst({
+      where: {
+        lister_wallet_address: sellerWallet.toString(),
+        listingId: +listingId,
+      }
+    })
+  }, {retries: 3})
+
+  let notificationBidDataBidder_inDb;
+  await retry(async () => {
+    notificationBidDataBidder_inDb = await db.notificationDetailBid.findFirst({
+      where: {
+        lister_wallet_address: bidder,
+        listingId: +listingId,
+      }
+    })
+  }, {retries: 3})
+
+  assert(notificationBidDataLister_inDb != sellerWallet.toString(), fmtFailed("lister wallet address not equal"))
+  assert(notificationBidDataBidder_inDb != bidder, fmtFailed("bidder wallet address not equal"))
+  console.log(fmtSuccess('notification bid 1 data created'))
+
+
   assert(!!bid, fmtFailed("bid not recorded by indexer"))
   assert(bid.bidder.toLowerCase() == bidder.toLowerCase(), fmtFailed("bidder not equal"))
   assert(bid.quantityWanted.toString() == quantityWanted.toString(), fmtFailed("quantityWanted not equal"))
@@ -164,6 +190,30 @@ export async function testMarketplacAuctionListing({
       }
     })
   }, { retries: 3 });
+
+  notificationBidDataLister_inDb;
+  await retry(async () => {
+    notificationBidDataLister_inDb = await db.notificationDetailBid.findFirst({
+      where: {
+        lister_wallet_address: sellerWallet.toString(),
+        listingId: +listingId,
+      }
+    })
+  }, {retries: 3})
+
+  notificationBidDataBidder_inDb;
+  await retry(async () => {
+    notificationBidDataBidder_inDb = await db.notificationDetailBid.findFirst({
+      where: {
+        lister_wallet_address: bidder,
+        listingId: +listingId,
+      }
+    })
+  }, {retries: 3})
+
+  assert(notificationBidDataLister_inDb != sellerWallet.toString(), fmtFailed("lister wallet address not equal"))
+  assert(notificationBidDataBidder_inDb != bidder, fmtFailed("bidder wallet address not equal"))
+  console.log(fmtSuccess('notification bid 2 data created'))
   assert(!!bid, fmtFailed("bid not recorded by indexer"))
   assert(bid.bidder.toLowerCase() == bidder.toLowerCase(), fmtFailed("bidder not equal"))
   assert(bid.quantityWanted.toString() == quantityWanted.toString(), fmtFailed("quantityWanted not equal"))
