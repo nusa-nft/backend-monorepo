@@ -67,7 +67,7 @@ export class NotificationService {
       if (eventData.notification == 'sale') {
         const listingData = await this.prisma.marketplaceListing.findFirst({
           where: {
-            listingId: +data.listingId,
+            id: +data.listingId,
           },
         });
 
@@ -77,7 +77,7 @@ export class NotificationService {
             marketplaceSale =
               await this.prisma.marketplaceSale.findFirstOrThrow({
                 where: {
-                  listingId: +listingData.listingId,
+                  listingId: +listingData.id,
                 },
               });
             return marketplaceSale;
@@ -269,7 +269,7 @@ export class NotificationService {
     const listingData: MarketplaceListing =
       await this.prisma.marketplaceListing.findUniqueOrThrow({
         where: {
-          listingId: Number(listingId),
+          id: Number(listingId),
         },
       });
 

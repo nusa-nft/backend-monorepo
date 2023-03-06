@@ -358,8 +358,7 @@ model TokenOwnerships {
 }
 
 model MarketplaceListing {
-  id                   Int               @unique @default(autoincrement())
-  listingId            Decimal           @unique @db.Decimal(78, 0)
+  id                   Decimal           @unique @db.Decimal(78, 0)
   lister               String?           @db.Citext
   tokenOwner           String?           @db.Citext
   assetContract        String?           @db.Citext
@@ -405,7 +404,7 @@ model MarketplaceOffer {
 
 model Bid {
   listingId       Decimal            @db.Decimal(78, 0)
-  listing         MarketplaceListing @relation(fields: [listingId], references: [listingId])
+  listing         MarketplaceListing @relation(fields: [listingId], references: [id])
   bidder          String             @db.Citext
   quantityWanted  Decimal            @db.Decimal(78, 0)
   currency        String             @db.Citext
@@ -418,7 +417,7 @@ model Bid {
 
 model MarketplaceSale {
   id              Int                 @unique @default(autoincrement())
-  listing         MarketplaceListing? @relation(fields: [listingId], references: [listingId])
+  listing         MarketplaceListing? @relation(fields: [listingId], references: [id])
   listingId       Decimal?            @db.Decimal(78, 0)
   offer           MarketplaceOffer?   @relation(fields: [offerId], references: [id])
   offerId         Int?                @unique
@@ -433,7 +432,7 @@ model MarketplaceSale {
 
 model RoyaltyPaid {
   id              Int                 @unique @default(autoincrement())
-  listing         MarketplaceListing? @relation(fields: [listingId], references: [listingId])
+  listing         MarketplaceListing? @relation(fields: [listingId], references: [id])
   listingId       Decimal?            @db.Decimal(78, 0)
   offer           MarketplaceOffer?   @relation(fields: [offerId], references: [id])
   offerId         Int?

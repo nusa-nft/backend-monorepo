@@ -79,7 +79,7 @@ export async function itemMultiQuantityListings({
   let listing: MarketplaceListing;
   await retry(async () => {
     listing = await db.marketplaceListing.findFirstOrThrow({
-      where: { listingId: listingId1.toNumber() }
+      where: { id: listingId1.toNumber() }
     })
   }, { retries: 3 });
   console.log("minter listing", listing);
@@ -232,7 +232,7 @@ export async function itemMultiQuantityListings({
   await retry(async () => {
     listing = await db.marketplaceListing.findFirstOrThrow({
       where: {
-        listingId: listingId2.toNumber(),
+        id: listingId2.toNumber(),
       }
     })
   }, { retries: 3 });
@@ -266,7 +266,7 @@ export async function itemMultiQuantityListings({
   await retry(async () => {
     listing = await db.marketplaceListing.findFirstOrThrow({
       where: {
-        listingId: listingId3.toNumber()
+        id: listingId3.toNumber()
       }
     });
   }, { retries: 3 });

@@ -866,7 +866,7 @@ export class IndexerService implements OnModuleInit {
 
         const listing = await this.prisma.marketplaceListing.findFirst({
           where: {
-            listingId: listingId.toNumber(),
+            id: listingId.toNumber(),
           },
         });
         if (!listing) continue;
@@ -1072,7 +1072,7 @@ export class IndexerService implements OnModuleInit {
         : endTime.toNumber();
     const checkListingId = await this.prisma.marketplaceListing.findUnique({
       where: {
-        listingId: parseInt(listingId._hex),
+        id: parseInt(listingId._hex),
       },
     });
     const item = await this.prisma.item.findFirst({
@@ -1090,7 +1090,7 @@ export class IndexerService implements OnModuleInit {
     else {
       const listingHistory = await this.prisma.marketplaceListing.create({
         data: {
-          listingId: parseInt(listingId._hex),
+          id: parseInt(listingId._hex),
           lister,
           tokenOwner,
           assetContract: assetContract.toLowerCase(),
@@ -1115,12 +1115,12 @@ export class IndexerService implements OnModuleInit {
 
   async indexMarketplaceRemoveListing({ listingId, updatedAt }) {
     const listing = await this.prisma.marketplaceListing.findFirst({
-      where: { listingId: parseInt(listingId) },
+      where: { id: parseInt(listingId) },
     });
     if (!listing) return;
     const deleteListing = await this.prisma.marketplaceListing.update({
       where: {
-        listingId: parseInt(listingId),
+        id: parseInt(listingId),
       },
       data: {
         isCancelled: true,
@@ -1152,13 +1152,13 @@ export class IndexerService implements OnModuleInit {
         : endTime.toNumber();
     const listing = await this.prisma.marketplaceListing.findFirst({
       where: {
-        listingId: listingId.toNumber(),
+        id: listingId.toNumber(),
       },
     });
     if (!listing) return;
     const updateListing = await this.prisma.marketplaceListing.update({
       where: {
-        listingId: listingId.toNumber(),
+        id: listingId.toNumber(),
       },
       data: {
         isCancelled: false,
@@ -1194,7 +1194,7 @@ export class IndexerService implements OnModuleInit {
       where: { transactionHash },
     });
     const listing = await this.prisma.marketplaceListing.findFirst({
-      where: { listingId: parseInt(listingId) },
+      where: { id: parseInt(listingId) },
     });
     if (sale || !listing) return;
 

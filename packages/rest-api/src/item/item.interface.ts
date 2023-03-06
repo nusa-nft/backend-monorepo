@@ -16,33 +16,8 @@ export interface ItemOwnership {
   is_minted: false;
 }
 
-export interface OnChainListing {
-  id: number;
-  listingId: number | null;
-  lister: string | null;
-  tokenOwner: string | null;
-  assetContract: string | null;
-  tokenId: number | null;
-  startTime: number | null;
-  endTime: number | null;
-  quantity: number | null;
-  currency: string | null;
-  reservePricePerToken: string | null;
-  buyoutPricePerToken: string | null;
-  tokenType: TokenType;
-  listingType: ListingType;
-  createdAt: number | null;
-  updatedAt: number | null;
-  isCancelled: boolean;
-  isClosedByLister: boolean | null;
-  isClosedByBidder: boolean | null;
-  royaltyInfoId: number;
-  status: ListingStatus;
-}
-
 export interface Listing {
-  id: number;
-  listingId?: number; // For querying onchain listing data
+  id?: number;
   isLazyMint: boolean;
   itemId?: number;
   tokenId?: number;

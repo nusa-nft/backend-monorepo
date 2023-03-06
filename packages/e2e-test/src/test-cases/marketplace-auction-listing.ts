@@ -1,4 +1,5 @@
 import { INestApplication } from "@nestjs/common"
+import request from "supertest";
 import { Bid, Item, ListingStatus, MarketplaceListing, PrismaClient } from "@nusa-nft/database"
 import { NusaNFT, MarketplaceFacet } from "@nusa-nft/smart-contract/typechain-types"
 import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
@@ -112,11 +113,11 @@ export async function testMarketplacAuctionListing({
   await retry(async () => {
     listing = await db.marketplaceListing.findFirstOrThrow({
       where: {
-        listingId: listingId.toNumber(),
+        id: listingId.toNumber(),
       }
     });
   }, { retries: 3 });
-  assert(!!listing && listing.listingId.toNumber() == listingId.toNumber(), fmtFailed("listing created not recorded by indexer"));
+  assert(!!listing && listing.id.toNumber() == listingId.toNumber(), fmtFailed("listing created not recorded by indexer"));
   console.log(fmtSuccess('Listing Created and listing recorded by indexer'));
 
   await setTime(web3Provider, listing.startTime + 100);
@@ -190,6 +191,14 @@ export async function testMarketplacAuctionListing({
       }
     })
   }, { retries: 3 });
+  console.log({ bid })
+  assert(!!bid, fmtFailed("bid 2 not recorded by indexer"))
+  assert(bid.bidder.toLowerCase() == bidder.toLowerCase(), fmtFailed("bidder 2 not equal"))
+  assert(bid.quantityWanted.toString() == quantityWanted.toString(), fmtFailed("quantityWanted 2 not equal"))
+  assert(bid.currency.toLowerCase() == currency.toLowerCase(), fmtFailed("currency 2 not equal"));
+  assert(bid.pricePerToken.toString() == pricePerToken.toString(), fmtFailed("pricePerToken 2 not equal"));
+  assert(bid.totalPrice.toString() == totalPrice.toString(), fmtFailed("totalPrice 2 not equal"));
+  console.log(fmtSuccess('Bid 2 recorded by indexer'));
 
   notificationBidDataLister_inDb;
   await retry(async () => {
@@ -222,10 +231,22 @@ export async function testMarketplacAuctionListing({
   assert(bid.totalPrice.toString() == totalPrice.toString(), fmtFailed("totalPrice not equal"));
   console.log(fmtSuccess('Bid 2 recorded by indexer'));
 
-  // TODO:
   // Check if item detail and item list APIs return listing and bids correctly
   // Should return highest bid
   // Bids should be ordered from highest to lowest price
+  resp = await request(restApi.getHttpServer())
+    .get(`/item/${item.id}`)
+  let listings = resp.body.listings;
+  let bids = listings[0].bids;
+  assert(bids[0].pricePerToken.toString() == bid2Price.toString(), fmtFailed("pricePerToken not equal"));
+  assert(bids[1].pricePerToken.toString() == bid1Price.toString(), fmtFailed("pricePerToken not equal"));
+  console.log(fmtSuccess('Item detail API returns listing and bids correctly'));
+
+  resp = await request(restApi.getHttpServer())
+    .get(`/item/bids/${listing.id.toString()}`)
+  assert(resp.body.records[0].pricePerToken.toString() == `${ethers.utils.formatEther(bid2Price)} MATIC`, fmtFailed("pricePerToken not equal"));
+  assert(resp.body.records[1].pricePerToken.toString() == `${ethers.utils.formatEther(bid1Price)} MATIC`, fmtFailed("pricePerToken not equal"));
+  console.log(fmtSuccess('Item bids API returns listing and bids correctly'));
 
   await setTime(web3Provider, listing.startTime + 4000);
   
@@ -255,7 +276,7 @@ export async function testMarketplacAuctionListing({
   await retry(async () => {
     listing = await db.marketplaceListing.findFirstOrThrow({
       where: {
-        listingId: listingId.toNumber(),
+        id: listingId.toNumber(),
       }
     });
   }, { retries: 3 });

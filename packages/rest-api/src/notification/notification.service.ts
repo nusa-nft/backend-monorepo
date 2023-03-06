@@ -147,16 +147,12 @@ export class NotificationService {
         OR: [
           {
             MarketplaceListing: {
-              some: {
-                listingId,
-              },
+              some: { id: listingId },
             },
           },
           {
             LazyMintListing: {
-              some: {
-                id: listingId,
-              },
+              some: { id: listingId },
             },
           },
         ],

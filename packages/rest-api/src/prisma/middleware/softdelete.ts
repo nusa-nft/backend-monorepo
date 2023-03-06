@@ -4,6 +4,7 @@ const excludedModels = [
   'ItemLikes',
   'ItemViews',
   'Attributes',
+  'Bid',
   'ItemActiveListing',
   'WatchList',
   'LazyMintListing',
