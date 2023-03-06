@@ -89,7 +89,7 @@ export async function testMarketplaceDirectListing({
   let listing: MarketplaceListing;
   await retry(async () => {
     listing = await db.marketplaceListing.findFirstOrThrow({
-      where: { listingId: listingId.toNumber() }
+      where: { id: listingId.toNumber() }
     })
   }, { retries: 3 });
 

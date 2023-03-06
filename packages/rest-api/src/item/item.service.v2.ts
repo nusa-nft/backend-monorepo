@@ -31,10 +31,9 @@ import {
   ItemListResponse,
   ItemOwner,
   Listing,
-  OnChainListing,
 } from './item.interface';
 import { HttpStatusCode } from 'axios';
-import { ItemDto, ItemQueryParamsV2 } from './dto/item.dto';
+import { ItemDto, ItemQueryParamsV2, PaginationQueryParams } from './dto/item.dto';
 import { RecentlySoldItem } from '../interfaces';
 import { toString } from '../lib/toString';
 import { v4 as uuidV4 } from 'uuid';
@@ -574,7 +573,6 @@ export class ItemServiceV2 {
     return filter;
   }
 
-  // TODO: This should be optimized by having indexer and backend database be in 1 database
   async filterOwner(
     owner: string,
     filter: Prisma.ItemFindManyArgs,
@@ -595,23 +593,13 @@ export class ItemServiceV2 {
       },
     });
 
-    // const tokens: { tokenId: number; tokenOwner: string }[] =
-    //   await this.getTokensByOwner(owner);
-    // const itemsOwnedOnChain = await this.prisma.item.findMany({
-    //   where: {
-    //     tokenId: { in: tokens.map((t) => t.tokenId) },
-    //     quantity_minted: { gt: 0 },
-    //   },
-    // });
     const itemIdsOwnedOnChain = itemsOwnedOnChain
       .map((item) => item.id)
       .sort((a: number, b: number) => a - b);
 
-    // const skippedItemIds = this.getSkippedItemIds(itemsOwnedOnChain);
 
     const itemsLazyMinted = await this.prisma.item.findMany({
       where: {
-        // id: { in: skippedItemIds },
         creator_address: owner,
         quantity_minted: 0,
       },
@@ -644,64 +632,6 @@ export class ItemServiceV2 {
         creator_address: creator,
       },
     };
-  }
-
-  async getTokensOnSaleOnChain({
-    page,
-    owner,
-    listingType,
-    hasOffers,
-    priceMin,
-    priceMax,
-  }: {
-    page: number;
-    owner?: string;
-    listingType?: ListingType;
-    hasOffers?: boolean;
-    priceMin?: string;
-    priceMax?: string;
-  }): Promise<{ tokenId: number; tokenOwner: string }[]> {
-    const response = await this.indexerService.getTokenIdsOnSale({
-      page,
-      owner,
-      listingType,
-      hasOffers,
-      priceMin,
-      priceMax,
-    });
-    const tokenIds = response.records;
-
-    return tokenIds;
-  }
-
-  async getTokensByOwner(
-    owner: string,
-  ): Promise<{ tokenId: number; tokenOwner: string }[]> {
-    const tokenIdValue: Record<number, number> =
-      await this.indexerService.getOwnedTokensByWallet(owner);
-
-    const tokenIds: { tokenId: number; tokenOwner: string }[] = [];
-    for (const [tokenId] of Object.entries(tokenIdValue)) {
-      tokenIds.push({ tokenId: Number(tokenId), tokenOwner: owner });
-    }
-
-    return tokenIds;
-  }
-
-  getSkippedItemIds(items: Item[]) {
-    const skipped = [];
-    let lastId = 0;
-    items.forEach((it) => {
-      const diff = it.id - lastId;
-      if (diff > 1) {
-        for (let i = 0; i < diff; i++) {
-          if (i == diff - 1) continue;
-          skipped.push(lastId + i + 1);
-        }
-      }
-      lastId = it.id;
-    });
-    return skipped;
   }
 
   async getItem(id: number, jwtToken: string | null): Promise<ItemDetail> {
@@ -780,7 +710,7 @@ export class ItemServiceV2 {
         };
         listings.push({
           ...l,
-          listingId: l.listingId.toNumber(),
+          id: l.id.toNumber(),
           tokenId: l.tokenId.toNumber(),
           startTime: l.startTime,
           endTime: l.endTime,
@@ -796,7 +726,7 @@ export class ItemServiceV2 {
 
       listings.push({
         ...l,
-        listingId: l.listingId.toNumber(),
+        id: l.id.toNumber(),
         tokenId: l.tokenId.toNumber(),
         startTime: l.startTime,
         endTime: l.endTime,
@@ -981,30 +911,6 @@ export class ItemServiceV2 {
     return relatedItemsInCollection;
   }
 
-  async getTokenOwners(tokenId: number) {
-    const ownersMap = await this.indexerService.getTokenOwners(tokenId);
-    const owners = [];
-    for (const [walletAddress, quantity] of Object.entries(ownersMap)) {
-      const user = await this.usersService.findWalletOne(walletAddress);
-      if (user) {
-        const owner = {
-          wallet_address: walletAddress,
-          username: user.username,
-          profile_picture: user.profile_picture,
-          quantity,
-        };
-        owners.push(owner);
-        continue;
-      }
-      owners.push({
-        wallet_address: walletAddress,
-        quantity,
-      });
-    }
-
-    return owners;
-  }
-
   async pickRandom(collection_id: number, itemId: number, userId?: number) {
     const count = 6;
     const itemCount = await this.prisma.item.count({
@@ -1082,108 +988,6 @@ export class ItemServiceV2 {
     );
 
     return records;
-  }
-
-  async getItemsOnChainListing(items: Item[]) {
-    const records = [];
-    for (const [, it] of items.entries()) {
-      // Lazy mint item
-      if (it.quantity_minted > 0) {
-        records.push(it);
-        continue;
-      }
-      // Minted On Chain Item
-      // TODO: This should be optimized.
-      // indexerService should have itemlisting by tokenId[]
-      const listings = await this.indexerService.getItemActiveListing(
-        this.configService.get<string>('NFT_CONTRACT_ADDRESS'),
-        it.tokenId,
-      );
-      if (listings.length > 0) {
-        const listingsWithOffers = [];
-        for (const [i, l] of listings.entries()) {
-          const listing = await this.retrieveListingOffers(l);
-          listingsWithOffers[i] = listing;
-        }
-        records.push({
-          ...it,
-          ItemActiveListings: listingsWithOffers,
-        });
-      } else {
-        records.push({
-          ...it,
-          ItemActiveListings: [],
-        });
-      }
-    }
-    return records;
-  }
-
-  // FIXME:
-  // This should be retrieve listing Bids
-  async retrieveListingOffers(listing) {
-    const rawOffersData = await this.indexerService.getListingOffers(
-      listing.listingId,
-    );
-
-    const offers = [];
-    let highestOffer = { price: 0, from: null };
-    // eslint-disable-next-line prefer-const
-    for (let o of rawOffersData) {
-      let price = 0;
-      if (o.currency == NATIVE_CURRENCY) {
-        price = o.totalOfferAmount;
-      }
-      const user = await this.usersService.findWalletOne(
-        o.offeror.toLowerCase(),
-      );
-      const offer = {
-        ...o,
-        price,
-        from: user,
-      };
-
-      offers.push(offer);
-      if (offer.price > highestOffer.price) {
-        highestOffer = offer;
-      }
-    }
-
-    return { ...listing, offers, highestOffer };
-  }
-
-  async getItemActiveListing(item: Item) {
-    const listings = await this.indexerService.getItemActiveListing(
-      item.contract_address,
-      item.tokenId,
-    );
-    const ret = [];
-    for (const l of listings) {
-      const user = await this.usersService.findWalletOne(l.lister);
-      if (user) {
-        const lister = {
-          wallet_address: user.wallet_address,
-          username: user.username,
-          profile_picture: user.profile_picture,
-        };
-        ret.push({ ...l, lister });
-
-        continue;
-      }
-
-      ret.push({
-        ...l,
-        lister: { wallet_address: l.lister },
-      });
-    }
-    // Retrieve Listing Offers
-    if (ret.length > 0) {
-      for (let i = 0; i < ret.length; i++) {
-        const listing = await this.retrieveListingOffers(ret[i]);
-        ret[i] = listing;
-      }
-    }
-    return ret;
   }
 
   async getOnChainListings(item: Item & any): Promise<MarketplaceListing[]> {
@@ -1426,5 +1230,99 @@ export class ItemServiceV2 {
       throw new HttpException('Item not found', HttpStatus.NOT_FOUND);
     }
     return item;
+  }
+
+  async getBidsByListingId(listingId: number, pagination: PaginationQueryParams) {
+    let { page } = pagination;
+    if (!page) page = 1;
+
+    const listing = await this.prisma.marketplaceListing.findFirstOrThrow({
+      where: { id: listingId },
+      include: { Item: true }
+    })
+    const itemData = await this.prisma.item.findFirst({
+      where: {
+        id: listing.Item.id,
+      },
+      include: {
+        Collection: true,
+      },
+    });
+
+    const collectionStatus = await this.collectionService.getCollectionStatus(
+      +itemData.Collection.id,
+    );
+    const floorPrice = collectionStatus.floorPrice || 0;
+
+    const bids = await this.prisma.bid.findMany({
+      skip: 10 * (+page - 1),
+      take: 10,
+      where: {
+        listingId: listing.id,
+      },
+      orderBy: {
+        totalPrice: 'desc',
+      },
+    });
+    const records = bids.map((o) => {
+      const pricePerTokenWei = o.pricePerToken;
+      const pricePerTokenEth = Number(
+        ethers.utils.formatEther(pricePerTokenWei.toString()),
+      );
+      const totalPriceEth = Number(
+        ethers.utils.formatEther(o.totalPrice.toString()),
+      );
+
+      let _floorPrice;
+      if (floorPrice == 0) {
+        _floorPrice = pricePerTokenEth;
+      } else {
+        _floorPrice = +floorPrice;
+      }
+
+      const floorDifferenceValue =
+        pricePerTokenEth - (_floorPrice / _floorPrice) * 100;
+      let floorDifference = '';
+      if (Math.sign(floorDifferenceValue) == -1) {
+        floorDifference = `${Math.abs(
+          Math.floor(floorDifferenceValue),
+        )}% below`;
+      }
+      if (floorDifferenceValue == 0) {
+        floorDifference = `equal`;
+      }
+      if (Math.sign(floorDifferenceValue) == 1) {
+        floorDifference = `${Math.round(floorDifferenceValue)}% above`;
+      }
+
+      // const expirationTimestamp = o..toNumber() * 1000;
+      // let expiration;
+      // if (expirationTimestamp - Date.now() <= 0) {
+      //   expiration = `${formatDistance(Date.now(), expirationTimestamp)} ago`;
+      // } else {
+      //   expiration = formatDistance(Date.now(), expirationTimestamp);
+      // }
+
+      return {
+        ...o,
+        floorDifference,
+        // expiration,
+        fromAddress: o.bidder,
+        pricePerToken: `${pricePerTokenEth} MATIC`,
+        price: `${totalPriceEth} MATIC`,
+      };
+    });
+
+    const metadata = {
+      page,
+      perPage: 10,
+    };
+
+    return {
+      status: HttpStatus.OK,
+      message: 'success',
+      metadata,
+      records,
+    };
   }
 }

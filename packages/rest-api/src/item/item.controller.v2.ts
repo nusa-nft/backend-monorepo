@@ -32,6 +32,7 @@ import {
   ItemDto,
   ItemQueryParamsV2,
   LazyMintSale,
+  PaginationQueryParams,
   SetItemMintedDto,
 } from './dto/item.dto';
 import { fileMimetypeFilter } from './item.controller';
@@ -154,5 +155,13 @@ export class ItemControllerV2 {
   @Get('uuid/:uuid')
   getItemByUuid(@Param('uuid') uuid: string) {
     return this.itemService.getItemByUuid(uuid);
+  }
+
+  @Get('bids/:listingId')
+  getBidsByListingId(
+    @Param('listingId') listingId: number,
+    @Query() pagination: PaginationQueryParams,
+  ) {
+    return this.itemService.getBidsByListingId(listingId, pagination);
   }
 }

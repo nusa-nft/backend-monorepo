@@ -573,7 +573,7 @@ export class MarketplaceService {
   async getMarketplaceListerAddress(listingId: number) {
     const listing = await this.prisma.marketplaceListing.findFirst({
       where: {
-        listingId: +listingId,
+        id: +listingId,
       },
     });
     return listing.lister;
