@@ -230,7 +230,7 @@ export class NotificationService {
 
     const saleNotification = await this.prisma.notificationDetailSale.create({
       data: {
-        listingId,
+        listingId: listingId.toNumber(),
         asset_contract: assetContract,
         lister_wallet_address: lister,
         buyer_wallet_address: buyer,
