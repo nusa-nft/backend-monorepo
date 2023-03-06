@@ -115,25 +115,28 @@ export class NotificationService {
       tokenId,
     } = eventData;
     // console.log({ eventData });
-    const tokenOwner = await this.prisma.tokenOwnerships.findFirst({
+    const tokenOwner = await this.prisma.tokenOwnerships.findMany({
       where: {
         tokenId,
         contractAddress: assetContract,
       },
     });
 
-    if (!tokenOwner) return;
+    if (tokenOwner.length == 0) return;
 
-    const notificationDataOwner = await this.prisma.notification.create({
-      data: {
+    const createManyOwnerData = [];
+
+    for (const owner of tokenOwner) {
+      const wallet_address = owner.ownerAddress;
+      createManyOwnerData.push({
+        wallet_address,
         notification_type: NotificationType.Offer,
         is_seen: false,
-        user: {
-          connect: {
-            wallet_address: tokenOwner.ownerAddress,
-          },
-        },
-      },
+      });
+    }
+
+    const notificationDataOwner = await this.prisma.notification.createMany({
+      data: createManyOwnerData,
     });
 
     const notificationDataOfferor = await this.prisma.notification.create({
@@ -153,11 +156,18 @@ export class NotificationService {
       },
     });
 
+    console.log(notificationDataOwner);
+    // const createManyOfferNotificationData = [];
+    // for (const owner of notificationDataOwner) {
+    //   createManyOfferNotificationData.push({
+
+    //   })
+    // }
     // FIXME:
     const offerNotification = await this.prisma.notificationDetailOffer.create({
       data: {
         id: id,
-        lister_wallet_address: tokenOwner.ownerAddress, // TODO: fix. should be tokenOwnerAddress
+        lister_wallet_address: tokenOwner[0].ownerAddress, // TODO: fix. should be tokenOwnerAddress
         offeror_wallet_address: offeror,
         listing_type: ListingType.Direct,
         quantity_wanted: Number(quantity),
@@ -168,7 +178,7 @@ export class NotificationService {
         Notification: {
           connect: [
             { id: notificationDataOfferor.id },
-            { id: notificationDataOwner.id },
+            { id: notificationDataOwner[0].id },
           ],
         },
         createdAt_timestamp: createdAt,
