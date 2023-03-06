@@ -9,6 +9,8 @@ import {
   OfferStatus,
   Prisma,
   ListingType,
+  Bid,
+  NotificationDetailBid,
 } from '@prisma/client';
 import retry from 'async-retry';
 
@@ -24,23 +26,24 @@ export class NotificationService {
     events.on('notification', async (eventData) => {
       Logger.log('notification event received');
       const data = eventData.data;
-      const {
-        id,
-        offeror,
-        quantity,
-        totalPrice,
-        transactionHash,
-        currency,
-        createdAt,
-        expirationTimestamp,
-        assetContract,
-        royaltyInfoId,
-        tokenId,
-        status,
-      } = data;
+
       let marketplaceOffer;
       // const dataOfListing = listingData;
       if (eventData.notification == 'offer') {
+        const {
+          id,
+          offeror,
+          quantity,
+          totalPrice,
+          transactionHash,
+          currency,
+          createdAt,
+          expirationTimestamp,
+          assetContract,
+          royaltyInfoId,
+          tokenId,
+          status,
+        } = data;
         // FIXME:
         // let marketplaceOffer;
         marketplaceOffer = {
@@ -57,21 +60,6 @@ export class NotificationService {
           royaltyInfoId,
           createdAt,
         };
-        // await retry(
-        //   async () => {
-        //     marketplaceOffer =
-        //       await this.prisma.marketplaceOffer.findFirstOrThrow({
-        //         where: {
-        //           id: +data.offerId,
-        //           createdAt: +data.createdAt,
-        //         },
-        //       });
-        //     return marketplaceOffer;
-        //   },
-        //   {
-        //     forever: true,
-        //   },
-        // );
 
         this.newOfferNotification(marketplaceOffer);
       }
@@ -100,6 +88,10 @@ export class NotificationService {
         );
 
         this.newSaleNotification(marketplaceSale);
+      }
+
+      if (eventData.notification == 'bid') {
+        this.newBidNotification(data);
       }
     });
   }
@@ -251,5 +243,104 @@ export class NotificationService {
     }
 
     return saleNotification;
+  }
+
+  async newBidNotification(eventData) {
+    console.log('bid data', eventData);
+    const {
+      listingId,
+      bidder,
+      quantityWanted,
+      currency,
+      totalPrice,
+      transactionHash,
+    } = eventData;
+
+    console.log(listingId);
+    const listingData: MarketplaceListing =
+      await this.prisma.marketplaceListing.findUniqueOrThrow({
+        where: {
+          listingId: Number(listingId),
+        },
+      });
+
+    const tokenOwner = await this.prisma.tokenOwnerships.findFirst({
+      where: {
+        tokenId: +listingData.tokenId,
+        contractAddress: listingData.assetContract,
+      },
+    });
+
+    if (!tokenOwner) return;
+
+    const notificationDataOwner = await this.prisma.notification.create({
+      data: {
+        notification_type: NotificationType.Bid,
+        is_seen: false,
+        user: {
+          connectOrCreate: {
+            create: {
+              wallet_address: tokenOwner.ownerAddress,
+            },
+            where: {
+              wallet_address: tokenOwner.ownerAddress,
+            },
+          },
+        },
+      },
+    });
+
+    const notificationDataOfferor = await this.prisma.notification.create({
+      data: {
+        notification_type: NotificationType.Bid,
+        is_seen: false,
+        user: {
+          connectOrCreate: {
+            create: {
+              wallet_address: bidder,
+            },
+            where: {
+              wallet_address: bidder,
+            },
+          },
+        },
+      },
+    });
+
+    // FIXME:
+    const bidNotification: NotificationDetailBid =
+      await this.prisma.notificationDetailBid.create({
+        data: {
+          lister: {
+            connect: {
+              wallet_address: notificationDataOfferor.wallet_address,
+            },
+          },
+          bidder: {
+            connect: {
+              wallet_address: bidder,
+            },
+          },
+          listingId: +listingId,
+          listing_type: ListingType.Auction,
+          quantity_wanted: quantityWanted,
+          total_offer_ammount: totalPrice,
+          currency,
+          transaction_hash: transactionHash,
+          Notification: {
+            connect: [
+              { id: notificationDataOfferor.id },
+              { id: notificationDataOwner.id },
+            ],
+          },
+          createdAt_timestamp: Math.ceil(new Date().getTime() / 1000),
+        },
+      });
+
+    if (bidNotification) {
+      Logger.log('notification bid data created');
+    }
+
+    return bidNotification;
   }
 }
