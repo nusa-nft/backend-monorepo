@@ -71,7 +71,7 @@ export class IpfsService {
       nusa_collection,
       external_link,
       explicit_sensitive,
-      nusa_item_id
+      nusa_item_id,
     };
     const bufferData = Buffer.from(JSON.stringify(data));
     const formData = new FormData();

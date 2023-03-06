@@ -65,17 +65,23 @@ export class ItemService {
     userId: number,
     userWalletAddress: string,
   ) {
-    const contract_address = (process.env.NFT_CONTRACT_ADDRESS as string).toLowerCase();
+    const contract_address = (
+      process.env.NFT_CONTRACT_ADDRESS as string
+    ).toLowerCase();
     let image = '';
     let metadata = '';
     let attributeData = [];
     let collection_id = createItemDto.collection_id;
     let collection: Collection;
-    let nusa_item_id: string = uuidV4();
+    const nusa_item_id: string = uuidV4();
 
     // If no collection, create collection automatically
     if (!collection_id) {
-      const fallbackCollection = await this.createFallbackCollection(userId, userWalletAddress, createItemDto.chainId);
+      const fallbackCollection = await this.createFallbackCollection(
+        userId,
+        userWalletAddress,
+        createItemDto.chainId,
+      );
       collection = fallbackCollection.data;
       collection_id = fallbackCollection.data.id;
     } else {
@@ -118,9 +124,9 @@ export class ItemService {
     }
 
     let lastInsertUnmintedItem = await this.prisma.item.findFirst({
-      where: { tokenId: { lt: 0 }},
-      orderBy: { id: 'asc' }
-    })
+      where: { tokenId: { lt: 0 } },
+      orderBy: { id: 'asc' },
+    });
 
     let createItemData: Prisma.ItemCreateInput = {
       uuid: nusa_item_id,
@@ -143,7 +149,9 @@ export class ItemService {
       supply: Number(createItemDto.supply),
       unlockable: createItemDto.unlockable,
       metadata,
-      tokenId: lastInsertUnmintedItem ? lastInsertUnmintedItem.tokenId.sub(1) : -1,
+      tokenId: lastInsertUnmintedItem
+        ? lastInsertUnmintedItem.tokenId.sub(1)
+        : -1,
       explicit_sensitive: createItemDto.explicit_sensitive,
       is_metadata_freeze: createItemDto.is_metadata_freeze,
       attributes: {
@@ -156,33 +164,33 @@ export class ItemService {
 
     let item: Item;
 
-    await retry (
+    await retry(
       async () => {
         try {
           item = await this.prisma.item.create({
             data: createItemData,
             include: {
-              Collection: true
-            }
+              Collection: true,
+            },
           });
         } catch (err) {
-          console.log({ err })
+          console.log({ err });
           lastInsertUnmintedItem = await this.prisma.item.findFirst({
-            where: { tokenId: { lt: 0 }},
-            orderBy: { id: 'desc' }
-          })
+            where: { tokenId: { lt: 0 } },
+            orderBy: { id: 'desc' },
+          });
           createItemData = {
             ...createItemData,
             tokenId: lastInsertUnmintedItem.tokenId.sub(1),
-          }
+          };
           throw new Error();
         }
       },
       {
         forever: true,
-        minTimeout: 500
-      }
-    )
+        minTimeout: 500,
+      },
+    );
 
     if (createItemDto.is_metadata_freeze == false) {
       item = await this.prisma.item.update({
@@ -191,8 +199,8 @@ export class ItemService {
           metadata: `${process.env.API_BASE_URL}/item/metadata/${item.id}`,
         },
         include: {
-          Collection: true
-        }
+          Collection: true,
+        },
       });
     }
 
@@ -203,11 +211,14 @@ export class ItemService {
     };
   }
 
-  async createFallbackCollection(userId: number, userWalletAddress: string, chainId) {
-    const myCollection = await this.collectionService.findMyCollection(
-      userId,
-      { page: 1 },
-    );
+  async createFallbackCollection(
+    userId: number,
+    userWalletAddress: string,
+    chainId,
+  ) {
+    const myCollection = await this.collectionService.findMyCollection(userId, {
+      page: 1,
+    });
 
     let collectionName = `Untitled Collection ${userWalletAddress}`;
     if (myCollection.records.length > 0) {
@@ -742,7 +753,7 @@ export class ItemService {
       this.configService.get<string>('NFT_CONTRACT_OWNER_PRIVATE_KEY'),
       provider,
     );
-    console.log({ nftContractOwnerAddress: nftContractOwner.address })
+    console.log({ nftContractOwnerAddress: nftContractOwner.address });
 
     const { chainId } = await provider.getNetwork();
 
@@ -782,15 +793,20 @@ export class ItemService {
       where: {
         assetContract: itemData.contract_address,
         tokenId: itemData.tokenId,
-        status: { notIn: [ OfferStatus.COMPLETED, OfferStatus.CANCELLED ] }
+        status: { notIn: [OfferStatus.COMPLETED, OfferStatus.CANCELLED] },
       },
       orderBy: {
-        totalPrice: 'desc'
-      }
+        totalPrice: 'desc',
+      },
     });
     const records = offers.map((o) => {
       const pricePerTokenWei = o.totalPrice.div(o.quantity);
-      const pricePerTokenEth = Number(ethers.utils.formatEther(pricePerTokenWei.toString()));
+      const pricePerTokenEth = Number(
+        ethers.utils.formatEther(pricePerTokenWei.toString()),
+      );
+      const totalPriceEth = Number(
+        ethers.utils.formatEther(o.totalPrice.toString()),
+      );
 
       let _floorPrice;
       if (floorPrice == 0) {
@@ -799,7 +815,8 @@ export class ItemService {
         _floorPrice = +floorPrice;
       }
 
-      const floorDifferenceValue = pricePerTokenEth - _floorPrice / _floorPrice * 100;
+      const floorDifferenceValue =
+        pricePerTokenEth - (_floorPrice / _floorPrice) * 100;
       let floorDifference = '';
       if (Math.sign(floorDifferenceValue) == -1) {
         floorDifference = `${Math.abs(
@@ -813,7 +830,7 @@ export class ItemService {
         floorDifference = `${Math.round(floorDifferenceValue)}% above`;
       }
 
-      let expirationTimestamp = o.expirationTimestamp.toNumber() * 1000;
+      const expirationTimestamp = o.expirationTimestamp.toNumber() * 1000;
       let expiration;
       if (expirationTimestamp - Date.now() <= 0) {
         expiration = `${formatDistance(Date.now(), expirationTimestamp)} ago`;
@@ -825,7 +842,10 @@ export class ItemService {
         ...o,
         floorDifference,
         expiration,
-      }
+        fromAddress: o.offeror,
+        pricePerToken: `${pricePerTokenEth} MATIC`,
+        price: `${totalPriceEth} MATIC`,
+      };
     });
 
     const metadata = {

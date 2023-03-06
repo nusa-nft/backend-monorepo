@@ -49,18 +49,21 @@ export class VoucherService {
   }
 
   async queueCreateNft(param: CreateNftDTO) {
-    const { toAddress, tokenURI, voucherRootHash, voucherHashes, itemUuid } = param;
+    const { toAddress, tokenURI, voucherRootHash, voucherHashes, itemUuid } =
+      param;
     const payload: BlockchainTxPayload = {
       method: 'create',
       args: [toAddress, tokenURI],
       extraData: {
         voucherHashes,
         voucherRootHash,
-        itemUuid
+        itemUuid,
       },
     };
 
-    const job = await this.blockchainTxQueue.add('create-nft', payload, { attempts: 3 });
+    const job = await this.blockchainTxQueue.add('create-nft', payload, {
+      attempts: 3,
+    });
     return job;
   }
 
@@ -90,12 +93,14 @@ export class VoucherService {
       method: 'claimVoucher',
       args: [voucher, voucherLeaf.tokenId, toAddress, proof],
     };
-    const rootHashVoucherRegistered = await this.nusaNFT._rootHashVoucher(voucherLeaf.tokenId);
+    const rootHashVoucherRegistered = await this.nusaNFT._rootHashVoucher(
+      voucherLeaf.tokenId,
+    );
     console.log({
       voucher,
       hash,
       rootHash,
-      rootHashVoucherRegistered
+      rootHashVoucherRegistered,
     });
     const isValid = await this.nusaNFT.isValidVoucher(
       voucher,
@@ -117,7 +122,7 @@ export class VoucherService {
 
   /**
    * On success, this function adds a register-voucher job to the queue
-   * 
+   *
    * @param job create NFT Job Payload
    */
   @Process('create-nft')
@@ -141,11 +146,7 @@ export class VoucherService {
 
       if (event.name == 'TokenCreated') {
         const tokenId = event.args[0].toNumber();
-        const {
-          voucherRootHash,
-          voucherHashes,
-          itemUuid
-        } = job.data.extraData;
+        const { voucherRootHash, voucherHashes, itemUuid } = job.data.extraData;
 
         await this.updateItemTokenId(itemUuid, tokenId);
         const payload: BlockchainTxPayload = {
@@ -154,9 +155,11 @@ export class VoucherService {
           extraData: {
             leaves: voucherHashes,
             itemUuid: itemUuid,
-          }
-        }
-        await this.blockchainTxQueue.add('register-voucher', payload, { attempts: 3 });
+          },
+        };
+        await this.blockchainTxQueue.add('register-voucher', payload, {
+          attempts: 3,
+        });
       }
     });
   }
@@ -171,7 +174,10 @@ export class VoucherService {
       this.registerVoucherToDB(tokenId, leaves, itemUuid)
         .then((res) => {
           console.log('register-voucher');
-          console.log({ 'job.data.method': job.data.method, 'job.data.args': job.data.args });
+          console.log({
+            'job.data.method': job.data.method,
+            'job.data.args': job.data.args,
+          });
           this.processJobWithWallet('register-voucher', job);
         })
         .catch((e) => {
@@ -194,7 +200,7 @@ export class VoucherService {
 
         // Wait for indexer to update tokenOwnerships
         // TODO: find a better way to do this
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise((resolve) => setTimeout(resolve, 5000));
         // await this.prisma.item.updateMany({
         //   where: {
         //     contract_address: process.env.NFT_CONTRACT_ADDRESS,
@@ -261,7 +267,11 @@ export class VoucherService {
     });
   }
 
-  async registerVoucherToDB(tokenId: number, leafs: string[], itemUuid: string): Promise<any> {
+  async registerVoucherToDB(
+    tokenId: number,
+    leafs: string[],
+    itemUuid: string,
+  ): Promise<any> {
     await this.prisma.voucher.deleteMany({ where: { tokenId } });
     await this.prisma.voucherLeaf.deleteMany({ where: { tokenId } });
     const tree = this.getMerkleTree(leafs);
@@ -283,7 +293,7 @@ export class VoucherService {
       data: {
         tokenId,
         rootHash,
-        itemUuid
+        itemUuid,
       },
     });
 
@@ -293,7 +303,7 @@ export class VoucherService {
           hash: leafs[i],
           num: i,
           tokenId: tokenId,
-          itemUuid
+          itemUuid,
         },
       });
     }
@@ -316,8 +326,8 @@ export class VoucherService {
       where: { uuid: itemUuid },
       data: {
         tokenId: tokenId.toString(),
-      }
-    })
+      },
+    });
   }
 
   async ownerContract(): Promise<string> {
@@ -355,14 +365,10 @@ export class VoucherService {
       orderBy: { num: 'asc' },
     });
     // console.log(this.merkleTrees[tokenId]);
-    const merkleTree = this.getMerkleTree(voucherLeafs.map(o => o.hash));
+    const merkleTree = this.getMerkleTree(voucherLeafs.map((o) => o.hash));
     const proof = merkleTree.getHexProof(hash);
     // return this.merkleTrees[tokenId];
-    return this.nusaNFT.isValidVoucher(
-      voucher,
-      tokenId,
-      proof,
-    );
+    return this.nusaNFT.isValidVoucher(voucher, tokenId, proof);
   }
 
   async testGenerateUuid(quantity: number) {
@@ -375,7 +381,9 @@ export class VoucherService {
 
   async getItemByVoucher(voucher: string) {
     const leaf = ethers.utils.solidityKeccak256(['string'], [voucher]);
-    const voucherLeaf = await this.prisma.voucherLeaf.findFirstOrThrow({ where: { hash: leaf }});
+    const voucherLeaf = await this.prisma.voucherLeaf.findFirstOrThrow({
+      where: { hash: leaf },
+    });
     Logger.log(voucherLeaf);
     const item = await this.prisma.item.findFirstOrThrow({
       where: {
@@ -388,11 +396,11 @@ export class VoucherService {
         attributes: true,
         Collection: {
           include: {
-            royalty: true
-          }
-        }
-      }
-    })
+            royalty: true,
+          },
+        },
+      },
+    });
 
     return {
       ...item,
