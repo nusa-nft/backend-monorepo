@@ -116,6 +116,7 @@ export async function testMarketplacAuctionListing({
       }
     });
   }, { retries: 3 });
+  console.log(listing)
   assert(!!listing && listing.listingId == listingId.toNumber(), fmtFailed("listing created not recorded by indexer"));
   console.log(fmtSuccess('Listing Created and listing recorded by indexer'));
 

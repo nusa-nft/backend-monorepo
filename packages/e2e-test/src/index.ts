@@ -127,14 +127,14 @@ async function main() {
   /// =========================================
   /// Test Create Lazy Mint Item, Sell, and Buy
   /// =========================================
-  await testLazyMintItemSale({
-    restApi,
-    db,
-    nft,
-    collectionId,
-    sellerWallet: acc1,
-    buyerWallet: acc2,
-  });
+  // await testLazyMintItemSale({
+  //   restApi,
+  //   db,
+  //   nft,
+  //   collectionId,
+  //   sellerWallet: acc1,
+  //   buyerWallet: acc2,
+  // });
 
   /// =========================================
   /// Test Create Direct Listing and Buy
@@ -152,17 +152,17 @@ async function main() {
   /// =========================================
   /// Test Create Auction Listing and Buy
   /// =========================================
-  // await testMarketplacAuctionListing({
-  //   restApi,
-  //   db,
-  //   web3Provider,
-  //   nft,
-  //   marketplace,
-  //   collectionId,
-  //   sellerWallet: acc1,
-  //   bidderWallet1: acc2,
-  //   bidderWallet2: acc3
-  // });
+  await testMarketplacAuctionListing({
+    restApi,
+    db,
+    web3Provider,
+    nft,
+    marketplace,
+    collectionId,
+    sellerWallet: acc1,
+    bidderWallet1: acc2,
+    bidderWallet2: acc3
+  });
 
   /// =========================================
   /// Test Create Offer and Accept
@@ -234,15 +234,15 @@ async function main() {
   /// ====================================
   /// Test Voucher Redeemable Item
   /// ====================================
-  await voucherRedeemableItems({
-    restApi,
-    db,
-    web3Provider,
-    nft,
-    creator: acc1,
-    user1: acc2,
-    user2: acc3
-  });
+  // await voucherRedeemableItems({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   nft,
+  //   creator: acc1,
+  //   user1: acc2,
+  //   user2: acc3
+  // });
 }
 
 /**
