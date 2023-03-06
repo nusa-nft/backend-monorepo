@@ -75,9 +75,10 @@ export class ItemController {
     @Request() req: any,
     @Body(
       new ValidationPipe({
-        transform: true
-      })
-    ) createItemDto: ItemDto,
+        transform: true,
+      }),
+    )
+    createItemDto: ItemDto,
     @UploadedFile(
       new ParseFilePipe({
         validators: [new MaxFileSizeValidator({ maxSize: maxFileSize })],

@@ -116,8 +116,7 @@ export async function testMarketplacAuctionListing({
       }
     });
   }, { retries: 3 });
-  console.log(listing)
-  assert(!!listing && listing.listingId == listingId.toNumber(), fmtFailed("listing created not recorded by indexer"));
+  assert(!!listing && listing.listingId.toNumber() == listingId.toNumber(), fmtFailed("listing created not recorded by indexer"));
   console.log(fmtSuccess('Listing Created and listing recorded by indexer'));
 
   await setTime(web3Provider, listing.startTime + 100);
@@ -172,6 +171,11 @@ export async function testMarketplacAuctionListing({
   assert(bid.pricePerToken.toString() == pricePerToken.toString(), fmtFailed("pricePerToken not equal"));
   assert(bid.totalPrice.toString() == totalPrice.toString(), fmtFailed("totalPrice not equal"));
   console.log(fmtSuccess('Bid 2 recorded by indexer'));
+
+  // TODO:
+  // Check if item detail and item list APIs return listing and bids correctly
+  // Should return highest bid
+  // Bids should be ordered from highest to lowest price
 
   await setTime(web3Provider, listing.startTime + 4000);
   

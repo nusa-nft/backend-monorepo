@@ -84,7 +84,7 @@ export class CollectionDto {
     type: Number,
     description: 'collection category id',
   })
-  @Transform(val => Number(val.value))
+  @Transform((val) => Number(val.value))
   category_id: number;
 
   @ApiProperty({
@@ -98,7 +98,7 @@ export class CollectionDto {
     type: Number,
     description: 'blockchain chain id',
   })
-  @Transform(val => Number(val.value))
+  @Transform((val) => Number(val.value))
   chainId: number;
 
   @ApiProperty({
@@ -310,6 +310,47 @@ export class ImportDto {
   })
   categoryId: number;
 }
+
+export class CollectionStatusQueryParams {
+  @ApiProperty({
+    type: String,
+    description: 'token ids',
+    example: '1, 2, 3',
+  })
+  tokenIds: string;
+
+  @ApiProperty({
+    type: Number,
+    description: 'total items',
+    required: false,
+  })
+  totalItems: number;
+
+  @ApiProperty({
+    type: String,
+    description: 'lazy minted item owners address',
+    example: '0x0000000',
+    required: false,
+  })
+  lazyMintedOwners: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'lazy minted item prices',
+    example: '0.001, 0.003, 0.003',
+    required: false,
+  })
+  lazyMintedItemPrices: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'sold lazy minted item prices',
+    example: '0.001, 0.003, 0.003',
+    required: false,
+  })
+  soldLazyMintedItemPrices: string;
+}
+//       }
 
 export class RefreshMetadataDto {
   // TODO:

@@ -1,4 +1,5 @@
 import { INestApplication } from "@nestjs/common";
+import request from "supertest";
 import { NusaNFT, WETH9, MarketplaceFacet, OffersFacet } from "@nusa-nft/smart-contract/typechain-types";
 import { ethers } from "ethers";
 import { Item, MarketplaceOffer, OfferStatus, PrismaClient, RoyaltyPaid } from "@nusa-nft/database";
@@ -118,6 +119,12 @@ export async function offer({
   assert(offerInDb.status == OfferStatus.CREATED, fmtFailed("offer not recorded by indexer"));
   console.log(fmtSuccess('Offer recorded by indexer'));
 
+  resp = await request(restApi.getHttpServer())
+    .get(`/item/offer-history/${item.id}`)
+  let itemOffers = resp.body.records;
+  console.log({ itemOffers })
+  assert(itemOffers[0].id == offerId.toNumber(), fmtFailed("offer not recorded by indexer"));
+
   tx = await nft.connect(minter).setApprovalForAll(marketplace.address, true);
   await tx.wait();
 
@@ -139,6 +146,12 @@ export async function offer({
   }, { retries: 3 });
   assert(offerInDb.status == OfferStatus.COMPLETED, fmtFailed("offer accepted not recorded by indexer"));
   console.log(fmtSuccess('Offer accepted recorded by indexer'));
+
+  resp = await request(restApi.getHttpServer())
+    .get(`/item/offer-history/${item.id}`)
+  itemOffers = resp.body.records;
+  console.log({ itemOffers });
+  assert(itemOffers.length == 0, fmtFailed("offer accepted not be returned by rest api"));
 
   // Wait for indexer to pickup token ownership change
   await new Promise(resolve => setTimeout(resolve, 3000));

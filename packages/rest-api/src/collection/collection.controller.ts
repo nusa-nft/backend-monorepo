@@ -87,9 +87,10 @@ export class CollectionController {
     },
     @Body(
       new ValidationPipe({
-        transform: true
-      })
-    ) createCollectionDto: CollectionDto,
+        transform: true,
+      }),
+    )
+    createCollectionDto: CollectionDto,
     @Request() req: any,
   ) {
     if (files) {

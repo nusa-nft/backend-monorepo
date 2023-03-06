@@ -11,6 +11,7 @@ import {
   CollectionActivitiesParams,
   CollectionDto,
   CollectionSortBy,
+  CollectionStatusQueryParams,
   ImportDto,
   RefreshMetadataDto,
   SaleHistoryQueryParams,
@@ -29,6 +30,7 @@ import { formatDistance } from 'date-fns';
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Job, Queue } from 'bull';
 import axios from 'axios';
+import { toString } from '../lib/toString';
 
 @Injectable()
 @Processor('import-collection')
@@ -816,14 +818,258 @@ export class CollectionService {
 
     const tokenIdsString = tokenIds.toString();
 
-    const volumeData = await this.indexerService.getStatusData(
-      tokenIdsString,
+    const volumeData = await this.getStatusData({
+      // const volumeData = await this.indexerService.getStatusData(
+      tokenIds: tokenIdsString,
       totalItems,
-      uniqueLazyMintedOwnerAddresses,
-      lazyMintedItemPricesString,
-      soldListingPrice.toString(),
-    );
+      lazyMintedOwners: uniqueLazyMintedOwnerAddresses,
+      lazyMintedItemPrices: lazyMintedItemPricesString,
+      soldLazyMintedItemPrices: soldListingPrice.toString(),
+    });
     return volumeData;
+  }
+
+  async getStatusData(collectionStatus: CollectionStatusQueryParams) {
+    const {
+      tokenIds,
+      totalItems,
+      lazyMintedOwners,
+      lazyMintedItemPrices,
+      soldLazyMintedItemPrices,
+    } = collectionStatus;
+    const tokenIdsArray = tokenIds.split(',').map(Number);
+    const lazyMintedOwnersArray = lazyMintedOwners.split(',');
+    const lazyMintedItemPricesArray = lazyMintedItemPrices
+      .split(',')
+      .map(Number);
+    const soldlazyMintedItemPricesArray = soldLazyMintedItemPrices
+      .split(',')
+      .map(Number);
+
+    let listings;
+    let floorPrice;
+    let mintedVolume = 0;
+    let lastSale;
+    let lastSaleTimestamp;
+    const currentItemPricesData = [];
+
+    const listingData = await this.prisma.marketplaceListing.findMany({
+      where: {
+        tokenId: { in: tokenIdsArray },
+        AND: {
+          MarketplaceSale: undefined,
+          isCancelled: false,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const soldListingData = await this.prisma.marketplaceSale.findMany({
+      where: {
+        listing: {
+          tokenId: { in: tokenIdsArray },
+        },
+      },
+      include: {
+        listing: true,
+      },
+      orderBy: {
+        id: 'desc',
+      },
+    });
+
+    // geting collection status for unsold listings
+    if (!listingData.length) {
+      listings = 0;
+      floorPrice = 0;
+      mintedVolume = 0;
+    } else {
+      listings = listingData;
+
+      //compiling current price of each item
+      for (const listing of listings) {
+        // FIXME:
+        const auctionPrice = [];
+        // const auctionPrice = await this.prisma.marketplaceOffer.findMany({
+        //   where: {
+        //     listingId: listing.listingId,
+        //     listingType: 'Auction',
+        //   },
+        //   orderBy: {
+        //     totalOfferAmount: 'desc',
+        //   },
+        // });
+
+        // FIXME:
+        const directPrice = [];
+        // const directPrice = await this.prisma.marketplaceOffer.findMany({
+        //   where: {
+        //     listingId: listing.listingId,
+        //     listingType: 'Direct',
+        //   },
+        //   orderBy: {
+        //     totalOfferAmount: 'desc',
+        //   },
+        // });
+
+        if (auctionPrice.length) {
+          const auctionPriceValue = ethers.utils.formatEther(
+            auctionPrice[0].totalOfferAmount.toString(),
+          );
+          currentItemPricesData.push(auctionPriceValue);
+        }
+
+        //comparing direct listing offer price and buyout price, take highest as curent price
+        if (directPrice.length) {
+          const directPriceValue = ethers.utils.formatEther(
+            directPrice[0].totalOfferAmount.toString(),
+          );
+          const buyoutPriceValue = ethers.utils.formatEther(
+            toString(listing.buyoutPricePerToken),
+          );
+          const currentPrice = Math.max(
+            Number(directPriceValue),
+            Number(buyoutPriceValue),
+          );
+          currentItemPricesData.push(currentPrice);
+        }
+
+        if (
+          !auctionPrice.length &&
+          !directPrice.length &&
+          listing.listingType == 'Direct'
+        ) {
+          const buyoutPriceValue = ethers.utils.formatEther(
+            toString(listing.buyoutPricePerToken),
+          );
+          currentItemPricesData.push(buyoutPriceValue);
+        }
+
+        if (
+          !auctionPrice.length &&
+          !directPrice.length &&
+          listing.listingType == 'Auction'
+        ) {
+          const buyoutPriceValue = ethers.utils.formatEther(
+            toString(listing.reservePricePerToken),
+          );
+          currentItemPricesData.push(buyoutPriceValue);
+        }
+      }
+    }
+
+    const mergedFloorPrices = [
+      ...currentItemPricesData,
+      ...lazyMintedItemPricesArray,
+    ];
+    //geting the lowest price out of the compiled prices as floor price
+
+    if (mergedFloorPrices.length) {
+      floorPrice = +Math.min(...mergedFloorPrices.filter(Boolean));
+    }
+
+    if (mergedFloorPrices[0] == 0 && mergedFloorPrices.length == 1) {
+      floorPrice = Math.min(...mergedFloorPrices);
+    }
+
+    if (mergedFloorPrices.length) {
+      floorPrice = +Math.min(...mergedFloorPrices.filter(Boolean));
+    }
+
+    if (mergedFloorPrices[0] == 0 && mergedFloorPrices.length == 1) {
+      floorPrice = Math.min(...mergedFloorPrices);
+    }
+
+    // geting collection status for unsold listings
+    for (const data of soldListingData) {
+      const totalPricePaid = ethers.BigNumber.from(
+        toString(data.totalPricePaid),
+      );
+      const totalPricePaidMatic = ethers.utils.formatEther(
+        totalPricePaid.toString(),
+      );
+      mintedVolume = mintedVolume + +totalPricePaidMatic;
+    }
+    const lazyMintedVolume = soldlazyMintedItemPricesArray.reduce(
+      (accumulator, value) => {
+        return accumulator + value;
+      },
+      0,
+    );
+
+    const volume = mintedVolume + lazyMintedVolume;
+
+    let finalVolume;
+    if (volume <= 0.0000001) {
+      finalVolume = volume.toFixed(+volume.toString().split('-')[1]);
+    }
+    if (volume > 999) {
+      finalVolume = (volume / 1000).toFixed(2) + ' K';
+    } else {
+      finalVolume = volume.toPrecision(2);
+    }
+
+    if (soldListingData.length == 0) {
+      lastSale = 0;
+      lastSaleTimestamp = 0;
+    } else {
+      lastSale = ethers.utils.formatEther(
+        soldListingData[0].totalPricePaid.toString(),
+      );
+      lastSaleTimestamp = soldListingData[0].createdAt;
+    }
+
+    // geting unique owner
+    const mintedOwners = [];
+    for (const tokenId of tokenIdsArray) {
+      const tokenOwnerships = await this.prisma.tokenOwnerships.findMany({
+        where: {
+          tokenId: tokenId,
+        },
+      });
+      const ownersValue: Record<string, number> = {};
+      for (const tokenOwnership of tokenOwnerships) {
+        ownersValue[tokenOwnership.ownerAddress] = tokenOwnership.quantity;
+      }
+      // const owner = await this.erc115service.getTokenOwners(tokenId);
+      Object.assign(mintedOwners, ownersValue);
+    }
+
+    const uniqueMintedOwner = Object.keys(mintedOwners);
+    const ownerAddresses = [...uniqueMintedOwner, ...lazyMintedOwnersArray];
+    const uniqueOwnerAddresses = [...new Set(ownerAddresses)].filter(Boolean);
+
+    let uniqueOwner;
+    if (totalItems == 0) {
+      uniqueOwner = 'N/A';
+    } else {
+      const uniqueOwnerValue = Number(
+        Math.round((uniqueOwnerAddresses.length / +totalItems) * 100),
+      );
+      if (uniqueOwnerValue == 0) {
+        uniqueOwner = 'N/A';
+      } else {
+        uniqueOwner = uniqueOwnerValue + ' %';
+      }
+    }
+
+    let finalFloorPrice;
+    if (floorPrice <= 0.0000001) {
+      finalFloorPrice = floorPrice.toFixed(floorPrice.toString().split('-')[1]);
+    } else {
+      finalFloorPrice = floorPrice;
+    }
+
+    return {
+      listings,
+      floorPrice: finalFloorPrice,
+      lastSale,
+      lastSaleTimestamp,
+      volume: finalVolume,
+      uniqueOwner,
+    };
   }
 
   collectionItemCount(collectionData: any) {
