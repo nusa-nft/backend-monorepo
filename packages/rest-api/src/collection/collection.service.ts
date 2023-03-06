@@ -25,7 +25,8 @@ import { slugify } from '../lib/slugify';
 import { JwtService } from '@nestjs/jwt';
 import { IndexerService } from '../indexer/indexer.service';
 import { Item, Prisma, TokenType, Collection, User } from '@prisma/client';
-import { ItemService } from '../item/item.service';
+// import { ItemService } from '../item/item.service';
+import { ItemServiceV2 } from 'src/item/item.service.v2';
 import { formatDistance } from 'date-fns';
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Job, Queue } from 'bull';
@@ -40,8 +41,8 @@ export class CollectionService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private indexerService: IndexerService,
-    @Inject(forwardRef(() => ItemService))
-    private itemService: ItemService,
+    @Inject(forwardRef(() => ItemServiceV2))
+    private itemService: ItemServiceV2,
     @InjectQueue('import-collection') private importCollectionQueue: Queue,
   ) {
     // this.provider = new ethers.providers.WebSocketProvider(
@@ -280,7 +281,7 @@ export class CollectionService {
       const user = this.jwtService.decode(token);
       userId = user.sub;
     }
-    const collectionData = await this.prisma.collection.findFirst({
+    const collectionData = await this.prisma.collection.findFirstOrThrow({
       where: {
         slug: slug,
         deleted: false,
@@ -305,53 +306,14 @@ export class CollectionService {
         },
       },
     });
-    console.log({ collectionData });
-
     if (collectionData) {
       this.collectionIdOrSlugItemCount(collectionData);
       await this.isWatchedValidator(collectionData, userId);
 
       const items: (Item & any)[] = [];
       for (const item of collectionData.items) {
-        // If item already minted on Blockchain
-        // - get token owners from indexer
-        // - should not have lazy mint listing
-        // - get active listing from indexer
-        if (item.quantity_minted > 0) {
-          const owners = await this.itemService.getTokenOwners(item.tokenId);
-          Object.assign(item, { owners });
-
-          item.LazyMintListing = [];
-          const listings = await this.itemService.getItemActiveListing(item);
-          if (listings.length > 0) {
-            for (let i = 0; i < listings.length; i++) {
-              const listing = await this.itemService.retrieveListingOffers(
-                listings[i],
-              );
-              listings[i] = listing;
-            }
-          }
-          Object.assign(item, { ItemActiveListings: listings });
-        } else {
-          // else, item is lazy minted (only stored on DB)
-          // - owner is only the creator
-          // - set ActiveLazyMintListing if any
-          const owners = [
-            {
-              wallet_address: item.Creator.wallet_address,
-              username: item.Creator.username,
-              profile_picture: item.Creator.profile_picture,
-              quantity: item.supply,
-            },
-          ];
-          Object.assign(item, { owners });
-
-          if (item.LazyMintListing.length > 0) {
-            Object.assign(item, {
-              ActiveLazyMintListing: item.LazyMintListing[0],
-            });
-          }
-        }
+        const _item = await this.itemService.getItem(item.id, token);
+        Object.assign(item, _item);
         items.push(item);
       }
 
