@@ -247,7 +247,6 @@ export class NotificationService {
   }
 
   async newBidNotification(eventData) {
-    console.log('bid data', eventData);
     const {
       listingId,
       bidder,
@@ -257,7 +256,6 @@ export class NotificationService {
       transactionHash,
     } = eventData;
 
-    console.log(listingId);
     const listingData: MarketplaceListing =
       await this.prisma.marketplaceListing.findUniqueOrThrow({
         where: {
