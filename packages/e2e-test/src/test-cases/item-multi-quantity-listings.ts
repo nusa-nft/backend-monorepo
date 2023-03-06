@@ -145,6 +145,14 @@ export async function itemMultiQuantityListings({
   assert(tokenOwnershipBuyer_onchain.toString() == tokenOwnershipBuyer_db?.quantity.toString(), fmtFailed("token ownership buyer onchain not equal to db"));
   console.log(fmtSuccess("Item multi quantity listing 1 check passed"));
 
+  await retry(async () => {
+    listing = await db.marketplaceListing.findFirstOrThrow({
+      where: { id: listingId1.toNumber() }
+    })
+  }, { retries: 3 })
+  console.log({ listing });
+  assert(listing.quantity == 10 - 3, fmtFailed("listing quantity not equal to 10 - sale quantityBought"));
+
   // ===================
   // User 2 Buy 3 items
   // ===================
@@ -202,6 +210,14 @@ export async function itemMultiQuantityListings({
   assert(tokenOwnershipSeller_onchain.toString() == tokenOwnershipSeller_db?.quantity.toString(), fmtFailed("token ownership seller onchain not equal to db"));
   assert(tokenOwnershipBuyer_onchain.toString() == tokenOwnershipBuyer_db?.quantity.toString(), fmtFailed("token ownership buyer onchain not equal to db"));
   console.log(fmtSuccess("Item multi quantity listing 2 check passed"));
+
+  await retry(async () => {
+    listing = await db.marketplaceListing.findFirstOrThrow({
+      where: { id: listingId1.toNumber() }
+    })
+  }, { retries: 3 })
+  console.log({ listing });
+  assert(listing.quantity == 10 - 6, fmtFailed("listing quantity not equal to 10 - sale quantityBought"));
 
   now = await getTime(web3Provider);
 

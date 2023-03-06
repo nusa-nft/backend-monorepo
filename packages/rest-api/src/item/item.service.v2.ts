@@ -998,6 +998,9 @@ export class ItemServiceV2 {
       include: {
         bids: {
           orderBy: { totalPrice: 'desc' },
+          include: {
+            Bidder: true
+          }
         },
       },
     });
