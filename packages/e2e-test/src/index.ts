@@ -152,17 +152,17 @@ async function main() {
   /// =========================================
   /// Test Create Auction Listing and Buy
   /// =========================================
-  // await testMarketplacAuctionListing({
-  //   restApi,
-  //   db,
-  //   web3Provider,
-  //   nft,
-  //   marketplace,
-  //   collectionId,
-  //   sellerWallet: acc1,
-  //   bidderWallet1: acc2,
-  //   bidderWallet2: acc3
-  // });
+  await testMarketplacAuctionListing({
+    restApi,
+    db,
+    web3Provider,
+    nft,
+    marketplace,
+    collectionId,
+    sellerWallet: acc1,
+    bidderWallet1: acc2,
+    bidderWallet2: acc3
+  });
 
   /// =========================================
   /// Test Create Offer and Accept

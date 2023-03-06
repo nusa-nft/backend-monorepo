@@ -43,6 +43,8 @@ model User {
   NotificationDetailOfferLister  NotificationDetailOffer[] @relation("lister")
   NotificationDetailOfferOfferor NotificationDetailOffer[] @relation("offeror")
   Notification                   Notification[]
+  NotificationDetailBidLister    NotificationDetailBid[]   @relation("lister")
+  NotificationDetailBidBidder    NotificationDetailBid[]   @relation("bidder")
 
   @@id([id, wallet_address])
 }
@@ -217,6 +219,8 @@ model Notification {
   notification_detail_sale_id  Int?
   notification_detail_offer    NotificationDetailOffer? @relation("offer", fields: [notification_detail_offer_id], references: [id])
   notification_detail_offer_id Int?
+  notification_detaul_bid      NotificationDetailBid?   @relation("bid", fields: [notification_detail_bid_id], references: [id])
+  notification_detail_bid_id   Int?
   createdAt                    DateTime                 @default(now())
 }
 
@@ -260,6 +264,26 @@ model NotificationDetailOffer {
   @@unique([id, notification_type])
 }
 
+model NotificationDetailBid {
+  id                    Int              @unique @default(autoincrement())
+  notification_type     NotificationType @default(Offer)
+  listingId             Int
+  lister                User?            @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
+  lister_wallet_address String?          @db.Citext
+  bidder                User?            @relation("bidder", fields: [bidder_wallet_address], references: [wallet_address])
+  bidder_wallet_address String?          @db.Citext
+  listing_type          ListingType
+  quantity_wanted       Decimal?         @db.Decimal(78, 0)
+  total_offer_ammount   Decimal          @db.Decimal(78, 0)
+  currency              String           @db.Citext
+  createdAt             DateTime         @default(now())
+  createdAt_timestamp   Int?
+  transaction_hash      String
+  Notification          Notification[]   @relation("bid")
+
+  @@unique([id, notification_type])
+}
+
 enum Display {
   PADDED
   CONTAINED
@@ -285,6 +309,7 @@ enum ListingType {
 enum NotificationType {
   Sale
   Offer
+  Bid
 }
 
 enum ListingStatus {
