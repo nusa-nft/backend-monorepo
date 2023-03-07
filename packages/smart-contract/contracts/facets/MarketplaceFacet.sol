@@ -535,8 +535,6 @@ contract MarketplaceFacet is
                             Setter functions
     //////////////////////////////////////////////////////////////*/
     /// @dev Lets a contract admin update platform fee recipient and bps.
-    // TODO: add DEFAULT_ADMIN_ROLE check
-    // need to write an AccessControl facet
     function setPlatformFeeInfo(
         address _platformFeeRecipient,
         uint256 _platformFeeBps
