@@ -42,9 +42,24 @@ export class NotificationService {
         id: 'desc',
       },
       include: {
-        notification_detail_offer: true,
-        notification_detail_sale: true,
-        notification_detail_bid: true,
+        notification_detail_offer: {
+          include: {
+            offeror: true,
+            token_owner: true,
+          },
+        },
+        notification_detail_sale: {
+          include: {
+            lister: true,
+            buyer: true,
+          },
+        },
+        notification_detail_bid: {
+          include: {
+            lister: true,
+            bidder: true,
+          },
+        },
       },
       where: {
         user: {
