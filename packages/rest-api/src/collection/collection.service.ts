@@ -928,7 +928,6 @@ export class CollectionService {
     ];
     //geting the lowest price out of the compiled prices as floor price
 
-    console.log(mergedFloorPrices);
     if (mergedFloorPrices.length) {
       floorPrice = +Math.min(...mergedFloorPrices.filter(Boolean));
     }
@@ -937,14 +936,6 @@ export class CollectionService {
       floorPrice = Math.min(...mergedFloorPrices);
     }
 
-    // let finalFloorPrice;
-    // if (floorPrice <= 0.0000001) {
-    //   finalFloorPrice = floorPrice.toFixed(floorPrice.toString().split('-')[1]);
-    // } else {
-    //   finalFloorPrice = floorPrice;
-    // }
-
-    console.log(floorPrice);
     // geting collection status for unsold listings
     for (const data of soldListingData) {
       const totalPricePaid = ethers.BigNumber.from(
@@ -1018,9 +1009,17 @@ export class CollectionService {
       }
     }
 
+    let finalFloorPrice;
+    if (floorPrice <= 0.0000001) {
+      finalFloorPrice = floorPrice.toFixed(floorPrice.toString().split('-')[1]);
+    } else {
+      finalFloorPrice = Math.min(...mergedFloorPrices);
+      finalFloorPrice = floorPrice;
+    }
+
     return {
       listings,
-      floorPrice,
+      floorPrice: finalFloorPrice,
       lastSale,
       lastSaleTimestamp,
       volume: finalVolume,
