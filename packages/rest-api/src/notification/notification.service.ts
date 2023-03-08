@@ -61,12 +61,12 @@ export class NotificationService {
           offerData.createdAt_timestamp * 1000,
         )} ago`;
 
-        const itemName = await this.getItemName(
+        const item = await this.getItemName(
           NotificationType.Offer,
           offerData.tokenId,
         );
         Object.assign(data.notification_detail_offer, {
-          itemName,
+          item,
           createdAt_description,
         });
       }
@@ -77,12 +77,12 @@ export class NotificationService {
           Date.now(),
           saleData.createdAt_timestamp * 1000,
         )} ago`;
-        const itemName = await this.getItemName(
+        const item = await this.getItemName(
           NotificationType.Sale,
           saleData.listingId,
         );
         Object.assign(data.notification_detail_sale, {
-          itemName,
+          item,
           createdAt_description,
         });
       }
@@ -94,12 +94,12 @@ export class NotificationService {
           Date.now(),
           bidData.createdAt_timestamp * 1000,
         )} ago`;
-        const itemName = await this.getItemName(
+        const item = await this.getItemName(
           NotificationType.Bid,
           bidData.listingId,
         );
         Object.assign(data.notification_detail_bid, {
-          itemName,
+          item,
           createdAt_description,
         });
       }
@@ -194,7 +194,7 @@ export class NotificationService {
       });
     }
     console.log(item);
-    return item.name;
+    return { id: item.id, name: item.name };
   }
 
   async lazyMintNotification(data: LazyMintSale, listingData: LazyMintListing) {
