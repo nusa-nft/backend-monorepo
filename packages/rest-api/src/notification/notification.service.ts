@@ -61,9 +61,12 @@ export class NotificationService {
           offerData.createdAt_timestamp * 1000,
         )} ago`;
 
-        const itemName = await this.getItemName(offerData.listingId);
+        const item = await this.getItemData(
+          NotificationType.Offer,
+          offerData.tokenId,
+        );
         Object.assign(data.notification_detail_offer, {
-          itemName,
+          item,
           createdAt_description,
         });
       }
@@ -74,9 +77,12 @@ export class NotificationService {
           Date.now(),
           saleData.createdAt_timestamp * 1000,
         )} ago`;
-        const itemName = await this.getItemName(saleData.listingId);
+        const item = await this.getItemData(
+          NotificationType.Sale,
+          saleData.listingId,
+        );
         Object.assign(data.notification_detail_sale, {
-          itemName,
+          item,
           createdAt_description,
         });
       }
@@ -88,9 +94,12 @@ export class NotificationService {
           Date.now(),
           bidData.createdAt_timestamp * 1000,
         )} ago`;
-        const itemName = await this.getItemName(bidData.listingId);
+        const item = await this.getItemData(
+          NotificationType.Bid,
+          bidData.listingId,
+        );
         Object.assign(data.notification_detail_bid, {
-          itemName,
+          item,
           createdAt_description,
         });
       }
@@ -156,25 +165,36 @@ export class NotificationService {
     };
   }
 
-  async getItemName(listingId: any) {
-    const item = await this.prisma.item.findFirst({
-      where: {
-        OR: [
-          {
-            MarketplaceListing: {
-              some: { id: +listingId },
-            },
-          },
-          {
-            LazyMintListing: {
-              some: { id: +listingId },
-            },
-          },
-        ],
-      },
-    });
+  async getItemData(notificationType: NotificationType, foreignKey: any) {
+    let item;
 
-    return item.name;
+    if (
+      notificationType == NotificationType.Sale ||
+      notificationType == NotificationType.Bid
+    ) {
+      item = await this.prisma.item.findFirst({
+        where: {
+          OR: [
+            {
+              MarketplaceListing: {
+                some: { id: +foreignKey },
+              },
+            },
+            {
+              LazyMintListing: {
+                some: { id: +foreignKey },
+              },
+            },
+          ],
+        },
+      });
+    } else {
+      item = await this.prisma.item.findFirst({
+        where: { tokenId: +foreignKey },
+      });
+    }
+    console.log(item);
+    return { id: item.id, name: item.name };
   }
 
   async lazyMintNotification(data: LazyMintSale, listingData: LazyMintListing) {
