@@ -45,7 +45,7 @@ model User {
   Notification                   Notification[]
   NotificationDetailBidLister    NotificationDetailBid[]   @relation("lister")
   NotificationDetailBidBidder    NotificationDetailBid[]   @relation("bidder")
-  bids                            Bid[]
+  bids                           Bid[]
 
   @@id([id, wallet_address])
 }
@@ -327,6 +327,11 @@ enum OfferStatus {
   CANCELLED
 }
 
+enum IndexerStatus {
+  SYNCING
+  SYNCED
+}
+
 model TokenTransferHistory {
   id              Int     @unique @default(autoincrement())
   block           Int?
@@ -447,7 +452,8 @@ model RoyaltyPaid {
 }
 
 model IndexerState {
-  lastBlockProcessed Int @unique
+  lastBlockProcessed Int           @unique
+  status             IndexerStatus
 }
 
 model Voucher {
