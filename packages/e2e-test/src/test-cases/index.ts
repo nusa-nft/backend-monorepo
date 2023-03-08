@@ -8,3 +8,4 @@ export * from "./import-erc1155-batch-mint";
 export * from "./import-erc721-mint";
 export * from "./item-multi-quantity-listings";
 export * from "./voucher-redeemable-items";
+export * from "./indexer-sync";

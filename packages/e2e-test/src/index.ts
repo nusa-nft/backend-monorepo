@@ -14,7 +14,7 @@ import { login, createCollection, createItem, uploadMetadataToIpfs, createLazyMi
 import { getIpfsData } from "./lib/ipfs";
 import { assert } from "./lib/assertions";
 import { Collection, Item, ListingType, PrismaClient, TokenType } from "@nusa-nft/database";
-import _ from "lodash";
+import _, { rest } from "lodash";
 import { NusaNFT, TokensMintedWithSignatureEvent, TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
 import retry from 'async-retry';
 import { NATIVE_CURRENCY } from "@nusa-nft/rest-api/src/item/web3/constants";
@@ -29,7 +29,8 @@ import {
   importERC1155Mint,
   importERC721Mint,
   itemMultiQuantityListings,
-  voucherRedeemableItems
+  voucherRedeemableItems,
+  indexerSync
 } from "./test-cases";
 
 let ipfsProcess: ChildProcess;
@@ -76,6 +77,7 @@ async function main() {
   process.env.NFT_CONTRACT_OWNER_PRIVATE_KEY = deployer.privateKey;
   process.env.CHAIN_ID = '1337';
   process.env.WORKER_IMPORT_COLLECTION_START_BLOCK = '0';
+  process.env.INDEXER_FROM_BLOCK = '0';
   process.env.RPC_URL = 'http://localhost:8545'
   process.env.WSS_RPC_URL = 'ws://localhost:8545'
 
@@ -87,6 +89,11 @@ async function main() {
   const restApi = promises[1];
   const worker = promises[2];
   ipfsProcess = promises[3];
+
+  // Initialize services
+  await restApi.init();
+  await indexer.init();
+  await worker.init();
 
   /**
    * Test Cases
@@ -167,18 +174,18 @@ async function main() {
   /// =========================================
   /// Test Create Offer and Accept
   /// =========================================
-  await offer({
-    restApi,
-    db,
-    web3Provider,
-    nft,
-    offers,
-    collectionId,
-    minter: acc1,
-    offeror: acc2,
-    marketplace,
-    wmatic
-  });
+  // await offer({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   nft,
+  //   offers,
+  //   collectionId,
+  //   minter: acc1,
+  //   offeror: acc2,
+  //   marketplace,
+  //   wmatic
+  // });
 
   /// ====================================
   /// Test Import ERC1155 Mint
@@ -242,6 +249,22 @@ async function main() {
   //   creator: acc1,
   //   user1: acc2,
   //   user2: acc3
+  // });
+
+  /// ====================================
+  /// Test Indexer Sync
+  /// comment out indexer.init() above
+  /// ganache.miner.blockTime = 1
+  /// before running this test
+  /// ====================================
+  // await indexerSync({
+  //   db,
+  //   web3Provider,
+  //   indexer,
+  //   nft,
+  //   marketplace,
+  //   user1: acc1,
+  //   user2: acc2,
   // });
 }
 
