@@ -197,3 +197,14 @@ export async function createLazyMintSale(restApi: INestApplication, jwt: string,
     throw err;
   }
 }
+
+export async function getNotificationData(restApi: INestApplication) {
+  try {
+    const resp = await request(restApi.getHttpServer())
+    .get(`/notification/1?page=1&take=Take_10`)
+
+    return resp.body
+  } catch (err) {
+    throw err
+  }
+}

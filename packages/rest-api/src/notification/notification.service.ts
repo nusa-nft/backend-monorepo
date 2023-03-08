@@ -48,7 +48,7 @@ export class NotificationService {
       },
       where: {
         user: {
-          id: userId,
+          id: +userId,
         },
       },
     });
@@ -83,6 +83,7 @@ export class NotificationService {
 
       if (data.notification_detail_bid) {
         const bidData = data.notification_detail_bid;
+        console.log(bidData);
         const createdAt_description = `${formatDistance(
           Date.now(),
           bidData.createdAt_timestamp * 1000,
@@ -161,12 +162,12 @@ export class NotificationService {
         OR: [
           {
             MarketplaceListing: {
-              some: { id: listingId },
+              some: { id: +listingId },
             },
           },
           {
             LazyMintListing: {
-              some: { id: listingId },
+              some: { id: +listingId },
             },
           },
         ],
