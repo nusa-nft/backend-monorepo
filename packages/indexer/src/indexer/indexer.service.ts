@@ -19,7 +19,7 @@ import { abi as NusaNftAbi } from '@nusa-nft/smart-contract/artifacts/contracts/
 import { abi as MarketplaceAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/MarketplaceFacet.sol/MarketplaceFacet.json';
 import { abi as OffersAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/OffersFacet.sol/OffersFacet.json';
 import { abi as LibRoyaltyAbi } from  '@nusa-nft/smart-contract/artifacts/contracts/libraries/LibRoyalty.sol/LibRoyalty.json';
-import { OfferStruct, OfferStructOutput } from '@nusa-nft/smart-contract/typechain-types/contracts/facets/OffersFacet';
+import { AcceptedOfferEvent, AcceptedOfferEventObject, OfferStruct, OfferStructOutput } from '@nusa-nft/smart-contract/typechain-types/contracts/facets/OffersFacet';
 import { ISignatureMintERC1155, TokensMintedWithSignatureEvent, TokensMintedWithSignatureEventObject } from '@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT';
 import { LogDescription } from 'ethers/lib/utils';
 import { TypedEvent } from '@nusa-nft/smart-contract/typechain-types/common';
@@ -635,6 +635,25 @@ export class IndexerService implements OnModuleInit {
       Logger.log('RoyaltyPaid');
       await this.indexRoyaltyPaid((event as unknown as RoyaltyPaidEvent).args, log);
     }
+
+    if (event.name == 'AcceptedOffer') {
+      Logger.log('AcceptedOffer');
+      await this.indexAcceptedOffer((event as unknown as AcceptedOfferEvent).args, log);
+    }
+  }
+
+  async indexAcceptedOffer(eventArgs: AcceptedOfferEventObject, log: TypedEvent<any, any>) {
+    const { blockNumber, transactionHash } = log;
+    const { offerId } = eventArgs;
+    const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
+    const offer = await this.offers.getOffer(offerId);
+    await this.prisma.marketplaceOffer.update({
+      where: { id: Number(offerId) },
+      data: {
+        status: parseOfferStatus(offer.status),
+        transactionHash,
+      }
+    });
   }
 
   async updateLatestBlock(blockNumber: number, status: IndexerStatus) {
