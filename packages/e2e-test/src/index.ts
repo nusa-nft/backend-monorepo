@@ -167,18 +167,18 @@ async function main() {
   /// =========================================
   /// Test Create Offer and Accept
   /// =========================================
-  // await offer({
-  //   restApi,
-  //   db,
-  //   web3Provider,
-  //   nft,
-  //   offers,
-  //   collectionId,
-  //   minter: acc1,
-  //   offeror: acc2,
-  //   marketplace,
-  //   wmatic
-  // });
+  await offer({
+    restApi,
+    db,
+    web3Provider,
+    nft,
+    offers,
+    collectionId,
+    minter: acc1,
+    offeror: acc2,
+    marketplace,
+    wmatic
+  });
 
   /// ====================================
   /// Test Import ERC1155 Mint

@@ -26,7 +26,7 @@ import { JwtService } from '@nestjs/jwt';
 import { IndexerService } from '../indexer/indexer.service';
 import { Item, Prisma, TokenType, Collection, User } from '@prisma/client';
 // import { ItemService } from '../item/item.service';
-import { ItemServiceV2 } from 'src/item/item.service.v2';
+import { ItemServiceV2 } from '../item/item.service.v2';
 import { formatDistance } from 'date-fns';
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Job, Queue } from 'bull';
