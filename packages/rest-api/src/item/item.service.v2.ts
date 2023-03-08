@@ -715,8 +715,8 @@ export class ItemServiceV2 {
           startTime: l.startTime,
           endTime: l.endTime,
           quantity: l.quantity,
-          reservePricePerToken: l.reservePricePerToken.toString(),
-          buyoutPricePerToken: l.buyoutPricePerToken.toString(),
+          reservePricePerToken: toString(l.reservePricePerToken),
+          buyoutPricePerToken: toString(l.buyoutPricePerToken),
           lister,
           isLazyMint: false,
         });
@@ -731,8 +731,8 @@ export class ItemServiceV2 {
         startTime: l.startTime,
         endTime: l.endTime,
         quantity: l.quantity,
-        reservePricePerToken: l.reservePricePerToken.toString(),
-        buyoutPricePerToken: l.buyoutPricePerToken.toString(),
+        reservePricePerToken: toString(l.reservePricePerToken),
+        buyoutPricePerToken: toString(l.buyoutPricePerToken),
         lister: {
           wallet_address: l.lister,
         },
@@ -755,8 +755,12 @@ export class ItemServiceV2 {
     }
 
     listings.sort((a, b) => {
-      const aPrice = ethers.BigNumber.from(a.buyoutPricePerToken);
-      const bPrice = ethers.BigNumber.from(b.buyoutPricePerToken);
+      const aPrice = a.listingType == ListingType.Direct
+        ? ethers.BigNumber.from(a.buyoutPricePerToken)
+        : ethers.BigNumber.from(a.reservePricePerToken)
+      const bPrice = b.listingType == ListingType.Auction
+        ? ethers.BigNumber.from(b.buyoutPricePerToken)
+        : ethers.BigNumber.from(b.reservePricePerToken)
       if (aPrice.gt(bPrice)) return 1;
       return -1;
     });
