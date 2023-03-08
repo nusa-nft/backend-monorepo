@@ -68,7 +68,6 @@ export async function setupIndexer() {
     imports: [IndexerAppModule],
   }).compile();
   const indexer: INestApplication = moduleFixture.createNestApplication({ logger: ['error'] });
-  await indexer.init();
 
   return indexer;
 }
@@ -78,7 +77,6 @@ export async function setupRestApi() {
     imports: [RestApiAppModule],
   }).compile();
   const restApi: INestApplication = moduleFixture.createNestApplication({ logger: ['error'] });
-  await restApi.init();
 
   return restApi;
 }
@@ -88,7 +86,6 @@ export async function setupWorker() {
     imports: [WorkerAppModule],
   }).compile();
   const worker: INestApplication = moduleFixture.createNestApplication({ logger: ['log', 'error', 'debug', 'warn'] });
-  await worker.init();
 
   return worker;
 }
