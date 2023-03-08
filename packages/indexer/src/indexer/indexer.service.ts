@@ -290,17 +290,14 @@ export class IndexerService implements OnModuleInit {
   async queryFilter(fromBlock: number, toBlock: number) {
     Logger.log(`queryFilter(${fromBlock}, ${toBlock})`);
 
-    const contractAdresses = await this.getNFTContractAddresses();
-    const nusaContractAddress = this.configService.get<string>(
-      'NFT_CONTRACT_ADDRESS',
-    );
+    const nftContractAdresses = await this.getNFTContractAddresses();
     const marketplaceContractAddress = this.configService.get<string>(
       'MARKETPLACE_CONTRACT_ADDRESS'
     );
 
     const logs = await this.provider.send('eth_getLogs', [
       {
-        address: [...contractAdresses, marketplaceContractAddress],
+        address: [...nftContractAdresses, marketplaceContractAddress],
         fromBlock: `0x${fromBlock.toString(16)}`,
         toBlock: `0x${toBlock.toString(16)}`,
         topics: [[...this.NFT_TOPICS, ...this.MARKETPLACE_TOPICS]],
