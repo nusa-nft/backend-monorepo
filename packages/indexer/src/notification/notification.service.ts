@@ -11,6 +11,7 @@ import {
   ListingType,
   Bid,
   NotificationDetailBid,
+  Notification,
 } from '@prisma/client';
 import retry from 'async-retry';
 
@@ -124,20 +125,19 @@ export class NotificationService {
 
     if (tokenOwner.length == 0) return;
 
-    const createManyOwnerData = [];
-
+    const notificationDataOwner = [];
     for (const owner of tokenOwner) {
       const wallet_address = owner.ownerAddress;
-      createManyOwnerData.push({
-        wallet_address,
-        notification_type: NotificationType.Offer,
-        is_seen: false,
+      const notificationData = await this.prisma.notification.create({
+        data: {
+          wallet_address,
+          notification_type: NotificationType.Offer,
+          is_seen: false,
+        },
       });
-    }
 
-    const notificationDataOwner = await this.prisma.notification.createMany({
-      data: createManyOwnerData,
-    });
+      notificationDataOwner.push(notificationData);
+    }
 
     const notificationDataOfferor = await this.prisma.notification.create({
       data: {
@@ -157,42 +157,38 @@ export class NotificationService {
     });
 
     console.log(notificationDataOwner);
-    // const createManyOfferNotificationData = [];
-    // for (const owner of tokenOwner) {
-    //   createManyOfferNotificationData.push({
+    const createManyOfferNotificationData = [];
+    for (const notification of notificationDataOwner) {
+      createManyOfferNotificationData.push({
+        data: {
+          id: id,
+          token_owner: {
+            connect: {
+              wallet_address: notification.wallet_address,
+            },
+          },
+          listing_type: ListingType.Direct,
+          quantity_wanted: Number(quantity),
+          total_offer_ammount: totalPrice,
+          currency,
+          expiration_timestamp: expirationTimestamp,
+          transaction_hash: transactionHash,
+          Notification: {
+            connect: [
+              { id: notificationDataOfferor.id },
+              { id: notification.id },
+            ],
+          },
+          createdAt_timestamp: createdAt,
+        },
+      });
+    }
 
-    //   })
-    // }
-    // FIXME:
-    // const offerNotification = await this.prisma.notificationDetailOffer.create({
-    //   data: {
-    //     id: id,
-    //     token_owner: {
-    //       connect: {
-    //         wallet_address: {'token owner wallet address'}
-    //       }
-    //     },
-    //     listing_type: ListingType.Direct,
-    //     quantity_wanted: Number(quantity),
-    //     total_offer_ammount: totalPrice,
-    //     currency,
-    //     expiration_timestamp: expirationTimestamp,
-    //     transaction_hash: transactionHash,
-    //     Notification: {
-    //       connect: [
-    //         { id: notificationDataOfferor.id },
-    //         { id: {'notification data owner here'} },
-    //       ],
-    //     },
-    //     createdAt_timestamp: createdAt,
-    //   },
-    // });
+    if (createManyOfferNotificationData) {
+      Logger.log('notification offer data created');
+    }
 
-    // if (offerNotification) {
-    //   Logger.log('notification offer data created');
-    // }
-
-    // return offerNotification;
+    return createManyOfferNotificationData;
   }
 
   async newSaleNotification(eventData: MarketplaceSale) {
@@ -261,18 +257,20 @@ export class NotificationService {
 
   async newBidNotification(eventData) {
     const {
-      listingId,
-      bidder,
+      listing,
+      Bidder,
       quantityWanted,
       currency,
       totalPrice,
       transactionHash,
     } = eventData;
-
+    console.log(Bidder);
+    const bidder = Bidder.connectOrCreate.create.wallet_address;
+    const listingId = listing.connect.id;
     const listingData: MarketplaceListing =
       await this.prisma.marketplaceListing.findUniqueOrThrow({
         where: {
-          id: Number(listingId),
+          id: +listingId,
         },
       });
 

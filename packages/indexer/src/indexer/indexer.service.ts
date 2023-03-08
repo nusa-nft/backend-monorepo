@@ -544,13 +544,26 @@ export class IndexerService implements OnModuleInit {
         if (existingBid) return;
         await this.prisma.bid.create({
           data: {
-            listingId: listingId.toString(),
-            bidder: bidder,
+            listing: {
+              connect: {
+                id: listingId.toString(),
+              }
+            },
+            Bidder: {
+              connectOrCreate: {
+                create: {
+                  wallet_address: bidder,
+                },
+                where: {
+                  wallet_address: bidder,
+                },
+              },
+            },
             quantityWanted: quantityWanted.toString(),
             currency: currency.toString(),
             pricePerToken: pricePerToken.toString(),
             totalPrice: totalPrice.toString(),
-            transactionHash
+            transactionHash,
           }
         });
       }
