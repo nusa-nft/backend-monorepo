@@ -937,14 +937,14 @@ export class CollectionService {
       floorPrice = Math.min(...mergedFloorPrices);
     }
 
-    let finalFloorPrice;
-    if (floorPrice <= 0.0000001) {
-      finalFloorPrice = floorPrice.toFixed(floorPrice.toString().split('-')[1]);
-    } else {
-      finalFloorPrice = Math.min(...mergedFloorPrices);
-      finalFloorPrice = floorPrice;
-    }
+    // let finalFloorPrice;
+    // if (floorPrice <= 0.0000001) {
+    //   finalFloorPrice = floorPrice.toFixed(floorPrice.toString().split('-')[1]);
+    // } else {
+    //   finalFloorPrice = floorPrice;
+    // }
 
+    console.log(floorPrice);
     // geting collection status for unsold listings
     for (const data of soldListingData) {
       const totalPricePaid = ethers.BigNumber.from(
@@ -1020,7 +1020,7 @@ export class CollectionService {
 
     return {
       listings,
-      floorPrice: finalFloorPrice,
+      floorPrice,
       lastSale,
       lastSaleTimestamp,
       volume: finalVolume,
