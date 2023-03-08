@@ -40,6 +40,7 @@ import { v4 as uuidV4 } from 'uuid';
 import standardizeMetadataAttribute from '../lib/standardizeMetadataAttributes';
 import {
   AttributeType,
+  ListingStatus,
   MarketplaceListing,
   OfferStatus,
 } from '@nusa-nft/database';
@@ -997,6 +998,7 @@ export class ItemServiceV2 {
     const onChainListings = await this.prisma.marketplaceListing.findMany({
       where: {
         Item: { id: item.id },
+        status: { equals: ListingStatus.CREATED }
       },
       include: {
         bids: {
