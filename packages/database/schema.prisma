@@ -45,6 +45,7 @@ model User {
   Notification                   Notification[]
   NotificationDetailBidLister    NotificationDetailBid[]   @relation("lister")
   NotificationDetailBidBidder    NotificationDetailBid[]   @relation("bidder")
+  bids                            Bid[]
 
   @@id([id, wallet_address])
 }
@@ -405,6 +406,7 @@ model MarketplaceOffer {
 model Bid {
   listingId       Decimal            @db.Decimal(78, 0)
   listing         MarketplaceListing @relation(fields: [listingId], references: [id])
+  Bidder          User?              @relation(fields: [bidder], references: [wallet_address])
   bidder          String             @db.Citext
   quantityWanted  Decimal            @db.Decimal(78, 0)
   currency        String             @db.Citext

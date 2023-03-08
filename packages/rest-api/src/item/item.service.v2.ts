@@ -998,6 +998,9 @@ export class ItemServiceV2 {
       include: {
         bids: {
           orderBy: { totalPrice: 'desc' },
+          include: {
+            Bidder: true
+          }
         },
       },
     });
@@ -1099,7 +1102,7 @@ export class ItemServiceV2 {
     from 
       "MarketplaceSale"
     inner join "MarketplaceListing" 
-      on "MarketplaceSale"."listingId" = "MarketplaceListing"."listingId"
+      on "MarketplaceSale"."listingId" = "MarketplaceListing"."id"
       inner join "Item"
       on "MarketplaceListing"."tokenId" = "Item"."tokenId"
     union
