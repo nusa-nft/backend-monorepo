@@ -141,7 +141,7 @@ export class NotificationService {
     };
   }
 
-  async getItemName(listingId: number) {
+  async getItemName(listingId: any) {
     const item = await this.prisma.item.findFirst({
       where: {
         OR: [

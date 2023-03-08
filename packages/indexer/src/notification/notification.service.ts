@@ -158,38 +158,41 @@ export class NotificationService {
 
     console.log(notificationDataOwner);
     // const createManyOfferNotificationData = [];
-    // for (const owner of notificationDataOwner) {
+    // for (const owner of tokenOwner) {
     //   createManyOfferNotificationData.push({
 
     //   })
     // }
     // FIXME:
-    const offerNotification = await this.prisma.notificationDetailOffer.create({
-      data: {
-        id: id,
-        lister_wallet_address: tokenOwner[0].ownerAddress, // TODO: fix. should be tokenOwnerAddress
-        offeror_wallet_address: offeror,
-        listing_type: ListingType.Direct,
-        quantity_wanted: Number(quantity),
-        total_offer_ammount: totalPrice,
-        currency,
-        expiration_timestamp: expirationTimestamp,
-        transaction_hash: transactionHash,
-        Notification: {
-          connect: [
-            { id: notificationDataOfferor.id },
-            { id: notificationDataOwner[0].id },
-          ],
-        },
-        createdAt_timestamp: createdAt,
-      },
-    });
+    // const offerNotification = await this.prisma.notificationDetailOffer.create({
+    //   data: {
+    //     id: id,
+    //     token_owner: {
+    //       connect: {
+    //         wallet_address: {'token owner wallet address'}
+    //       }
+    //     },
+    //     listing_type: ListingType.Direct,
+    //     quantity_wanted: Number(quantity),
+    //     total_offer_ammount: totalPrice,
+    //     currency,
+    //     expiration_timestamp: expirationTimestamp,
+    //     transaction_hash: transactionHash,
+    //     Notification: {
+    //       connect: [
+    //         { id: notificationDataOfferor.id },
+    //         { id: {'notification data owner here'} },
+    //       ],
+    //     },
+    //     createdAt_timestamp: createdAt,
+    //   },
+    // });
 
-    if (offerNotification) {
-      Logger.log('notification offer data created');
-    }
+    // if (offerNotification) {
+    //   Logger.log('notification offer data created');
+    // }
 
-    return offerNotification;
+    // return offerNotification;
   }
 
   async newSaleNotification(eventData: MarketplaceSale) {
