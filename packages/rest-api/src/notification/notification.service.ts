@@ -61,7 +61,7 @@ export class NotificationService {
           offerData.createdAt_timestamp * 1000,
         )} ago`;
 
-        const item = await this.getItemName(
+        const item = await this.getItemData(
           NotificationType.Offer,
           offerData.tokenId,
         );
@@ -77,7 +77,7 @@ export class NotificationService {
           Date.now(),
           saleData.createdAt_timestamp * 1000,
         )} ago`;
-        const item = await this.getItemName(
+        const item = await this.getItemData(
           NotificationType.Sale,
           saleData.listingId,
         );
@@ -94,7 +94,7 @@ export class NotificationService {
           Date.now(),
           bidData.createdAt_timestamp * 1000,
         )} ago`;
-        const item = await this.getItemName(
+        const item = await this.getItemData(
           NotificationType.Bid,
           bidData.listingId,
         );
@@ -165,7 +165,7 @@ export class NotificationService {
     };
   }
 
-  async getItemName(notificationType: NotificationType, foreignKey: any) {
+  async getItemData(notificationType: NotificationType, foreignKey: any) {
     let item;
 
     if (
