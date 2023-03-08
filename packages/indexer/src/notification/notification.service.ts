@@ -46,8 +46,7 @@ export class NotificationService {
           tokenId,
           status,
         } = data;
-        // FIXME:
-        // let marketplaceOffer;
+
         marketplaceOffer = {
           id,
           offeror,
@@ -98,12 +97,10 @@ export class NotificationService {
     });
   }
 
-  // FIXME:
   async newOfferNotification(
     // listingData: MarketplaceListing,
     eventData: MarketplaceOffer,
   ) {
-    console.log('event data', eventData);
     const {
       id,
       offeror,
@@ -116,7 +113,6 @@ export class NotificationService {
       assetContract,
       tokenId,
     } = eventData;
-    // console.log({ eventData });
     const tokenOwner = await this.prisma.tokenOwnerships.findMany({
       where: {
         tokenId,
@@ -191,7 +187,6 @@ export class NotificationService {
       notificationOfferDatas.push(notificationOffers);
     }
 
-    console.log(notificationOfferDatas);
     if (notificationOfferDatas) {
       Logger.log('notification offer data created');
     }
@@ -272,7 +267,6 @@ export class NotificationService {
       totalPrice,
       transactionHash,
     } = eventData;
-    console.log(Bidder);
     const bidder = Bidder.connectOrCreate.create.wallet_address;
     const listingId = listing.connect.id;
     const listingData: MarketplaceListing =
