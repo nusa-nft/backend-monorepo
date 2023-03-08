@@ -928,6 +928,7 @@ export class CollectionService {
     ];
     //geting the lowest price out of the compiled prices as floor price
 
+    console.log(mergedFloorPrices);
     if (mergedFloorPrices.length) {
       floorPrice = +Math.min(...mergedFloorPrices.filter(Boolean));
     }
@@ -936,12 +937,12 @@ export class CollectionService {
       floorPrice = Math.min(...mergedFloorPrices);
     }
 
-    if (mergedFloorPrices.length) {
-      floorPrice = +Math.min(...mergedFloorPrices.filter(Boolean));
-    }
-
-    if (mergedFloorPrices[0] == 0 && mergedFloorPrices.length == 1) {
-      floorPrice = Math.min(...mergedFloorPrices);
+    let finalFloorPrice;
+    if (floorPrice <= 0.0000001) {
+      finalFloorPrice = floorPrice.toFixed(floorPrice.toString().split('-')[1]);
+    } else {
+      finalFloorPrice = Math.min(...mergedFloorPrices);
+      finalFloorPrice = floorPrice;
     }
 
     // geting collection status for unsold listings
@@ -1015,13 +1016,6 @@ export class CollectionService {
       } else {
         uniqueOwner = uniqueOwnerValue + ' %';
       }
-    }
-
-    let finalFloorPrice;
-    if (floorPrice <= 0.0000001) {
-      finalFloorPrice = floorPrice.toFixed(floorPrice.toString().split('-')[1]);
-    } else {
-      finalFloorPrice = floorPrice;
     }
 
     return {
