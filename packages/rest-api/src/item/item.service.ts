@@ -816,7 +816,7 @@ export class ItemService {
       }
 
       const floorDifferenceValue =
-        pricePerTokenEth - (_floorPrice / _floorPrice) * 100;
+        ((pricePerTokenEth - _floorPrice) / _floorPrice) * 100;
       let floorDifference = '';
       if (Math.sign(floorDifferenceValue) == -1) {
         floorDifference = `${Math.abs(
