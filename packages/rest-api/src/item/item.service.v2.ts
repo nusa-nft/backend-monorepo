@@ -451,7 +451,6 @@ export class ItemServiceV2 {
             gt: Math.floor(Date.now() / 1000),
           },
           quantity: { gt: 0 },
-          MarketplaceSale: null,
         },
       };
 
