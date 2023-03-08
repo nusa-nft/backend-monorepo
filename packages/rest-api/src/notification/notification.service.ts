@@ -44,6 +44,7 @@ export class NotificationService {
       include: {
         notification_detail_offer: true,
         notification_detail_sale: true,
+        notification_detail_bid: true,
       },
       where: {
         user: {
@@ -75,6 +76,19 @@ export class NotificationService {
         )} ago`;
         const itemName = await this.getItemName(saleData.listingId);
         Object.assign(data.notification_detail_sale, {
+          itemName,
+          createdAt_description,
+        });
+      }
+
+      if (data.notification_detail_bid) {
+        const bidData = data.notification_detail_bid;
+        const createdAt_description = `${formatDistance(
+          Date.now(),
+          bidData.createdAt_timestamp * 1000,
+        )} ago`;
+        const itemName = await this.getItemName(bidData.listingId);
+        Object.assign(data.notification_detail_bid, {
           itemName,
           createdAt_description,
         });

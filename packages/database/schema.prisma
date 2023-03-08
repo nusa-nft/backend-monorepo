@@ -220,7 +220,7 @@ model Notification {
   notification_detail_sale_id  Int?
   notification_detail_offer    NotificationDetailOffer? @relation("offer", fields: [notification_detail_offer_id], references: [id])
   notification_detail_offer_id Int?
-  notification_detaul_bid      NotificationDetailBid?   @relation("bid", fields: [notification_detail_bid_id], references: [id])
+  notification_detail_bid      NotificationDetailBid?   @relation("bid", fields: [notification_detail_bid_id], references: [id])
   notification_detail_bid_id   Int?
   createdAt                    DateTime                 @default(now())
 }
