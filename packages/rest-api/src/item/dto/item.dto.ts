@@ -3,18 +3,18 @@ import { ListingType, TokenType } from '@prisma/client';
 import { ToBoolean } from '../../lib/toBoolean';
 
 export enum OnSaleItemSortBy {
-  RECENTLY_ADDED,
-  PRICE_HIGH_TO_LOW,
-  PRICE_LOW_TO_HIGH,
-  AUCTION_ENDING_SOON,
+  RECENTLY_ADDED = 'RECENTLY_ADDED',
+  PRICE_HIGH_TO_LOW = 'PRICE_HIGH_TO_LOW',
+  PRICE_LOW_TO_HIGH = 'PRICE_LOW_TO_HIGH',
+  AUCTION_ENDING_SOON = 'AUCTION_ENDING_SOON',
 }
 
 export enum PriceHistorySortBy {
-  LAST_7_DAYS,
-  LAST_30_DAYS,
-  LAST_60_DAYS,
-  LAST_90_DAYS,
-  LAST_24_HOURS,
+  LAST_7_DAYS = 'LAST_7_DAYS',
+  LAST_30_DAYS = 'LAST_30_DAYS',
+  LAST_60_DAYS = 'LAST_60_DAYS',
+  LAST_90_DAYS = 'LAST_90_DAYS',
+  LAST_24_HOURS = 'LAST_24_HOURS',
 }
 
 export class ItemDto {
