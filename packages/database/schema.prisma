@@ -247,11 +247,11 @@ model NotificationDetailSale {
 model NotificationDetailOffer {
   id                     Int              @unique @default(autoincrement())
   notification_type      NotificationType @default(Offer)
-  listingId              Decimal          @db.Decimal(78, 0)
   token_owner            User?            @relation("lister", fields: [token_owner_wallet_address], references: [wallet_address])
   token_owner_wallet_address  String?          @db.Citext
   offeror                User?            @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
   offeror_wallet_address String?          @db.Citext
+  tokenId                Int?
   listing_type           ListingType
   quantity_wanted        Decimal?         @db.Decimal(78, 0)
   total_offer_ammount    Decimal          @db.Decimal(78, 0)

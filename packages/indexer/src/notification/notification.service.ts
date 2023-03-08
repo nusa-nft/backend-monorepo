@@ -12,6 +12,7 @@ import {
   Bid,
   NotificationDetailBid,
   Notification,
+  NotificationDetailOffer,
 } from '@prisma/client';
 import retry from 'async-retry';
 
@@ -125,7 +126,7 @@ export class NotificationService {
 
     if (tokenOwner.length == 0) return;
 
-    const notificationDataOwner = [];
+    const notificationDataOwner: Notification[] = [];
     for (const owner of tokenOwner) {
       const wallet_address = owner.ownerAddress;
       const notificationData = await this.prisma.notification.create({
@@ -156,39 +157,46 @@ export class NotificationService {
       },
     });
 
-    console.log(notificationDataOwner);
-    const createManyOfferNotificationData = [];
+    const notificationOfferDatas = [];
     for (const notification of notificationDataOwner) {
-      createManyOfferNotificationData.push({
-        data: {
-          id: id,
-          token_owner: {
-            connect: {
-              wallet_address: notification.wallet_address,
+      const notificationOffers =
+        await this.prisma.notificationDetailOffer.create({
+          data: {
+            tokenId: +tokenId,
+            token_owner: {
+              connect: {
+                wallet_address: notification.wallet_address,
+              },
             },
+            offeror: {
+              connect: {
+                wallet_address: offeror,
+              },
+            },
+            listing_type: ListingType.Direct,
+            quantity_wanted: quantity,
+            total_offer_ammount: totalPrice,
+            currency,
+            expiration_timestamp: expirationTimestamp,
+            transaction_hash: transactionHash,
+            Notification: {
+              connect: [
+                { id: notificationDataOfferor.id },
+                { id: notification.id },
+              ],
+            },
+            createdAt_timestamp: createdAt,
           },
-          listing_type: ListingType.Direct,
-          quantity_wanted: Number(quantity),
-          total_offer_ammount: totalPrice,
-          currency,
-          expiration_timestamp: expirationTimestamp,
-          transaction_hash: transactionHash,
-          Notification: {
-            connect: [
-              { id: notificationDataOfferor.id },
-              { id: notification.id },
-            ],
-          },
-          createdAt_timestamp: createdAt,
-        },
-      });
+        });
+      notificationOfferDatas.push(notificationOffers);
     }
 
-    if (createManyOfferNotificationData) {
+    console.log(notificationOfferDatas);
+    if (notificationOfferDatas) {
       Logger.log('notification offer data created');
     }
 
-    return createManyOfferNotificationData;
+    return notificationOfferDatas;
   }
 
   async newSaleNotification(eventData: MarketplaceSale) {
@@ -323,7 +331,7 @@ export class NotificationService {
         data: {
           lister: {
             connect: {
-              wallet_address: notificationDataOfferor.wallet_address,
+              wallet_address: tokenOwner.ownerAddress,
             },
           },
           bidder: {

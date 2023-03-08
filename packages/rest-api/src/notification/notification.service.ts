@@ -61,7 +61,10 @@ export class NotificationService {
           offerData.createdAt_timestamp * 1000,
         )} ago`;
 
-        const itemName = await this.getItemName(offerData.listingId);
+        const itemName = await this.getItemName(
+          NotificationType.Offer,
+          offerData.tokenId,
+        );
         Object.assign(data.notification_detail_offer, {
           itemName,
           createdAt_description,
@@ -74,7 +77,10 @@ export class NotificationService {
           Date.now(),
           saleData.createdAt_timestamp * 1000,
         )} ago`;
-        const itemName = await this.getItemName(saleData.listingId);
+        const itemName = await this.getItemName(
+          NotificationType.Sale,
+          saleData.listingId,
+        );
         Object.assign(data.notification_detail_sale, {
           itemName,
           createdAt_description,
@@ -88,7 +94,10 @@ export class NotificationService {
           Date.now(),
           bidData.createdAt_timestamp * 1000,
         )} ago`;
-        const itemName = await this.getItemName(bidData.listingId);
+        const itemName = await this.getItemName(
+          NotificationType.Bid,
+          bidData.listingId,
+        );
         Object.assign(data.notification_detail_bid, {
           itemName,
           createdAt_description,
@@ -156,24 +165,35 @@ export class NotificationService {
     };
   }
 
-  async getItemName(listingId: any) {
-    const item = await this.prisma.item.findFirst({
-      where: {
-        OR: [
-          {
-            MarketplaceListing: {
-              some: { id: +listingId },
-            },
-          },
-          {
-            LazyMintListing: {
-              some: { id: +listingId },
-            },
-          },
-        ],
-      },
-    });
+  async getItemName(notificationType: NotificationType, foreignKey: any) {
+    let item;
 
+    if (
+      notificationType == NotificationType.Sale ||
+      notificationType == NotificationType.Bid
+    ) {
+      item = await this.prisma.item.findFirst({
+        where: {
+          OR: [
+            {
+              MarketplaceListing: {
+                some: { id: +foreignKey },
+              },
+            },
+            {
+              LazyMintListing: {
+                some: { id: +foreignKey },
+              },
+            },
+          ],
+        },
+      });
+    } else {
+      item = await this.prisma.item.findFirst({
+        where: { tokenId: +foreignKey },
+      });
+    }
+    console.log(item);
     return item.name;
   }
 
