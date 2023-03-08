@@ -102,7 +102,7 @@ export async function testMarketplacAuctionListing({
         bpsPerRecipients: [500]
       },
       secondsUntilEndTime: 3600,
-      startTime: now,
+      startTime: now + 500,
       tokenId: id,
     })
   receipt = await tx.wait();

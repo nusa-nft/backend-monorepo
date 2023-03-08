@@ -14,7 +14,7 @@ import { normalizeIpfsUri, nusaIpfsGateway } from '../lib/ipfs-uri';
 import axios from 'axios';
 import retry from 'async-retry';
 import { NusaNFT, MarketplaceFacet, OffersFacet, LibRoyalty, ERC721, ERC1155 } from '@nusa-nft/smart-contract/typechain-types/index';
-import { ListingAddedEvent, ListingStructOutput } from '@nusa-nft/smart-contract/typechain-types/contracts/facets/MarketplaceFacet';
+import { ListingAddedEvent, ListingStructOutput, NewBidEvent, NewBidEventObject } from '@nusa-nft/smart-contract/typechain-types/contracts/facets/MarketplaceFacet';
 import { abi as NusaNftAbi } from '@nusa-nft/smart-contract/artifacts/contracts/NusaNFT.sol/NusaNFT.json';
 import { abi as MarketplaceAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/MarketplaceFacet.sol/MarketplaceFacet.json';
 import { abi as OffersAbi } from '@nusa-nft/smart-contract/artifacts/contracts/facets/OffersFacet.sol/OffersFacet.json';
@@ -120,7 +120,7 @@ export class IndexerService implements OnModuleInit {
     'event ListingRemoved(uint256 indexed listingId, address indexed listingCreator)',
     'event ListingUpdated(uint256 indexed listingId, address indexed listingCreator)',
     'event NewSale(uint256 indexed listingId, address indexed assetContract, address indexed lister, address buyer, uint256 quantityBought, uint256 totalPricePaid)',
-    'event NewBid( uint256 indexed listingId, address bidder, uint256 quantityWanted, address currency, uint256 pricePerToken, uint256 totalPrice)',
+    'event NewBid(uint256 indexed listingId, address bidder, uint256 quantityWanted, address currency, uint256 pricePerToken, uint256 totalPrice)',
     'event AuctionClosed(uint256 indexed listingId, address indexed closer, bool indexed cancelled, address auctionCreator, address winningBidder)',
     'event NewOffer(address indexed offeror, uint256 indexed offerId, address indexed assetContract, tuple(uint256 offerId, address offeror, address assetContract, uint256 tokenId, uint256 quantity, address currency, uint256 totalPrice, uint256 expirationTimestamp, uint8 tokenType, uint8 status, uint256 royaltyInfoId) offer)',
     'event AcceptedOffer(address indexed offeror, uint256 indexed offerId, address indexed assetContract, uint256 tokenId, address seller, uint256 quantityBought, uint256 totalPricePaid)',
@@ -334,7 +334,8 @@ export class IndexerService implements OnModuleInit {
         'NewSale',
         'NewOffer',
         'AuctionClosed',
-        'RoyaltyPaid'
+        'RoyaltyPaid',
+        'NewBid'
       ].includes(event.name)) {
         await this.handleMarketplaceEvent(event, log);
         continue;
@@ -623,43 +624,8 @@ export class IndexerService implements OnModuleInit {
     }
     
     if (event.name == 'NewBid') {
-      const { blockNumber, transactionHash } = log;
-      
-      const listingId = event.args.listingId;
-      const bidder = event.args.bidder;
-      const quantityWanted = event.args.quantityWanted;
-      const currency = event.args.currency;
-      const pricePerToken = event.args.pricePerToken;
-      const totalPrice = event.args.totalPrice;
-      
-      const existingBid = await this.prisma.bid.findFirst({
-        where: { transactionHash }
-      })
-      if (existingBid) return;
-      await this.prisma.bid.create({
-        data: {
-          listing: {
-            connect: {
-              id: listingId.toString(),
-            }
-          },
-          Bidder: {
-            connectOrCreate: {
-              create: {
-                wallet_address: bidder,
-              },
-              where: {
-                wallet_address: bidder,
-              },
-            },
-          },
-          quantityWanted: quantityWanted.toString(),
-          currency: currency.toString(),
-          pricePerToken: pricePerToken.toString(),
-          totalPrice: totalPrice.toString(),
-          transactionHash,
-        }
-      });
+      Logger.log('NewBid');
+      await this.indexNewBid((event as unknown as NewBidEvent).args, log);
     }
 
     if (event.name == 'AuctionClosed') {
@@ -713,6 +679,40 @@ export class IndexerService implements OnModuleInit {
       Logger.log('indexerState.lastBlockProcessed updated');
       return;
     }
+  }
+
+  async indexNewBid(eventArgs: NewBidEventObject, log: TypedEvent<any, any>) {
+    const { blockNumber, transactionHash } = log;
+    const { listingId, bidder, quantityWanted, currency, pricePerToken, totalPrice } = eventArgs;
+    
+    const existingBid = await this.prisma.bid.findFirst({
+      where: { transactionHash }
+    })
+    if (existingBid) return;
+    await this.prisma.bid.create({
+      data: {
+        listing: {
+          connect: {
+            id: listingId.toString(),
+          }
+        },
+        Bidder: {
+          connectOrCreate: {
+            create: {
+              wallet_address: bidder,
+            },
+            where: {
+              wallet_address: bidder,
+            },
+          },
+        },
+        quantityWanted: quantityWanted.toString(),
+        currency: currency.toString(),
+        pricePerToken: pricePerToken.toString(),
+        totalPrice: totalPrice.toString(),
+        transactionHash,
+      }
+    });
   }
 
   async indexRoyaltyPaid(eventArgs: RoyaltyPaidEventObject, log: TypedEvent<any, any>) {
