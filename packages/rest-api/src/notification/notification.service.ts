@@ -42,12 +42,28 @@ export class NotificationService {
         id: 'desc',
       },
       include: {
-        notification_detail_offer: true,
-        notification_detail_sale: true,
+        notification_detail_offer: {
+          include: {
+            offeror: true,
+            token_owner: true,
+          },
+        },
+        notification_detail_sale: {
+          include: {
+            lister: true,
+            buyer: true,
+          },
+        },
+        notification_detail_bid: {
+          include: {
+            lister: true,
+            bidder: true,
+          },
+        },
       },
       where: {
         user: {
-          id: userId,
+          id: +userId,
         },
       },
     });
@@ -60,9 +76,12 @@ export class NotificationService {
           offerData.createdAt_timestamp * 1000,
         )} ago`;
 
-        const itemName = await this.getItemName(offerData.listingId);
+        const item = await this.getItemData(
+          NotificationType.Offer,
+          offerData.tokenId,
+        );
         Object.assign(data.notification_detail_offer, {
-          itemName,
+          item,
           createdAt_description,
         });
       }
@@ -73,9 +92,29 @@ export class NotificationService {
           Date.now(),
           saleData.createdAt_timestamp * 1000,
         )} ago`;
-        const itemName = await this.getItemName(saleData.listingId);
+        const item = await this.getItemData(
+          NotificationType.Sale,
+          saleData.listingId,
+        );
         Object.assign(data.notification_detail_sale, {
-          itemName,
+          item,
+          createdAt_description,
+        });
+      }
+
+      if (data.notification_detail_bid) {
+        const bidData = data.notification_detail_bid;
+        console.log(bidData);
+        const createdAt_description = `${formatDistance(
+          Date.now(),
+          bidData.createdAt_timestamp * 1000,
+        )} ago`;
+        const item = await this.getItemData(
+          NotificationType.Bid,
+          bidData.listingId,
+        );
+        Object.assign(data.notification_detail_bid, {
+          item,
           createdAt_description,
         });
       }
@@ -141,25 +180,36 @@ export class NotificationService {
     };
   }
 
-  async getItemName(listingId: number) {
-    const item = await this.prisma.item.findFirst({
-      where: {
-        OR: [
-          {
-            MarketplaceListing: {
-              some: { id: listingId },
-            },
-          },
-          {
-            LazyMintListing: {
-              some: { id: listingId },
-            },
-          },
-        ],
-      },
-    });
+  async getItemData(notificationType: NotificationType, foreignKey: any) {
+    let item;
 
-    return item.name;
+    if (
+      notificationType == NotificationType.Sale ||
+      notificationType == NotificationType.Bid
+    ) {
+      item = await this.prisma.item.findFirst({
+        where: {
+          OR: [
+            {
+              MarketplaceListing: {
+                some: { id: +foreignKey },
+              },
+            },
+            {
+              LazyMintListing: {
+                some: { id: +foreignKey },
+              },
+            },
+          ],
+        },
+      });
+    } else {
+      item = await this.prisma.item.findFirst({
+        where: { tokenId: +foreignKey },
+      });
+    }
+    console.log(item);
+    return { id: item.id, name: item.name };
   }
 
   async lazyMintNotification(data: LazyMintSale, listingData: LazyMintListing) {

@@ -5,7 +5,7 @@ import { ethers } from "ethers";
 import { Item, MarketplaceOffer, OfferStatus, PrismaClient, RoyaltyPaid } from "@nusa-nft/database";
 import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
 import { assert, fmtFailed, fmtSuccess } from "../lib/assertions";
-import { login, uploadMetadataToIpfs } from "../lib/rest-api";
+import { login, uploadMetadataToIpfs, getNotificationData } from "../lib/rest-api";
 import retry from "async-retry";
 import { AcceptedOfferEvent, NewOfferEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/facets/OffersFacet";
 
@@ -187,11 +187,13 @@ export async function offer({
   await retry(async () => {
     notificationOfferDataLister_inDb = await db.notificationDetailOffer.findFirst({
       where: {
-        lister_wallet_address: minter.address
+        token_owner_wallet_address: minter.address
       }
     })
   }, {retries: 3})
 
+  const notificationData = await getNotificationData(restApi);
+  console.log(notificationData)
   assert(notificationOfferDataLister_inDb, fmtFailed("notification not created"))
   console.log(fmtSuccess('notification offer data created'))
 

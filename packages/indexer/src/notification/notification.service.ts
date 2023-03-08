@@ -11,6 +11,8 @@ import {
   ListingType,
   Bid,
   NotificationDetailBid,
+  Notification,
+  NotificationDetailOffer,
 } from '@prisma/client';
 import retry from 'async-retry';
 
@@ -115,26 +117,28 @@ export class NotificationService {
       tokenId,
     } = eventData;
     // console.log({ eventData });
-    const tokenOwner = await this.prisma.tokenOwnerships.findFirst({
+    const tokenOwner = await this.prisma.tokenOwnerships.findMany({
       where: {
         tokenId,
         contractAddress: assetContract,
       },
     });
 
-    if (!tokenOwner) return;
+    if (tokenOwner.length == 0) return;
 
-    const notificationDataOwner = await this.prisma.notification.create({
-      data: {
-        notification_type: NotificationType.Offer,
-        is_seen: false,
-        user: {
-          connect: {
-            wallet_address: tokenOwner.ownerAddress,
-          },
+    const notificationDataOwner: Notification[] = [];
+    for (const owner of tokenOwner) {
+      const wallet_address = owner.ownerAddress;
+      const notificationData = await this.prisma.notification.create({
+        data: {
+          wallet_address,
+          notification_type: NotificationType.Offer,
+          is_seen: false,
         },
-      },
-    });
+      });
+
+      notificationDataOwner.push(notificationData);
+    }
 
     const notificationDataOfferor = await this.prisma.notification.create({
       data: {
@@ -153,33 +157,46 @@ export class NotificationService {
       },
     });
 
-    // FIXME:
-    const offerNotification = await this.prisma.notificationDetailOffer.create({
-      data: {
-        id: id,
-        lister_wallet_address: tokenOwner.ownerAddress, // TODO: fix. should be tokenOwnerAddress
-        offeror_wallet_address: offeror,
-        listing_type: ListingType.Direct,
-        quantity_wanted: Number(quantity),
-        total_offer_ammount: totalPrice,
-        currency,
-        expiration_timestamp: expirationTimestamp,
-        transaction_hash: transactionHash,
-        Notification: {
-          connect: [
-            { id: notificationDataOfferor.id },
-            { id: notificationDataOwner.id },
-          ],
-        },
-        createdAt_timestamp: createdAt,
-      },
-    });
+    const notificationOfferDatas = [];
+    for (const notification of notificationDataOwner) {
+      const notificationOffers =
+        await this.prisma.notificationDetailOffer.create({
+          data: {
+            tokenId: +tokenId,
+            token_owner: {
+              connect: {
+                wallet_address: notification.wallet_address,
+              },
+            },
+            offeror: {
+              connect: {
+                wallet_address: offeror,
+              },
+            },
+            listing_type: ListingType.Direct,
+            quantity_wanted: quantity,
+            total_offer_ammount: totalPrice,
+            currency,
+            expiration_timestamp: expirationTimestamp,
+            transaction_hash: transactionHash,
+            Notification: {
+              connect: [
+                { id: notificationDataOfferor.id },
+                { id: notification.id },
+              ],
+            },
+            createdAt_timestamp: createdAt,
+          },
+        });
+      notificationOfferDatas.push(notificationOffers);
+    }
 
-    if (offerNotification) {
+    console.log(notificationOfferDatas);
+    if (notificationOfferDatas) {
       Logger.log('notification offer data created');
     }
 
-    return offerNotification;
+    return notificationOfferDatas;
   }
 
   async newSaleNotification(eventData: MarketplaceSale) {
@@ -248,18 +265,20 @@ export class NotificationService {
 
   async newBidNotification(eventData) {
     const {
-      listingId,
-      bidder,
+      listing,
+      Bidder,
       quantityWanted,
       currency,
       totalPrice,
       transactionHash,
     } = eventData;
-
+    console.log(Bidder);
+    const bidder = Bidder.connectOrCreate.create.wallet_address;
+    const listingId = listing.connect.id;
     const listingData: MarketplaceListing =
       await this.prisma.marketplaceListing.findUniqueOrThrow({
         where: {
-          id: Number(listingId),
+          id: +listingId,
         },
       });
 
@@ -312,7 +331,7 @@ export class NotificationService {
         data: {
           lister: {
             connect: {
-              wallet_address: notificationDataOfferor.wallet_address,
+              wallet_address: tokenOwner.ownerAddress,
             },
           },
           bidder: {

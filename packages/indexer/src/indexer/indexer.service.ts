@@ -621,6 +621,46 @@ export class IndexerService implements OnModuleInit {
       const offer: OfferStructOutput = event.args[3];
       await this.indexMarketplaceNewOffer(offer, transactionHash, timestamp);
     }
+    
+    if (event.name == 'NewBid') {
+      const { blockNumber, transactionHash } = log;
+      
+      const listingId = event.args.listingId;
+      const bidder = event.args.bidder;
+      const quantityWanted = event.args.quantityWanted;
+      const currency = event.args.currency;
+      const pricePerToken = event.args.pricePerToken;
+      const totalPrice = event.args.totalPrice;
+      
+      const existingBid = await this.prisma.bid.findFirst({
+        where: { transactionHash }
+      })
+      if (existingBid) return;
+      await this.prisma.bid.create({
+        data: {
+          listing: {
+            connect: {
+              id: listingId.toString(),
+            }
+          },
+          Bidder: {
+            connectOrCreate: {
+              create: {
+                wallet_address: bidder,
+              },
+              where: {
+                wallet_address: bidder,
+              },
+            },
+          },
+          quantityWanted: quantityWanted.toString(),
+          currency: currency.toString(),
+          pricePerToken: pricePerToken.toString(),
+          totalPrice: totalPrice.toString(),
+          transactionHash,
+        }
+      });
+    }
 
     if (event.name == 'AuctionClosed') {
       Logger.log('AuctionClosed');

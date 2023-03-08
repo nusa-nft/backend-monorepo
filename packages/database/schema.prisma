@@ -220,7 +220,7 @@ model Notification {
   notification_detail_sale_id  Int?
   notification_detail_offer    NotificationDetailOffer? @relation("offer", fields: [notification_detail_offer_id], references: [id])
   notification_detail_offer_id Int?
-  notification_detaul_bid      NotificationDetailBid?   @relation("bid", fields: [notification_detail_bid_id], references: [id])
+  notification_detail_bid      NotificationDetailBid?   @relation("bid", fields: [notification_detail_bid_id], references: [id])
   notification_detail_bid_id   Int?
   createdAt                    DateTime                 @default(now())
 }
@@ -228,7 +228,7 @@ model Notification {
 model NotificationDetailSale {
   id                    Int              @unique @default(autoincrement())
   notification_type     NotificationType @default(Sale)
-  listingId             Int?
+  listingId             Decimal?         @db.Decimal(78, 0)
   asset_contract        String           @db.Citext
   lister                User?            @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
   lister_wallet_address String?          @db.Citext
@@ -247,11 +247,11 @@ model NotificationDetailSale {
 model NotificationDetailOffer {
   id                     Int              @unique @default(autoincrement())
   notification_type      NotificationType @default(Offer)
-  listingId              Int?
-  lister                 User?            @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
-  lister_wallet_address  String?          @db.Citext
+  token_owner            User?            @relation("lister", fields: [token_owner_wallet_address], references: [wallet_address])
+  token_owner_wallet_address  String?          @db.Citext
   offeror                User?            @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
   offeror_wallet_address String?          @db.Citext
+  tokenId                Int?
   listing_type           ListingType
   quantity_wanted        Decimal?         @db.Decimal(78, 0)
   total_offer_ammount    Decimal          @db.Decimal(78, 0)
@@ -267,8 +267,8 @@ model NotificationDetailOffer {
 
 model NotificationDetailBid {
   id                    Int              @unique @default(autoincrement())
-  notification_type     NotificationType @default(Offer)
-  listingId             Int
+  notification_type     NotificationType @default(Bid)
+  listingId             Decimal?          @db.Decimal(78, 0)
   lister                User?            @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
   lister_wallet_address String?          @db.Citext
   bidder                User?            @relation("bidder", fields: [bidder_wallet_address], references: [wallet_address])
