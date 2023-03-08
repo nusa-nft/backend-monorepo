@@ -332,7 +332,8 @@ export class IndexerService implements OnModuleInit {
         'NewOffer',
         'AuctionClosed',
         'RoyaltyPaid',
-        'NewBid'
+        'NewBid',
+        'AcceptedOffer'
       ].includes(event.name)) {
         await this.handleMarketplaceEvent(event, log);
         continue;
