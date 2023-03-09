@@ -317,7 +317,7 @@ export class CollectionStatusQueryParams {
     description: 'token ids',
     example: '1, 2, 3',
   })
-  tokenIds: string;
+  tokenIds: number[];
 
   @ApiProperty({
     type: Number,
