@@ -771,7 +771,7 @@ export class CollectionService {
       const itemQuantity = item.supply;
       totalItems = totalItems + +itemQuantity;
     }
-
+    console.log('lazy minted owners', uniqueLazyMintedOwnerAddress);
     // get array of token id
     const tokenIds = items.map(({ tokenId }) => tokenId.toNumber());
 
@@ -985,6 +985,7 @@ export class CollectionService {
     }
 
     const uniqueMintedOwner = Object.keys(mintedOwners);
+    console.log('minted owner only', uniqueMintedOwner);
     const ownerAddresses = [...uniqueMintedOwner, ...lazyMintedOwners];
     const uniqueOwnerAddresses = [...new Set(ownerAddresses)].filter(Boolean);
     console.log('unique owners is', uniqueOwnerAddresses);
