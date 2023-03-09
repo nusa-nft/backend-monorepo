@@ -972,6 +972,7 @@ export class IndexerService implements OnModuleInit {
       data: {
         isCancelled: true,
         updatedAt,
+        status: ListingStatus.CANCELLED,
       },
     });
     return deleteListing;
