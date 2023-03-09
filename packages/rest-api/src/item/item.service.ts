@@ -902,11 +902,8 @@ export class ItemService {
     const item = await this.prisma.item.findFirstOrThrow({
       where: { id: itemId },
     });
-    const result = await this.indexerService.getItemActivities(
-      item.tokenId,
-      page,
-      event,
-    );
+    const result = await this.getActivities(item.tokenId, page, event);
+    console.log('result get item activity', result);
 
     const records = [];
     for (const r of result.records) {
@@ -966,5 +963,140 @@ export class ItemService {
     const data = await this.indexerService.getItemSaleHistory(tokenId, sortBy);
 
     return data;
+  }
+
+  async getActivities(tokenId, page, event) {
+    const limit = 10;
+    const offset = limit * (page - 1);
+
+    const query = Prisma.sql`
+      SELECT X.* FROM (
+          SELECT 
+            CASE WHEN "from" = '0x0000000000000000000000000000000000000000'
+              THEN 'mint'
+              ELSE 'transfer'
+            END AS event,
+            "createdAt",
+            0 AS price,
+            "from",
+            "to",
+            "tokenId"
+          FROM
+            public."TokenTransferHistory"
+        UNION
+          SELECT
+            'listing' AS event,
+            "createdAt",
+            CASE WHEN "listingType" = 'Direct'
+              THEN "buyoutPricePerToken"
+              ELSE "reservePricePerToken"
+            END AS price,
+            "lister" as from,
+            '-' as to,
+            "tokenId"
+          FROM
+            public."MarketplaceListing"
+        UNION
+          SELECT
+            'bid' AS event,
+            offer."createdAt",
+            "totalOfferAmount" as price,
+            "offeror" as from,
+            "lister" as to,
+            listing."tokenId"
+          FROM
+            public."MarketplaceOffer" offer
+            JOIN public."MarketplaceListing" listing
+            ON offer."listingId" = listing."listingId"
+        UNION
+          SELECT
+            'sale' AS event,
+            sale."createdAt",
+            "totalPricePaid" as price,
+            "buyer" as from,
+            listing."lister" as to,
+            listing."tokenId"
+          FROM
+            public."MarketplaceSale" sale
+            JOIN public."MarketplaceListing" listing
+            ON sale."listingId" = listing."listingId"
+        ) X
+      WHERE X."tokenId" = CAST(${tokenId} AS int)
+      ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}
+      ORDER BY X."createdAt" DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `;
+
+    const countQuery = Prisma.sql`
+      SELECT COUNT(X.*) FROM (
+        SELECT 
+          CASE WHEN "from" = '0x0000000000000000000000000000000000000000'
+            THEN 'mint'
+            ELSE 'transfer'
+          END AS event,
+          "createdAt",
+          0 AS price,
+          "from",
+          "to",
+          "tokenId"
+        FROM
+          public."TokenTransferHistory"
+      UNION
+        SELECT
+          'listing' AS event,
+          "createdAt",
+          CASE WHEN "listingType" = 'Direct'
+            THEN "buyoutPricePerToken"
+            ELSE "reservePricePerToken"
+          END AS price,
+          "lister" as from,
+          '-' as to,
+          "tokenId"
+        FROM
+          public."MarketplaceListing"
+      UNION
+        SELECT
+          'bid' AS event,
+          offer."createdAt",
+          "totalOfferAmount" as price,
+          "offeror" as from,
+          "lister" as to,
+          listing."tokenId"
+        FROM
+          public."MarketplaceOffer" offer
+          JOIN public."MarketplaceListing" listing
+          ON offer."listingId" = listing."listingId"
+      UNION
+        SELECT
+          'sale' AS event,
+          sale."createdAt",
+          "totalPricePaid" as price,
+          "buyer" as from,
+          listing."lister" as to,
+          listing."tokenId"
+        FROM
+          public."MarketplaceSale" sale
+          JOIN public."MarketplaceListing" listing
+          ON sale."listingId" = listing."listingId"
+      ) X
+    WHERE X."tokenId" = CAST(${tokenId} AS int)
+    ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}
+    `;
+
+    const records: any[] = await this.prisma.$queryRaw(query);
+    const count: [{ count: BigInt }] = await this.prisma.$queryRaw(countQuery);
+
+    return {
+      status: HttpStatus.OK,
+      message: 'success',
+      metadata: {
+        page: Number(page),
+        perPage: 10,
+        pageCount: records.length,
+        totalCount: Number(count[0].count),
+      },
+      records,
+    };
   }
 }
