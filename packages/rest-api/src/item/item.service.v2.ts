@@ -687,7 +687,7 @@ export class ItemServiceV2 {
       relatedItems,
       listings,
       creatorEarnings: item.Collection.royalty.reduce(
-        (accum, val) => accum + val.percentage,
+        (accum, val) => val.deleted ? 0 : (accum + val.percentage),
         0,
       ),
     };
