@@ -1264,13 +1264,7 @@ export class CollectionService {
       tokenIdsArray.push(item.tokenId);
     }
 
-    const tokenIds = JSON.stringify(tokenIdsArray);
-
-    const result = await this.indexerService.getCollectionActivities(
-      tokenIds,
-      page,
-      event,
-    );
+    const result = await this.getActivities(tokenIdsArray, page, event);
 
     const records = [];
     for (const r of result.records) {
@@ -1373,6 +1367,177 @@ export class CollectionService {
     return deleted;
   }
 
+  async getActivities(tokenIds: number[], page: number, event: string) {
+    const limit = 10;
+    const offset = limit * (page - 1);
+    if (!tokenIds)
+      return {
+        status: HttpStatus.OK,
+        message: 'success',
+        metadata: {
+          page: Number(page),
+          perPage: 10,
+          pageCount: 1,
+          totalCount: 0,
+        },
+        records: [],
+      };
+    const tokenIdsArrayOfNumber = tokenIds.map((i) => Number(i));
+
+    const query = Prisma.sql`
+      SELECT X.* FROM (
+          SELECT 
+            CASE WHEN "from" = '0x0000000000000000000000000000000000000000'
+              THEN 'mint'
+              ELSE 'transfer'
+            END AS event,
+            "createdAt",
+            0 AS price,
+            "from",
+            "to",
+            "tokenId"
+          FROM
+            public."TokenTransferHistory"
+        UNION
+          SELECT
+            'listing' AS event,
+            "createdAt",
+            CASE WHEN "listingType" = 'Direct'
+              THEN "buyoutPricePerToken"
+              ELSE "reservePricePerToken"
+            END AS price,
+            "lister" as from,
+            '-' as to,
+            "tokenId"
+          FROM
+            public."MarketplaceListing"
+        UNION
+          SELECT
+            'bid' AS event,
+            bid."createdAt",
+            "totalPrice" as price,
+            "bidder" as from,
+            listing."lister" as to,
+            listing."tokenId" as tokenId
+          FROM
+            public."Bid" bid
+            JOIN public."MarketplaceListing" listing
+            ON bid."listingId" = listing."id"
+        UNION
+          SELECT
+            'offer' AS event,
+            offer."createdAt",
+            "totalPrice" as price,
+            "offeror" as from,
+            accepted."seller" as to,
+            "tokenId"
+          FROM
+            public."MarketplaceOffer" offer
+            JOIN public."AcceptedOffer" accepted
+            ON offer."id" = accepted."offerId" 
+        UNION
+          SELECT
+            'sale' AS event,
+            sale."createdAt",
+            "totalPricePaid" as price,
+            "buyer" as from,
+            listing."lister" as to,
+            listing."tokenId"
+          FROM
+            public."MarketplaceSale" sale
+            JOIN public."MarketplaceListing" listing
+            ON sale."listingId" = listing."listingId"
+        ) X
+        WHERE X."tokenId" IN (${Prisma.join(tokenIdsArrayOfNumber)})
+        ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}
+      ORDER BY X."createdAt" DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `;
+
+    const countQuery = Prisma.sql`
+      SELECT COUNT(X.*) FROM (
+        SELECT 
+          CASE WHEN "from" = '0x0000000000000000000000000000000000000000'
+            THEN 'mint'
+            ELSE 'transfer'
+          END AS event,
+          "createdAt",
+          0 AS price,
+          "from",
+          "to",
+          "tokenId"
+        FROM
+          public."TokenTransferHistory"
+      UNION
+        SELECT
+          'listing' AS event,
+          "createdAt",
+          CASE WHEN "listingType" = 'Direct'
+            THEN "buyoutPricePerToken"
+            ELSE "reservePricePerToken"
+          END AS price,
+          "lister" as from,
+          '-' as to,
+          "tokenId"
+        FROM
+          public."MarketplaceListing"
+      UNION
+        SELECT
+          'bid' AS event,
+          bid."createdAt",
+          "totalPrice" as price,
+          "bidder" as from,
+          listing."lister" as to,
+          listing."tokenId" as tokenId
+        FROM
+          public."Bid" bid
+          JOIN public."MarketplaceListing" listing
+          ON bid."listingId" = listing."id"
+      UNION
+        SELECT
+          'offer' AS event,
+          offer."createdAt",
+          "totalPrice" as price,
+          "offeror" as from,
+          accepted."seller" as to,
+          "tokenId"
+        FROM
+          public."MarketplaceOffer" offer
+          JOIN public."AcceptedOffer" accepted
+          ON offer."id" = accepted."offerId" 
+      UNION
+        SELECT
+          'sale' AS event,
+          sale."createdAt",
+          "totalPricePaid" as price,
+          "buyer" as from,
+          listing."lister" as to,
+          listing."tokenId"
+        FROM
+          public."MarketplaceSale" sale
+          JOIN public."MarketplaceListing" listing
+          ON sale."listingId" = listing."listingId"
+      ) X
+    WHERE X."tokenId" IN (${Prisma.join(tokenIdsArrayOfNumber)})
+    ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}
+    `;
+
+    const records: any[] = await this.prisma.$queryRaw(query);
+    const count: [{ count: BigInt }] = await this.prisma.$queryRaw(countQuery);
+
+    return {
+      status: HttpStatus.OK,
+      message: 'success',
+      metadata: {
+        page: Number(page),
+        perPage: 10,
+        pageCount: records.length,
+        totalCount: Number(count[0].count),
+      },
+      records,
+    };
+  }
   // async refreshMetadataQueue({}: RefreshMetadataDto) {
   //   // TODO:
   // }
