@@ -976,6 +976,7 @@ export class CollectionService {
           tokenId: tokenId,
         },
       });
+      console.log('this is token ownership', tokenOwnerships);
       const ownersValue: Record<string, number> = {};
       for (const tokenOwnership of tokenOwnerships) {
         ownersValue[tokenOwnership.ownerAddress] = tokenOwnership.quantity;
