@@ -39,7 +39,7 @@ const config: HardhatUserConfig = {
       accounts: [NFT_CONTRACT_OWNER_PRIVATE_KEY as string],
     },
     mumbai: {
-      url: "https://rpc-mumbai.maticvigil.com/",
+      url: "https://polygon-mumbai.g.alchemy.com/v2/mRDbns-g5u46FGGXz5XpEwj4fBxG8K8i",
       chainId: 80001,
       accounts: [NFT_CONTRACT_OWNER_PRIVATE_KEY as string],
     },
@@ -65,6 +65,20 @@ const config: HardhatUserConfig = {
       './contracts/facets'
     ],
   },
+  etherscan: {
+    apiKey: {
+      // ethereum
+      mainnet: process.env.ETHERSCAN_API_KEY as string,
+      ropsten: process.env.ETHERSCAN_API_KEY as string,
+      rinkeby: process.env.ETHERSCAN_API_KEY as string,
+      goerli: process.env.ETHERSCAN_API_KEY as string,
+      kovan: process.env.ETHERSCAN_API_KEY as string,
+      sepolia: process.env.ETHERSCAN_API_KEY as string,
+      // polygon
+      polygon: process.env.POLYGONSCAN_API_KEY as string,
+      polygonMumbai: process.env.POLYGONSCAN_API_KEY as string,
+    },
+  }
 };
 
 export default config;

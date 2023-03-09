@@ -12,6 +12,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@thirdweb-dev/contracts/lib/TWStrings.sol";
 import "./SignatureMintERC1155Upgradeable.sol";
 import "./libraries/LibCurrencyTransfer.sol";
+import "./interfaces/INusaMarketplace.sol";
 
 import "hardhat/console.sol";
 
@@ -66,6 +67,7 @@ contract NusaNFT is
      /// @dev Only lister role holders can create listings, when listings are restricted by lister address.
     bytes32 public constant ADMIN_MINTER_ROLE = keccak256("ADMIN_MINTER_ROLE");
 
+    address public nusaMarketplace;
 
     /*//////////////////////////////////////////////////////////////
                             Events
@@ -129,6 +131,10 @@ contract NusaNFT is
 
     function _canSetRoyaltyInfo() internal view returns (bool) {
         return (msg.sender == owner() || hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
+    }
+
+    function setNusaMarketplace(address _nusaMarketplace) external onlyOwner {
+        nusaMarketplace = _nusaMarketplace;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -423,7 +429,12 @@ contract NusaNFT is
             return;
         }
 
+        (address platformFeeRecipient, uint16 platformFeeBps) = INusaMarketplace(nusaMarketplace).getPlatformFeeInfo();
+
         uint256 totalPrice = _quantityToClaim * _pricePerToken;
+
+        uint256 platformFee = (totalPrice * platformFeeBps) / 10000;
+        uint256 primarySaleFee = totalPrice - platformFee;
 
         if (_currency == LibCurrencyTransfer.NATIVE_TOKEN) {
             require(msg.value == totalPrice, "Must send total price.");
@@ -431,7 +442,8 @@ contract NusaNFT is
 
         // address saleRecipient = _primarySaleRecipient == address(0) ? primarySaleRecipient() : _primarySaleRecipient;
         address saleRecipient = _primarySaleRecipient;
-        LibCurrencyTransfer.transferCurrency(_currency, msg.sender, saleRecipient, totalPrice);
+        LibCurrencyTransfer.transferCurrency(_currency, msg.sender, saleRecipient, primarySaleFee);
+        LibCurrencyTransfer.transferCurrency(_currency, msg.sender, platformFeeRecipient, platformFee);
     }
 
      /*//////////////////////////////////////////////////////////////

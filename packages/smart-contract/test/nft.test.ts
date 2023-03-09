@@ -4,11 +4,12 @@ import { ethers } from "ethers";
 import hre from "hardhat";
 import keccak256 from "keccak256";
 import MerkleTree from "merkletreejs";
-import { NusaNFT_V2_Test_Only, NusaNFT__factory } from "../typechain-types";
+import { Diamond, MarketplaceFacet, NusaNFT_V2_Test_Only, NusaNFT__factory, OffersFacet, WETH9 } from "../typechain-types";
 import { ISignatureMintERC1155 } from "../typechain-types/contracts/interfaces/ISignatureMintERC1155";
 import { NusaNFT } from "../typechain-types/contracts/NusaNFT";
 import { v4 as uuidv4 } from "uuid";
 import { TransferSingleEvent } from "../typechain-types/contracts/ERC1155_dummy";
+import { deployDiamond } from "../scripts/deploy";
 
 const MintRequest1155 = [
   { name: "to", type: "address" },
@@ -62,8 +63,15 @@ describe("NusaNFT Mint With Signature", async () => {
   const SYMBOL = 'NNFT';
   const NAME_V2 = 'NusaNFT_V2';
   const SYMBOL_V2 = 'NNFT_V2';
+  const PLATFORM_FEE_BPS = 250 // 2.5%
+
   let nftContract: NusaNFT;
   let upgradedNftContract: NusaNFT_V2_Test_Only;
+  let diamond: Diamond;
+  let marketplace: MarketplaceFacet;
+  let offers: OffersFacet;
+  let wrappedTokenContract: WETH9;
+
   let contractOwner: SignerWithAddress;
   let nftCreator: SignerWithAddress;
   let nftMinter: SignerWithAddress;
@@ -93,6 +101,16 @@ describe("NusaNFT Mint With Signature", async () => {
     ] = await hre.ethers.getSigners();
 
     chainId = hre.network.config.chainId as number;
+
+    // Deploy Wrap Token
+    const WrappedToken = await hre.ethers.getContractFactory("WETH9");
+    wrappedTokenContract = await WrappedToken.deploy();
+
+    [diamond, marketplace, offers] = await deployDiamond(hre, {
+      platformFeeRecipient: contractOwner.address,
+      platformFeeBps: PLATFORM_FEE_BPS,
+      nativeTokenWrapper: wrappedTokenContract.address
+    });
 
     // Deploy NFT Contract Logic
     const NusaNFT = await hre.ethers.getContractFactory("NusaNFT");
@@ -133,14 +151,21 @@ describe("NusaNFT Mint With Signature", async () => {
     expect(nftContract.address).to.not.be.undefined;
   })
 
+  it("Set nusaMarketplace address", async () => {
+    await nftContract.setNusaMarketplace(diamond.address);
+    expect(await nftContract.nusaMarketplace()).to.eq(diamond.address);
+  })
+
   it("Mint with signature", async () => {
     const pricePerToken = ethers.utils.parseEther('1');
     const quantity = 100;
 
-    // TODO: Should add marketplace fee
+    const nftCreatorBalanceBeforeMint = await hre.ethers.provider.getBalance(nftCreator.address);
+    const contractOwnerBalanceBeforeMint = await hre.ethers.provider.getBalance(contractOwner.address);
+
     const mintRequest: ISignatureMintERC1155.MintRequestStruct = {
       to: nftMinter.address,
-      royaltyRecipient: contractOwner.address,
+      royaltyRecipient: nftCreator.address,
       royaltyBps: 10,
       primarySaleRecipient: nftCreator.address,
       tokenId: ethers.constants.MaxUint256,
@@ -155,11 +180,24 @@ describe("NusaNFT Mint With Signature", async () => {
 
     const signature = await signMintRequest(mintRequest, contractOwner, chainId, nftContract.address);
 
-    let tx = await nftContract.mintWithSignature(mintRequest, signature, { value: pricePerToken.mul(quantity) });
+    let tx = await nftContract.connect(nftMinter).mintWithSignature(mintRequest, signature, { value: pricePerToken.mul(quantity) });
     await tx.wait();
 
+    // Check NFT Balance
     const balance = await nftContract.balanceOf(nftMinter.address, 0);
     expect(balance.toString()).to.equal(quantity.toString());
+
+    // Check ETH Balance
+    const nftCreatorBalanceAfterMint = await hre.ethers.provider.getBalance(nftCreator.address);
+    const contractOwnerBalanceAfterMint = await hre.ethers.provider.getBalance(contractOwner.address);
+
+    const expectedPlatformFee = pricePerToken.mul(quantity).mul(PLATFORM_FEE_BPS).div(10000);
+    const expectedBalanceIncrease = pricePerToken
+      .mul(quantity)
+      .sub(expectedPlatformFee);
+
+    expect(nftCreatorBalanceAfterMint.sub(nftCreatorBalanceBeforeMint).toString()).to.equal(expectedBalanceIncrease.toString());
+    expect(contractOwnerBalanceAfterMint.sub(contractOwnerBalanceBeforeMint).toString()).to.equal(expectedPlatformFee.toString());
   })
 
   it("Mint previously minted token. quantity should increase", async () => {
