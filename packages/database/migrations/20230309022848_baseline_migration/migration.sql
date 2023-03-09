@@ -1,3 +1,6 @@
+-- CreateExtension
+CREATE EXTENSION IF NOT EXISTS "citext";
+
 -- CreateEnum
 CREATE TYPE "Display" AS ENUM ('PADDED', 'CONTAINED', 'COVERED');
 
@@ -11,12 +14,21 @@ CREATE TYPE "TokenType" AS ENUM ('ERC1155', 'ERC721');
 CREATE TYPE "ListingType" AS ENUM ('Direct', 'Auction');
 
 -- CreateEnum
-CREATE TYPE "NotificationType" AS ENUM ('Sale', 'Offer');
+CREATE TYPE "NotificationType" AS ENUM ('Sale', 'Offer', 'Bid');
+
+-- CreateEnum
+CREATE TYPE "ListingStatus" AS ENUM ('UNSET', 'CREATED', 'COMPLETED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "OfferStatus" AS ENUM ('UNSET', 'CREATED', 'COMPLETED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "IndexerStatus" AS ENUM ('SYNCING', 'SYNCED');
 
 -- CreateTable
 CREATE TABLE "User" (
     "id" SERIAL NOT NULL,
-    "wallet_address" TEXT NOT NULL,
+    "wallet_address" CITEXT NOT NULL,
     "deleted" BOOLEAN NOT NULL DEFAULT false,
     "first_name" TEXT,
     "last_name" TEXT,
@@ -53,15 +65,15 @@ CREATE TABLE "Collection" (
     "slug" TEXT,
     "url" TEXT,
     "description" TEXT,
-    "contract_address" TEXT,
+    "contract_address" CITEXT,
     "website_link" TEXT,
     "discord_link" TEXT,
     "telegram_link" TEXT,
     "medium_link" TEXT,
     "display_theme" "Display" NOT NULL DEFAULT 'COVERED',
     "chainId" INTEGER NOT NULL DEFAULT 0,
-    "payment_token" TEXT,
-    "creator_address" TEXT NOT NULL,
+    "payment_token" CITEXT,
+    "creator_address" CITEXT NOT NULL,
     "category_id" INTEGER NOT NULL,
     "explicit_sensitive" BOOLEAN NOT NULL DEFAULT false,
     "deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -76,14 +88,15 @@ CREATE TABLE "Collection" (
 -- CreateTable
 CREATE TABLE "Item" (
     "id" SERIAL NOT NULL,
-    "tokenId" INTEGER DEFAULT -1,
+    "uuid" UUID,
+    "tokenId" DECIMAL(78,0) DEFAULT -1,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "external_link" TEXT,
     "image" TEXT,
     "collection_id" INTEGER NOT NULL,
-    "creator_address" TEXT NOT NULL,
-    "contract_address" TEXT,
+    "creator_address" CITEXT NOT NULL,
+    "contract_address" CITEXT,
     "metadata" TEXT,
     "unlockable" BOOLEAN DEFAULT false,
     "explicit_sensitive" BOOLEAN DEFAULT false,
@@ -104,7 +117,7 @@ CREATE TABLE "Royalty" (
     "id" SERIAL NOT NULL,
     "collection_id" INTEGER NOT NULL,
     "deleted" BOOLEAN NOT NULL DEFAULT false,
-    "wallet_address" TEXT NOT NULL,
+    "wallet_address" CITEXT NOT NULL,
     "percentage" DOUBLE PRECISION NOT NULL
 );
 
@@ -145,11 +158,11 @@ CREATE TABLE "WatchList" (
 CREATE TABLE "LazyMintListing" (
     "id" SERIAL NOT NULL,
     "itemId" INTEGER NOT NULL,
-    "assetContract" TEXT NOT NULL,
+    "assetContract" CITEXT NOT NULL,
     "startTime" INTEGER NOT NULL,
     "endTime" INTEGER NOT NULL,
     "quantity" INTEGER NOT NULL,
-    "currency" TEXT NOT NULL,
+    "currency" CITEXT NOT NULL,
     "reservePricePerToken" DECIMAL(78,0) NOT NULL,
     "buyoutPricePerToken" DECIMAL(78,0) NOT NULL,
     "tokenType" "TokenType" NOT NULL,
@@ -163,7 +176,7 @@ CREATE TABLE "LazyMintSale" (
     "id" SERIAL NOT NULL,
     "itemId" INTEGER NOT NULL,
     "lazyMintListingId" INTEGER NOT NULL,
-    "tokenId" INTEGER,
+    "tokenId" DECIMAL(78,0) NOT NULL,
     "tokenType" "TokenType" NOT NULL,
     "listingType" "ListingType" NOT NULL,
     "quantityBought" INTEGER,
@@ -176,6 +189,10 @@ CREATE TABLE "Notification" (
     "id" SERIAL NOT NULL,
     "notification_type" "NotificationType" NOT NULL,
     "is_seen" BOOLEAN NOT NULL DEFAULT false,
+    "wallet_address" CITEXT NOT NULL,
+    "notification_detail_sale_id" INTEGER,
+    "notification_detail_offer_id" INTEGER,
+    "notification_detail_bid_id" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -183,90 +200,92 @@ CREATE TABLE "Notification" (
 CREATE TABLE "NotificationDetailSale" (
     "id" SERIAL NOT NULL,
     "notification_type" "NotificationType" NOT NULL DEFAULT 'Sale',
-    "listingId" INTEGER,
-    "asset_contract" TEXT NOT NULL,
-    "lister_wallet_address" TEXT NOT NULL,
-    "buyer_wallet_address" TEXT NOT NULL,
-    "quantity_bought" INTEGER,
+    "listingId" DECIMAL(78,0),
+    "asset_contract" CITEXT NOT NULL,
+    "lister_wallet_address" CITEXT,
+    "buyer_wallet_address" CITEXT,
+    "quantity_bought" DECIMAL(78,0),
     "total_price_paid" DECIMAL(78,0) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt_timestamp" INTEGER,
-    "transaction_hash" TEXT NOT NULL,
-    "notification_id" INTEGER
+    "transaction_hash" TEXT NOT NULL
 );
 
 -- CreateTable
 CREATE TABLE "NotificationDetailOffer" (
     "id" SERIAL NOT NULL,
     "notification_type" "NotificationType" NOT NULL DEFAULT 'Offer',
-    "listingId" INTEGER,
-    "lister_wallet_address" TEXT NOT NULL,
-    "offeror_wallet_address" TEXT NOT NULL,
+    "token_owner_wallet_address" CITEXT,
+    "offeror_wallet_address" CITEXT,
+    "tokenId" INTEGER,
     "listing_type" "ListingType" NOT NULL,
-    "quantity_wanted" INTEGER,
+    "quantity_wanted" DECIMAL(78,0),
     "total_offer_ammount" DECIMAL(78,0) NOT NULL,
-    "currency" TEXT NOT NULL,
+    "currency" CITEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt_timestamp" INTEGER,
-    "expiration_timestamp" INTEGER,
-    "transaction_hash" TEXT NOT NULL,
-    "notification_id" INTEGER
+    "expiration_timestamp" DECIMAL(78,0) NOT NULL,
+    "transaction_hash" TEXT NOT NULL
 );
 
 -- CreateTable
-CREATE TABLE "Erc1155TransferHistory" (
+CREATE TABLE "NotificationDetailBid" (
     "id" SERIAL NOT NULL,
-    "block" INTEGER,
-    "operator" TEXT,
-    "from" TEXT,
-    "to" TEXT,
-    "tokenId" INTEGER,
-    "value" INTEGER,
-    "createdAt" INTEGER,
-    "transactionHash" TEXT NOT NULL
+    "notification_type" "NotificationType" NOT NULL DEFAULT 'Bid',
+    "listingId" DECIMAL(78,0),
+    "lister_wallet_address" CITEXT,
+    "bidder_wallet_address" CITEXT,
+    "listing_type" "ListingType" NOT NULL,
+    "quantity_wanted" DECIMAL(78,0),
+    "total_offer_ammount" DECIMAL(78,0) NOT NULL,
+    "currency" CITEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt_timestamp" INTEGER,
+    "transaction_hash" TEXT NOT NULL
 );
 
 -- CreateTable
 CREATE TABLE "TokenTransferHistory" (
     "id" SERIAL NOT NULL,
     "block" INTEGER,
-    "operator" TEXT,
-    "from" TEXT,
-    "to" TEXT,
-    "contractAddress" TEXT NOT NULL,
+    "operator" CITEXT,
+    "from" CITEXT,
+    "to" CITEXT,
+    "contractAddress" CITEXT NOT NULL,
     "chainId" INTEGER NOT NULL DEFAULT 0,
-    "tokenId" INTEGER,
+    "tokenId" DECIMAL(78,0) NOT NULL,
     "value" INTEGER,
     "createdAt" INTEGER,
     "transactionHash" TEXT NOT NULL,
     "isBatch" BOOLEAN NOT NULL DEFAULT false,
-    "txIndex" INTEGER NOT NULL DEFAULT 0
+    "txIndex" INTEGER NOT NULL DEFAULT 0,
+    "logIndex" INTEGER NOT NULL DEFAULT 0
 );
 
 -- CreateTable
 CREATE TABLE "TokenOwnerships" (
-    "contractAddress" TEXT NOT NULL,
+    "contractAddress" CITEXT NOT NULL,
     "chainId" INTEGER NOT NULL DEFAULT 0,
-    "tokenId" INTEGER NOT NULL,
-    "ownerAddress" TEXT NOT NULL,
+    "tokenId" DECIMAL(78,0) NOT NULL,
+    "ownerAddress" CITEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
     "timestamp" INTEGER NOT NULL,
+    "transactionHash" TEXT NOT NULL,
 
     CONSTRAINT "TokenOwnerships_pkey" PRIMARY KEY ("contractAddress","chainId","tokenId","ownerAddress")
 );
 
 -- CreateTable
 CREATE TABLE "MarketplaceListing" (
-    "id" SERIAL NOT NULL,
-    "listingId" INTEGER,
-    "lister" TEXT,
-    "tokenOwner" TEXT,
-    "assetContract" TEXT,
-    "tokenId" INTEGER,
+    "id" DECIMAL(78,0) NOT NULL,
+    "lister" CITEXT,
+    "tokenOwner" CITEXT,
+    "assetContract" CITEXT,
+    "tokenId" DECIMAL(78,0) NOT NULL,
     "startTime" INTEGER,
     "endTime" INTEGER,
     "quantity" INTEGER,
-    "currency" TEXT,
+    "currency" CITEXT,
     "chainId" INTEGER NOT NULL DEFAULT 0,
     "reservePricePerToken" DECIMAL(78,0) NOT NULL,
     "buyoutPricePerToken" DECIMAL(78,0) NOT NULL,
@@ -276,30 +295,55 @@ CREATE TABLE "MarketplaceListing" (
     "updatedAt" INTEGER,
     "isCancelled" BOOLEAN NOT NULL DEFAULT false,
     "isClosedByLister" BOOLEAN,
-    "isClosedByBidder" BOOLEAN
+    "isClosedByBidder" BOOLEAN,
+    "royaltyInfoId" INTEGER NOT NULL,
+    "status" "ListingStatus" NOT NULL
 );
 
 -- CreateTable
 CREATE TABLE "MarketplaceOffer" (
-    "id" SERIAL NOT NULL,
-    "listingId" INTEGER,
-    "offeror" TEXT NOT NULL,
-    "listingType" "ListingType" NOT NULL,
-    "quantityWanted" INTEGER,
-    "totalOfferAmount" DECIMAL(78,0) NOT NULL,
-    "createdAt" INTEGER,
-    "currency" TEXT,
-    "expirationTimestamp" INTEGER NOT NULL,
+    "id" DECIMAL(78,0) NOT NULL,
+    "offeror" CITEXT NOT NULL,
+    "assetContract" CITEXT NOT NULL,
+    "tokenId" DECIMAL(78,0) NOT NULL,
+    "quantity" DECIMAL(78,0) NOT NULL,
+    "currency" CITEXT,
+    "totalPrice" DECIMAL(78,0) NOT NULL,
+    "expirationTimestamp" DECIMAL(78,0) NOT NULL,
+    "transactionHash" TEXT NOT NULL,
+    "status" "OfferStatus" NOT NULL,
+    "royaltyInfoId" INTEGER NOT NULL,
+    "createdAt" INTEGER
+);
+
+-- CreateTable
+CREATE TABLE "AcceptedOffer" (
+    "offerId" DECIMAL(78,0) NOT NULL,
+    "offeror" CITEXT NOT NULL,
+    "assetContract" CITEXT NOT NULL,
+    "tokenId" DECIMAL(78,0) NOT NULL,
+    "seller" CITEXT NOT NULL,
+    "quantityBought" DECIMAL(78,0) NOT NULL,
+    "totalPricePaid" DECIMAL(78,0) NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "Bid" (
+    "listingId" DECIMAL(78,0) NOT NULL,
+    "bidder" CITEXT NOT NULL,
+    "quantityWanted" DECIMAL(78,0) NOT NULL,
+    "currency" CITEXT NOT NULL,
+    "pricePerToken" DECIMAL(78,0) NOT NULL,
+    "totalPrice" DECIMAL(78,0) NOT NULL,
     "transactionHash" TEXT NOT NULL
 );
 
 -- CreateTable
 CREATE TABLE "MarketplaceSale" (
-    "id" SERIAL NOT NULL,
-    "listingId" INTEGER,
-    "assetContract" TEXT,
-    "lister" TEXT,
-    "buyer" TEXT,
+    "listingId" DECIMAL(78,0),
+    "assetContract" CITEXT,
+    "lister" CITEXT,
+    "buyer" CITEXT,
     "quantityBought" INTEGER,
     "totalPricePaid" DECIMAL(78,0),
     "createdAt" INTEGER,
@@ -308,25 +352,40 @@ CREATE TABLE "MarketplaceSale" (
 
 -- CreateTable
 CREATE TABLE "RoyaltyPaid" (
-    "id" SERIAL NOT NULL,
-    "listingId" INTEGER NOT NULL,
-    "recipient" TEXT NOT NULL,
+    "id" DECIMAL(78,0) NOT NULL,
+    "listingId" DECIMAL(78,0),
+    "offerId" DECIMAL(78,0),
+    "payer" CITEXT NOT NULL,
+    "recipient" CITEXT NOT NULL,
     "bps" INTEGER NOT NULL,
     "amount" DECIMAL(78,0) NOT NULL,
+    "currency" CITEXT NOT NULL,
     "createdAt" INTEGER NOT NULL,
     "transactionHash" TEXT NOT NULL
 );
 
 -- CreateTable
 CREATE TABLE "IndexerState" (
-    "lastBlockProcessed" INTEGER NOT NULL
+    "lastBlockProcessed" INTEGER NOT NULL,
+    "status" "IndexerStatus" NOT NULL
 );
 
 -- CreateTable
 CREATE TABLE "Voucher" (
-    "id" INTEGER NOT NULL,
+    "id" SERIAL NOT NULL,
+    "tokenId" INTEGER NOT NULL DEFAULT 0,
+    "itemUuid" UUID,
+    "rootHash" TEXT NOT NULL,
+    "deleted" BOOLEAN NOT NULL DEFAULT false
+);
+
+-- CreateTable
+CREATE TABLE "VoucherLeaf" (
+    "id" SERIAL NOT NULL,
     "hash" TEXT NOT NULL,
-    "expTime" INTEGER NOT NULL,
+    "num" INTEGER NOT NULL DEFAULT 0,
+    "tokenId" INTEGER NOT NULL,
+    "itemUuid" UUID,
     "deleted" BOOLEAN NOT NULL DEFAULT false
 );
 
@@ -339,11 +398,13 @@ CREATE TABLE "CuratedCollection" (
 -- CreateTable
 CREATE TABLE "ImportedContracts" (
     "id" SERIAL NOT NULL,
-    "contractAddress" TEXT NOT NULL,
+    "contractAddress" CITEXT NOT NULL,
     "chainId" INTEGER NOT NULL,
     "tokenType" "TokenType" NOT NULL,
     "deployedAtBlock" INTEGER NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL
+    "lastIndexedBlock" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL,
+    "isImportFinish" BOOLEAN NOT NULL DEFAULT false
 );
 
 -- CreateIndex
@@ -401,37 +462,28 @@ CREATE UNIQUE INDEX "Notification_id_key" ON "Notification"("id");
 CREATE UNIQUE INDEX "NotificationDetailSale_id_key" ON "NotificationDetailSale"("id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "NotificationDetailSale_notification_id_key" ON "NotificationDetailSale"("notification_id");
-
--- CreateIndex
 CREATE UNIQUE INDEX "NotificationDetailSale_id_notification_type_key" ON "NotificationDetailSale"("id", "notification_type");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "NotificationDetailOffer_id_key" ON "NotificationDetailOffer"("id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "NotificationDetailOffer_notification_id_key" ON "NotificationDetailOffer"("notification_id");
-
--- CreateIndex
 CREATE UNIQUE INDEX "NotificationDetailOffer_id_notification_type_key" ON "NotificationDetailOffer"("id", "notification_type");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Erc1155TransferHistory_id_key" ON "Erc1155TransferHistory"("id");
+CREATE UNIQUE INDEX "NotificationDetailBid_id_key" ON "NotificationDetailBid"("id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Erc1155TransferHistory_transactionHash_key" ON "Erc1155TransferHistory"("transactionHash");
+CREATE UNIQUE INDEX "NotificationDetailBid_id_notification_type_key" ON "NotificationDetailBid"("id", "notification_type");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TokenTransferHistory_id_key" ON "TokenTransferHistory"("id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TokenTransferHistory_transactionHash_chainId_txIndex_key" ON "TokenTransferHistory"("transactionHash", "chainId", "txIndex");
+CREATE UNIQUE INDEX "TokenTransferHistory_transactionHash_chainId_txIndex_logInd_key" ON "TokenTransferHistory"("transactionHash", "chainId", "txIndex", "logIndex");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MarketplaceListing_id_key" ON "MarketplaceListing"("id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "MarketplaceListing_listingId_key" ON "MarketplaceListing"("listingId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MarketplaceOffer_id_key" ON "MarketplaceOffer"("id");
@@ -440,10 +492,10 @@ CREATE UNIQUE INDEX "MarketplaceOffer_id_key" ON "MarketplaceOffer"("id");
 CREATE UNIQUE INDEX "MarketplaceOffer_transactionHash_key" ON "MarketplaceOffer"("transactionHash");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "MarketplaceSale_id_key" ON "MarketplaceSale"("id");
+CREATE UNIQUE INDEX "AcceptedOffer_offerId_key" ON "AcceptedOffer"("offerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "MarketplaceSale_listingId_key" ON "MarketplaceSale"("listingId");
+CREATE UNIQUE INDEX "Bid_listingId_bidder_transactionHash_key" ON "Bid"("listingId", "bidder", "transactionHash");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MarketplaceSale_transactionHash_key" ON "MarketplaceSale"("transactionHash");
@@ -452,10 +504,16 @@ CREATE UNIQUE INDEX "MarketplaceSale_transactionHash_key" ON "MarketplaceSale"("
 CREATE UNIQUE INDEX "RoyaltyPaid_id_key" ON "RoyaltyPaid"("id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "RoyaltyPaid_offerId_key" ON "RoyaltyPaid"("offerId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "IndexerState_lastBlockProcessed_key" ON "IndexerState"("lastBlockProcessed");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Voucher_id_key" ON "Voucher"("id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "VoucherLeaf_id_key" ON "VoucherLeaf"("id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "CuratedCollection_id_key" ON "CuratedCollection"("id");
@@ -518,34 +576,55 @@ ALTER TABLE "LazyMintSale" ADD CONSTRAINT "LazyMintSale_itemId_fkey" FOREIGN KEY
 ALTER TABLE "LazyMintSale" ADD CONSTRAINT "LazyMintSale_lazyMintListingId_fkey" FOREIGN KEY ("lazyMintListingId") REFERENCES "LazyMintListing"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "NotificationDetailSale" ADD CONSTRAINT "NotificationDetailSale_lister_wallet_address_fkey" FOREIGN KEY ("lister_wallet_address") REFERENCES "User"("wallet_address") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_wallet_address_fkey" FOREIGN KEY ("wallet_address") REFERENCES "User"("wallet_address") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "NotificationDetailSale" ADD CONSTRAINT "NotificationDetailSale_buyer_wallet_address_fkey" FOREIGN KEY ("buyer_wallet_address") REFERENCES "User"("wallet_address") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_notification_detail_sale_id_fkey" FOREIGN KEY ("notification_detail_sale_id") REFERENCES "NotificationDetailSale"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "NotificationDetailSale" ADD CONSTRAINT "NotificationDetailSale_notification_id_fkey" FOREIGN KEY ("notification_id") REFERENCES "Notification"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_notification_detail_offer_id_fkey" FOREIGN KEY ("notification_detail_offer_id") REFERENCES "NotificationDetailOffer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "NotificationDetailOffer" ADD CONSTRAINT "NotificationDetailOffer_lister_wallet_address_fkey" FOREIGN KEY ("lister_wallet_address") REFERENCES "User"("wallet_address") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_notification_detail_bid_id_fkey" FOREIGN KEY ("notification_detail_bid_id") REFERENCES "NotificationDetailBid"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "NotificationDetailOffer" ADD CONSTRAINT "NotificationDetailOffer_offeror_wallet_address_fkey" FOREIGN KEY ("offeror_wallet_address") REFERENCES "User"("wallet_address") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "NotificationDetailSale" ADD CONSTRAINT "NotificationDetailSale_lister_wallet_address_fkey" FOREIGN KEY ("lister_wallet_address") REFERENCES "User"("wallet_address") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "NotificationDetailOffer" ADD CONSTRAINT "NotificationDetailOffer_notification_id_fkey" FOREIGN KEY ("notification_id") REFERENCES "Notification"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "NotificationDetailSale" ADD CONSTRAINT "NotificationDetailSale_buyer_wallet_address_fkey" FOREIGN KEY ("buyer_wallet_address") REFERENCES "User"("wallet_address") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "NotificationDetailOffer" ADD CONSTRAINT "NotificationDetailOffer_token_owner_wallet_address_fkey" FOREIGN KEY ("token_owner_wallet_address") REFERENCES "User"("wallet_address") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "NotificationDetailOffer" ADD CONSTRAINT "NotificationDetailOffer_offeror_wallet_address_fkey" FOREIGN KEY ("offeror_wallet_address") REFERENCES "User"("wallet_address") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "NotificationDetailBid" ADD CONSTRAINT "NotificationDetailBid_lister_wallet_address_fkey" FOREIGN KEY ("lister_wallet_address") REFERENCES "User"("wallet_address") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "NotificationDetailBid" ADD CONSTRAINT "NotificationDetailBid_bidder_wallet_address_fkey" FOREIGN KEY ("bidder_wallet_address") REFERENCES "User"("wallet_address") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "MarketplaceListing" ADD CONSTRAINT "MarketplaceListing_tokenId_assetContract_chainId_fkey" FOREIGN KEY ("tokenId", "assetContract", "chainId") REFERENCES "Item"("tokenId", "contract_address", "chainId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MarketplaceOffer" ADD CONSTRAINT "MarketplaceOffer_listingId_fkey" FOREIGN KEY ("listingId") REFERENCES "MarketplaceListing"("listingId") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "AcceptedOffer" ADD CONSTRAINT "AcceptedOffer_offerId_fkey" FOREIGN KEY ("offerId") REFERENCES "MarketplaceOffer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MarketplaceSale" ADD CONSTRAINT "MarketplaceSale_listingId_fkey" FOREIGN KEY ("listingId") REFERENCES "MarketplaceListing"("listingId") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Bid" ADD CONSTRAINT "Bid_listingId_fkey" FOREIGN KEY ("listingId") REFERENCES "MarketplaceListing"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RoyaltyPaid" ADD CONSTRAINT "RoyaltyPaid_listingId_fkey" FOREIGN KEY ("listingId") REFERENCES "MarketplaceListing"("listingId") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Bid" ADD CONSTRAINT "Bid_bidder_fkey" FOREIGN KEY ("bidder") REFERENCES "User"("wallet_address") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MarketplaceSale" ADD CONSTRAINT "MarketplaceSale_listingId_fkey" FOREIGN KEY ("listingId") REFERENCES "MarketplaceListing"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RoyaltyPaid" ADD CONSTRAINT "RoyaltyPaid_listingId_fkey" FOREIGN KEY ("listingId") REFERENCES "MarketplaceListing"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RoyaltyPaid" ADD CONSTRAINT "RoyaltyPaid_offerId_fkey" FOREIGN KEY ("offerId") REFERENCES "MarketplaceOffer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CuratedCollection" ADD CONSTRAINT "CuratedCollection_collectionId_fkey" FOREIGN KEY ("collectionId") REFERENCES "Collection"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

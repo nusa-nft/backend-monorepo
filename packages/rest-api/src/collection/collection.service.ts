@@ -838,7 +838,7 @@ export class CollectionService {
         listing: true,
       },
       orderBy: {
-        id: 'desc',
+        listingId: 'desc',
       },
     });
 

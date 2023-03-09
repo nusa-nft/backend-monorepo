@@ -125,7 +125,7 @@ export class IndexerService implements OnModuleInit {
     'event NewOffer(address indexed offeror, uint256 indexed offerId, address indexed assetContract, tuple(uint256 offerId, address offeror, address assetContract, uint256 tokenId, uint256 quantity, address currency, uint256 totalPrice, uint256 expirationTimestamp, uint8 tokenType, uint8 status, uint256 royaltyInfoId) offer)',
     'event AcceptedOffer(address indexed offeror, uint256 indexed offerId, address indexed assetContract, uint256 tokenId, address seller, uint256 quantityBought, uint256 totalPricePaid)',
     'event CancelledOffer(address indexed offeror, uint256 indexed offerId)',
-    'event RoyaltyPaid(uint256 indexed id, address[] recipients, uint64[] bpsPerRecipients, uint256 totalPayout, address currency)'
+    'event RoyaltyPaid(uint256 indexed id, address[] recipients, uint64[] bpsPerRecipients, uint256 totalPayout, address currency, address payer)'
   ];
 
   constructor(
@@ -644,7 +644,7 @@ export class IndexerService implements OnModuleInit {
 
   async indexAcceptedOffer(eventArgs: AcceptedOfferEventObject, log: TypedEvent<any, any>) {
     const { blockNumber, transactionHash } = log;
-    const { offerId } = eventArgs;
+    const { offerId, seller, quantityBought, totalPricePaid } = eventArgs;
     const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     const offer = await this.offers.getOffer(offerId);
     await this.prisma.marketplaceOffer.update({
@@ -652,6 +652,17 @@ export class IndexerService implements OnModuleInit {
       data: {
         status: parseOfferStatus(offer.status),
         transactionHash,
+      }
+    });
+    await this.prisma.acceptedOffer.create({
+      data: {
+        offerId: offerId.toString(),
+        offeror: offer.offeror,
+        assetContract: offer.assetContract,
+        tokenId: offer.tokenId.toString(),
+        seller: seller,
+        quantityBought: quantityBought.toString(),
+        totalPricePaid: totalPricePaid.toString()
       }
     });
   }
@@ -733,7 +744,7 @@ export class IndexerService implements OnModuleInit {
   }
 
   async indexRoyaltyPaid(eventArgs: RoyaltyPaidEventObject, log: TypedEvent<any, any>) {
-    const { id, recipients, bpsPerRecipients, currency, totalPayout } = eventArgs;
+    const { id, recipients, bpsPerRecipients, currency, totalPayout, payer } = eventArgs;
     // const royaltyInfo = await this.marketplace.getRoyaltyInfo(id);
     let offer = await this.prisma.marketplaceOffer.findFirst({
       where: { royaltyInfoId: id.toNumber() }
@@ -758,7 +769,8 @@ export class IndexerService implements OnModuleInit {
         .div(10000);
 
       let royaltyPaidData: Prisma.RoyaltyPaidCreateInput = {
-        // listingId: listingId.toNumber(),
+        id: id.toString(),
+        payer,
         recipient: rec,
         bps: bps.toNumber(),
         amount: amount.toString(),
@@ -1035,7 +1047,7 @@ export class IndexerService implements OnModuleInit {
 
     const newSale = await this.prisma.marketplaceSale.create({
       data: {
-        listingId: parseInt(listingId),
+        listingId: listingId.toString(),
         assetContract: assetContract.toLowerCase(),
         lister: lister,
         buyer,

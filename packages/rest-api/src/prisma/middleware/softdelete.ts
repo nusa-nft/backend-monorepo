@@ -18,6 +18,7 @@ const excludedModels = [
   'TokenOwnerships',
   'TokenTransferHistory',
   'Erc1155TransferHistory',
+  'RoyaltyPaid',
 ];
 
 export function SoftDeleteMiddleware<
