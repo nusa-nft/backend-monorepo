@@ -1,12 +1,14 @@
 import { INestApplication } from "@nestjs/common";
-import { Item, MarketplaceListing, PrismaClient } from "@nusa-nft/database";
+import { Item, ListingStatus, MarketplaceListing, PrismaClient } from "@nusa-nft/database";
 import { NATIVE_CURRENCY } from "@nusa-nft/rest-api/src/item/web3/constants";
 import { MarketplaceFacet, NusaNFT } from "@nusa-nft/smart-contract/typechain-types";
-import { ListingAddedEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/facets/MarketplaceFacet";
+import { ListingAddedEvent, ListingRemovedEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/facets/MarketplaceFacet";
 import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
 import { ethers } from "ethers";
 import { login, uploadMetadataToIpfs } from "../lib/rest-api";
 import retry from 'async-retry';
+import { fmtFailed, assert, fmtSuccess } from "../lib/assertions";
+import request from "supertest";
 
 export async function testMarketplaceDirectListing({
   restApi,
@@ -91,10 +93,32 @@ export async function testMarketplaceDirectListing({
     listing = await db.marketplaceListing.findFirstOrThrow({
       where: { id: listingId.toNumber() }
     })
+    assert(listing.status == ListingStatus.CREATED, fmtFailed('Listing status should be active'));
   }, { retries: 3 });
+  console.log(fmtSuccess('Listing created successfully indexed'));
 
-  console.log({ listing })
+  resp = await request(restApi.getHttpServer())
+    .get(`/item/${item.id}`)
+  let getItem = resp.body;
+  assert(getItem.listings.length == 1, fmtFailed('Item should have 1 listing'));
+  console.log(fmtSuccess('Item listing returned by API successfully'));
 
-  // TODO: Assert if royalty correctly paid
-  // TODO: Sell to other person and assert if royalty correctly paid
+  tx = await marketplace.connect(sellerWallet)
+    .cancelListing(listingId);
+  await tx.wait();
+  let listingRemovedEvent = await receipt.events.find(ev => ev.event == 'ListingRemoved') as ListingRemovedEvent;
+
+  await retry(async () => {
+    listing = await db.marketplaceListing.findFirstOrThrow({
+      where: { id: listingId.toNumber() }
+    })
+    assert(listing.status == ListingStatus.CANCELLED, fmtFailed('Listing status should be cancelled'));
+  }, { retries: 5 });
+  console.log(fmtSuccess('Listing cancelled successfully indexed'))
+
+  resp = await request(restApi.getHttpServer())
+    .get(`/item/${item.id}`)
+  getItem = resp.body;
+  assert(getItem.listings.length == 0, fmtFailed('Item should have 0 listing'));
+  console.log(fmtSuccess('Item cancelled listing is not shown by API'));
 }
