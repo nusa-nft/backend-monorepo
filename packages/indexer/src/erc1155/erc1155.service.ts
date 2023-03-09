@@ -86,12 +86,12 @@ export class Erc1155Service {
             offer."createdAt",
             "totalOfferAmount" as price,
             "offeror" as from,
-            "lister" as to,
-            listing."tokenId"
+            accepted."seller" as to,
+            "tokenId"
           FROM
             public."MarketplaceOffer" offer
-            JOIN public."MarketplaceListing" listing
-            ON offer."listingId" = listing."listingId"
+            JOIN public."AcceptedOffer" accepted
+            ON offer."id" = accepted."offerId"
         UNION
           SELECT
             'sale' AS event,
@@ -145,12 +145,12 @@ export class Erc1155Service {
           offer."createdAt",
           "totalOfferAmount" as price,
           "offeror" as from,
-          "lister" as to,
-          listing."tokenId"
-        FROM
+          accepted."seller" as to,
+          "tokenId"
+          FROM
           public."MarketplaceOffer" offer
-          JOIN public."MarketplaceListing" listing
-          ON offer."listingId" = listing."listingId"
+          JOIN public."AcceptedOffer" accepted
+          ON offer."id" = accepted."offerId"
       UNION
         SELECT
           'sale' AS event,
@@ -335,12 +335,12 @@ export class Erc1155Service {
             offer."createdAt",
             "totalOfferAmount" as price,
             "offeror" as from,
-            "lister" as to,
-            listing."tokenId"
-          FROM
+            accepted."seller" as to,
+            "tokenId"
+            FROM
             public."MarketplaceOffer" offer
-            JOIN public."MarketplaceListing" listing
-            ON offer."listingId" = listing."listingId"
+            JOIN public."AcceptedOffer" accepted
+            ON offer."id" = accepted."offerId"
         UNION
           SELECT
             'sale' AS event,
@@ -394,12 +394,12 @@ export class Erc1155Service {
           offer."createdAt",
           "totalOfferAmount" as price,
           "offeror" as from,
-          "lister" as to,
-          listing."tokenId"
-        FROM
+          accepted."seller" as to,
+          "tokenId"
+          FROM
           public."MarketplaceOffer" offer
-          JOIN public."MarketplaceListing" listing
-          ON offer."listingId" = listing."listingId"
+          JOIN public."AcceptedOffer" accepted
+          ON offer."id" = accepted."offerId"
       UNION
         SELECT
           'sale' AS event,
