@@ -11,3 +11,5 @@ DROP INDEX "MarketplaceSale_id_key";
 -- AlterTable
 ALTER TABLE "MarketplaceSale" DROP COLUMN "id";
 
+-- CreateIndex
+CREATE UNIQUE INDEX "MarketplaceSale_listingId_key" ON "MarketplaceSale"("listingId");
