@@ -432,7 +432,7 @@ model Bid {
 
 model MarketplaceSale {
   listing         MarketplaceListing? @relation(fields: [listingId], references: [id])
-  listingId       Decimal?            @unique @db.Decimal(78, 0)
+  listingId       Decimal?            @db.Decimal(78, 0)
   assetContract   String?             @db.Citext
   lister          String?             @db.Citext
   buyer           String?             @db.Citext
