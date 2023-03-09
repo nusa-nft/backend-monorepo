@@ -10,7 +10,8 @@ library LibRoyalty {
         address[] recipients,
         uint64[] bpsPerRecipients,
         uint256 totalPayout,
-        address currency
+        address currency,
+        address payer
     );
 
     function addRoyaltyInfo(
@@ -74,7 +75,8 @@ library LibRoyalty {
             listingRoyalty.recipients,
             listingRoyalty.bpsPerRecipients,
             _totalPayoutAmount,
-            _currency
+            _currency,
+            _payer
         );
     }
 }

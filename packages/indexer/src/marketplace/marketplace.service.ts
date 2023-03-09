@@ -169,7 +169,7 @@ export class MarketplaceService {
         listing: true,
       },
       orderBy: {
-        id: 'desc',
+        listingId: 'desc',
       },
     });
 

@@ -9,3 +9,4 @@ export * from "./deploy-marketplace";
 export * from "./deploy-all";
 export * from "./marketplace-simulation";
 export * from "./deploy-dummy-nfts";
+export * from "./upgrade-marketplace";

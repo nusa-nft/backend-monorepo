@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@nusa-nft/database';
 import { formatDistance } from 'date-fns';
 import { ethers } from 'ethers';
 import { IndexerService } from '../indexer/indexer.service';
@@ -35,22 +36,55 @@ export class RoyaltyService {
 
     const tokenIds = collection.items.map((it) => it.tokenId);
 
-    const royaltyHistory: { records: RoyaltyHistory[] } =
-      await this.indexerService.getRoyaltyReceivedHistory(tokenIds, page);
+    // const royaltyHistory: { records: RoyaltyHistory[] } =
+    //   await this.indexerService.getRoyaltyReceivedHistory(tokenIds, page);
+    const where: Prisma.RoyaltyPaidWhereInput = {
+      OR: [
+        { offer: { tokenId: { in: tokenIds } } },
+        { listing: { tokenId: { in: tokenIds } } }
+      ]
+    }
+
+    const royaltyPaids = await this.prisma.royaltyPaid.findMany({
+      where,
+      include: {
+        offer: { include: { acceptedOffer: true } },
+        listing: true
+      },
+    });
+
+    const countQuery = await this.prisma.royaltyPaid.aggregate({
+      _count: true,
+      where,
+    })
 
     const records = [];
-    for (const r of royaltyHistory.records as RoyaltyHistory[]) {
+    for (const r of royaltyPaids) {
+      const tokenId = r.offer ? r.offer.tokenId : r.listing.tokenId;
       const item = await this.prisma.item.findFirst({
-        where: { tokenId: r.tokenId },
+        where: { tokenId },
         include: {
           Collection: true,
         },
       });
 
+      let sellerAddress: string;
+      let buyerAddress: string;
+
+      if (r.offer) {
+        sellerAddress = r.offer.acceptedOffer.seller;
+        buyerAddress = r.payer;
+      }
+
+      if (r.listing) {
+        sellerAddress = r.listing.lister;
+        buyerAddress = r.payer;
+      }
+
       const seller = await this.prisma.user.findFirst({
         where: {
           wallet_address: {
-            contains: r.listing.lister,
+            contains: sellerAddress,
             mode: 'insensitive',
           },
         },
@@ -59,7 +93,7 @@ export class RoyaltyService {
       const buyer = await this.prisma.user.findFirst({
         where: {
           wallet_address: {
-            contains: r.listing.MarketplaceSale.buyer,
+            contains: buyerAddress,
             mode: 'insensitive',
           },
         },
@@ -70,20 +104,25 @@ export class RoyaltyService {
       });
 
       const rec = {
-        amount: ethers.utils.formatEther(r.amount),
+        amount: ethers.utils.formatEther(r.amount.toString()),
         collection: item?.Collection.name,
         itemName: item?.name,
-        seller: seller ? seller : { wallet_address: r.listing.lister },
-        buyer: buyer
-          ? buyer
-          : { wallet_address: r.listing.MarketplaceSale.buyer },
+        seller: seller ? seller : { wallet_address: sellerAddress },
+        buyer: buyer ? buyer : { wallet_address: buyerAddress },
         date,
       };
       records.push(rec);
     }
 
     return {
-      ...royaltyHistory,
+      status: 200,
+      message: "success",
+      metadata: {
+        page: page,
+        perPage: 10,
+        pageCount: Math.ceil(countQuery._count / 10),
+        totalCount: countQuery._count,
+      },
       records,
     };
   }
