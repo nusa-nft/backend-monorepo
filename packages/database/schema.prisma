@@ -1,10 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// TODO:
-// 1. create NotificationDetailBid model
-// 2. Include acceptor in MarketplaceOffer
-
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
@@ -245,22 +241,22 @@ model NotificationDetailSale {
 }
 
 model NotificationDetailOffer {
-  id                     Int              @unique @default(autoincrement())
-  notification_type      NotificationType @default(Offer)
-  token_owner            User?            @relation("lister", fields: [token_owner_wallet_address], references: [wallet_address])
-  token_owner_wallet_address  String?          @db.Citext
-  offeror                User?            @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
-  offeror_wallet_address String?          @db.Citext
-  tokenId                Int?
-  listing_type           ListingType
-  quantity_wanted        Decimal?         @db.Decimal(78, 0)
-  total_offer_ammount    Decimal          @db.Decimal(78, 0)
-  currency               String           @db.Citext
-  createdAt              DateTime         @default(now())
-  createdAt_timestamp    Int?
-  expiration_timestamp   Decimal          @db.Decimal(78, 0)
-  transaction_hash       String
-  Notification           Notification[]   @relation("offer")
+  id                         Int              @unique @default(autoincrement())
+  notification_type          NotificationType @default(Offer)
+  token_owner                User?            @relation("lister", fields: [token_owner_wallet_address], references: [wallet_address])
+  token_owner_wallet_address String?          @db.Citext
+  offeror                    User?            @relation("offeror", fields: [offeror_wallet_address], references: [wallet_address])
+  offeror_wallet_address     String?          @db.Citext
+  tokenId                    Int?
+  listing_type               ListingType
+  quantity_wanted            Decimal?         @db.Decimal(78, 0)
+  total_offer_ammount        Decimal          @db.Decimal(78, 0)
+  currency                   String           @db.Citext
+  createdAt                  DateTime         @default(now())
+  createdAt_timestamp        Int?
+  expiration_timestamp       Decimal          @db.Decimal(78, 0)
+  transaction_hash           String
+  Notification               Notification[]   @relation("offer")
 
   @@unique([id, notification_type])
 }
@@ -268,7 +264,7 @@ model NotificationDetailOffer {
 model NotificationDetailBid {
   id                    Int              @unique @default(autoincrement())
   notification_type     NotificationType @default(Bid)
-  listingId             Decimal?          @db.Decimal(78, 0)
+  listingId             Decimal?         @db.Decimal(78, 0)
   lister                User?            @relation("lister", fields: [lister_wallet_address], references: [wallet_address])
   lister_wallet_address String?          @db.Citext
   bidder                User?            @relation("bidder", fields: [bidder_wallet_address], references: [wallet_address])
@@ -392,20 +388,32 @@ model MarketplaceListing {
 }
 
 model MarketplaceOffer {
-  id                  Int              @unique @default(autoincrement())
-  offeror             String           @db.Citext
-  assetContract       String           @db.Citext
-  tokenId             Decimal          @db.Decimal(78, 0)
-  quantity            Decimal          @db.Decimal(78, 0)
-  currency            String?          @db.Citext
-  totalPrice          Decimal          @db.Decimal(78, 0)
-  expirationTimestamp Decimal          @db.Decimal(78, 0)
-  transactionHash     String           @unique
+  id                  Decimal     @unique @db.Decimal(78, 0)
+  offeror             String      @db.Citext
+  assetContract       String      @db.Citext
+  tokenId             Decimal     @db.Decimal(78, 0)
+  quantity            Decimal     @db.Decimal(78, 0)
+  currency            String?     @db.Citext
+  totalPrice          Decimal     @db.Decimal(78, 0)
+  expirationTimestamp Decimal     @db.Decimal(78, 0)
+  transactionHash     String      @unique
   status              OfferStatus
   royaltyInfoId       Int
-  RoyaltyPaid         RoyaltyPaid[]
   createdAt           Int?
-  sale                MarketplaceSale?
+
+  RoyaltyPaid   RoyaltyPaid[]
+  acceptedOffer AcceptedOffer?
+}
+
+model AcceptedOffer {
+  offerId        Decimal          @unique @db.Decimal(78, 0)
+  offer          MarketplaceOffer @relation(fields: [offerId], references: [id])
+  offeror        String           @db.Citext
+  assetContract  String           @db.Citext
+  tokenId        Decimal          @db.Decimal(78, 0)
+  seller         String           @db.Citext
+  quantityBought Decimal          @db.Decimal(78, 0)
+  totalPricePaid Decimal          @db.Decimal(78, 0)
 }
 
 model Bid {
@@ -423,11 +431,8 @@ model Bid {
 }
 
 model MarketplaceSale {
-  id              Int                 @unique @default(autoincrement())
   listing         MarketplaceListing? @relation(fields: [listingId], references: [id])
-  listingId       Decimal?            @db.Decimal(78, 0)
-  offer           MarketplaceOffer?   @relation(fields: [offerId], references: [id])
-  offerId         Int?                @unique
+  listingId       Decimal?            @unique @db.Decimal(78, 0)
   assetContract   String?             @db.Citext
   lister          String?             @db.Citext
   buyer           String?             @db.Citext
@@ -438,11 +443,12 @@ model MarketplaceSale {
 }
 
 model RoyaltyPaid {
-  id              Int                 @unique @default(autoincrement())
+  id              Decimal             @unique @db.Decimal(78, 0)
   listing         MarketplaceListing? @relation(fields: [listingId], references: [id])
   listingId       Decimal?            @db.Decimal(78, 0)
   offer           MarketplaceOffer?   @relation(fields: [offerId], references: [id])
-  offerId         Int?
+  offerId         Decimal?            @unique @db.Decimal(78, 0)
+  payer           String              @db.Citext
   recipient       String              @db.Citext
   bps             Int
   amount          Decimal             @db.Decimal(78, 0)

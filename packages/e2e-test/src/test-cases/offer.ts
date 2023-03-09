@@ -9,6 +9,16 @@ import { login, uploadMetadataToIpfs, getNotificationData } from "../lib/rest-ap
 import retry from "async-retry";
 import { AcceptedOfferEvent, NewOfferEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/facets/OffersFacet";
 
+/// Test Cases
+/// 1. Create a new offer
+/// 2. Accept the offer
+/// What should happen
+/// - [x] The offer should be indexed
+/// - [x] The offer status should be COMPLETED after accepted
+/// - [x] OfferAccepted event should be recorded in Database
+/// - [x] RoyaltyPaid event should be recorded in Database
+/// - [ ] NotificationDetailSale should be created when offer is accepted
+
 export async function offer({
   restApi,
   db,
@@ -134,6 +144,16 @@ export async function offer({
   let acceptedOfferEvent = receipt.events.find(ev => ev.event == 'AcceptedOffer') as AcceptedOfferEvent;
   let { seller } = acceptedOfferEvent.args;
 
+  await retry(async () => {
+    const offerAccepted = await db.acceptedOffer.findFirstOrThrow({
+      where: {
+        offerId: offerId.toString()
+      }
+    });
+    assert(offerAccepted.seller == seller && seller == minter.address, fmtFailed("offer accepted not recorded by indexer"));
+  }, { retries: 3 })
+  console.log(fmtSuccess('Offer accepted recorded by indexer'));
+
   // Wait for indexer to pickup offer accepted
   await new Promise(resolve => setTimeout(resolve, 3000));
 
@@ -197,7 +217,9 @@ export async function offer({
   assert(notificationOfferDataLister_inDb, fmtFailed("notification not created"))
   console.log(fmtSuccess('notification offer data created'))
 
-  
+  // TODO:
+  // Notification Detail Sale should be created
+
   let royaltyPaid: RoyaltyPaid;
   await retry(async () => {
     royaltyPaid = await db.royaltyPaid.findFirstOrThrow({
@@ -209,8 +231,18 @@ export async function offer({
   }, { retries: 3 })
   assert(royaltyPaid.amount.toString() == ethers.utils.parseEther("1").mul(500).div(10000).toString(), fmtFailed("royalty paid amount not equal to db"));
   assert(royaltyPaid.currency == wmatic.address, fmtFailed("royalty paid currency not equal to db"));
-  console.log(fmtSuccess("Royalty paid check passed"));
+  assert(royaltyPaid.payer == offeror.address, fmtFailed("royalty paid payer not equal to db"));
+  console.log(fmtSuccess("Royalty paid db check passed"));
 
-  // TODO: test offer notification
-  // Need to modify NotificationOfferDetails to include offerId, remove listingId
+  await retry(async () => {
+    const resp = await request(restApi.getHttpServer())
+      .get('/royalty')
+      .query({ collectionId: collectionId, page: 1 })
+    const records = resp.body.records;
+    assert(records.length > 0, fmtFailed("royalty api not returning records"));
+    const royaltyPaid = records[0]
+    assert(royaltyPaid.seller.wallet_address == minter.address, fmtFailed("royalty history seller check failed"));
+    assert(royaltyPaid.buyer.wallet_address == offeror.address, fmtFailed("royalty history buyer check failed"));
+  }, { retries: 3 });
+  console.log(fmtSuccess("Royalty history api check passed"));
 }
