@@ -146,15 +146,15 @@ async function main() {
   /// =========================================
   /// Test Create Direct Listing and Buy
   /// =========================================
-  // await testMarketplaceDirectListing({
-  //   restApi,
-  //   db,
-  //   nft,
-  //   marketplace,
-  //   collectionId,
-  //   sellerWallet: acc1,
-  //   buyerWallet: acc2,
-  // })
+  await testMarketplaceDirectListing({
+    restApi,
+    db,
+    nft,
+    marketplace,
+    collectionId,
+    sellerWallet: acc1,
+    buyerWallet: acc2,
+  })
 
   /// =========================================
   /// Test Create Auction Listing and Buy
@@ -174,18 +174,18 @@ async function main() {
   /// =========================================
   /// Test Create Offer and Accept
   /// =========================================
-  await offer({
-    restApi,
-    db,
-    web3Provider,
-    nft,
-    offers,
-    collectionId,
-    minter: acc1,
-    offeror: acc2,
-    marketplace,
-    wmatic
-  });
+  // await offer({
+  //   restApi,
+  //   db,
+  //   web3Provider,
+  //   nft,
+  //   offers,
+  //   collectionId,
+  //   minter: acc1,
+  //   offeror: acc2,
+  //   marketplace,
+  //   wmatic
+  // });
 
   /// ====================================
   /// Test Import ERC1155 Mint
