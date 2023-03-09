@@ -31,6 +31,7 @@ import {
   ItemListResponse,
   ItemOwner,
   Listing,
+  MintStatus,
 } from './item.interface';
 import { HttpStatusCode } from 'axios';
 import { ItemDto, ItemQueryParamsV2, PaginationQueryParams } from './dto/item.dto';
@@ -885,11 +886,13 @@ export class ItemServiceV2 {
             username: user.username,
             profile_picture: user.profile_picture,
             quantity: own.quantity,
+            mintStatus: MintStatus.MINTED
           });
         } else {
           owners.push({
             wallet_address: own.ownerAddress,
             quantity: own.quantity,
+            mintStatus: MintStatus.MINTED
           });
         }
       }
@@ -901,6 +904,7 @@ export class ItemServiceV2 {
         username: item.Creator.username,
         profile_picture: item.Creator.profile_picture,
         quantity: quantityNotMinted,
+        mintStatus: MintStatus.LAZY_MINT
       });
     }
     return owners;

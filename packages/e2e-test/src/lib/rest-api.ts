@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, VersioningType } from '@nestjs/common';
 import { ethers } from "ethers";
 import { LazyMintListingDto, LazyMintSale } from '@nusa-nft/rest-api/src/item/dto/item.dto';
 
@@ -166,14 +166,17 @@ export async function createLazyMintListing(restApi: INestApplication, jwt: stri
 }
 
 export async function getLazyMintListingSignature(restApi: INestApplication, jwt: string, {
-  listingId
+  listingId,
+  quantity
 }: {
   listingId: number
+  quantity: number
 }) {
   try {
     const resp = await request(restApi.getHttpServer())
       .get(`/item/get-lazymint-listing-signature/${listingId}`)
       .set('Authorization', 'Bearer ' + jwt)
+      .query({ quantity: quantity })
     return resp.body;
 
   } catch (err) {
