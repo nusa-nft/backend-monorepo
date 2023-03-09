@@ -974,6 +974,9 @@ export class CollectionService {
       const tokenOwnerships = await this.prisma.tokenOwnerships.findMany({
         where: {
           tokenId: tokenId,
+          quantity: {
+            gt: 0,
+          },
         },
       });
       console.log('this is token ownership', tokenOwnerships);
