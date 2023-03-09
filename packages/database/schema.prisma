@@ -414,6 +414,8 @@ model AcceptedOffer {
   seller         String           @db.Citext
   quantityBought Decimal          @db.Decimal(78, 0)
   totalPricePaid Decimal          @db.Decimal(78, 0)
+  createdAt           Int?
+
 }
 
 model Bid {
@@ -426,6 +428,7 @@ model Bid {
   pricePerToken   Decimal            @db.Decimal(78, 0)
   totalPrice      Decimal            @db.Decimal(78, 0)
   transactionHash String
+  createdAt           Int?
 
   @@unique([listingId, bidder, transactionHash])
 }

@@ -925,15 +925,27 @@ export class ItemService {
         UNION
           SELECT
             'bid' AS event,
+            bid."createdAt",
+            "totalPrice" as price,
+            "bidder" as from,
+            listing."lister" as to,
+            listing."tokenId" as tokenId
+          FROM
+            public."Bid" bid
+            JOIN public."MarketplaceListing" listing
+            ON bid."listingId" = listing."id"
+        UNION
+          SELECT
+            'offer' AS event,
             offer."createdAt",
-            "totalOfferAmount" as price,
+            "totalPrice" as price,
             "offeror" as from,
             accepted."seller" as to,
             "tokenId"
           FROM
             public."MarketplaceOffer" offer
             JOIN public."AcceptedOffer" accepted
-            ON offer."id" = accepted."offerId"
+            ON offer."id" = accepted."offerId"      
         UNION
           SELECT
             'sale' AS event,
@@ -984,15 +996,27 @@ export class ItemService {
       UNION
         SELECT
           'bid' AS event,
+          bid."createdAt",
+          "totalPrice" as price,
+          "bidder" as from,
+          listing."lister" as to,
+          listing."tokenId" as tokenId
+        FROM
+          public."Bid" bid
+          JOIN public."MarketplaceListing" listing
+          ON bid."listingId" = listing."id"
+      UNION
+        SELECT
+          'offer' AS event,
           offer."createdAt",
-          "totalOfferAmount" as price,
+          "totalPrice" as price,
           "offeror" as from,
           accepted."seller" as to,
           "tokenId"
-          FROM
+        FROM
           public."MarketplaceOffer" offer
           JOIN public."AcceptedOffer" accepted
-          ON offer."id" = accepted."offerId"
+          ON offer."id" = accepted."offerId" 
       UNION
         SELECT
           'sale' AS event,

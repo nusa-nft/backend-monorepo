@@ -392,7 +392,7 @@ export class Erc1155Service {
         SELECT
           'bid' AS event,
           offer."createdAt",
-          "totalOfferAmount" as price,
+          "totalPrice" as price,
           "offeror" as from,
           accepted."seller" as to,
           "tokenId"
