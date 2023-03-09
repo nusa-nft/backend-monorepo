@@ -1,4 +1,4 @@
-// require("./verify-contract");
+require("./verify-contract");
 // require("./deploy-token-and-voucher");
 // require("./deploy-token");
 // require("./deploy-nft");
@@ -10,3 +10,6 @@ export * from "./deploy-all";
 export * from "./marketplace-simulation";
 export * from "./deploy-dummy-nfts";
 export * from "./upgrade-marketplace";
+export * from "./upgrade-nft";
+export * from "./get-listing";
+export * from "./nft-set-nusa-marketplace";

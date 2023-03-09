@@ -6,12 +6,12 @@ task("verify-contract", "Verify Certificate Token Contract")
     console.log(taskArgs)
     await run("verify:verify", {
         address: taskArgs.address,
-        contract: "contracts/TadPole.sol:TadPole", // <path-to-contract>:<contract-name>
+        contract: "contracts/NusaNFT.sol:NusaNFT", // <path-to-contract>:<contract-name>
         constructorArguments: [
-          "Nusa NFT",
-          "NNFT",
-          process.env.PROXY_ADDRESS,
-          process.env.BASE_URL
+          // "Nusa NFT",
+          // "NNFT",
+          // process.env.PROXY_ADDRESS,
+          // process.env.BASE_URL
         ],
       });
   })
