@@ -324,7 +324,8 @@ CREATE TABLE "AcceptedOffer" (
     "tokenId" DECIMAL(78,0) NOT NULL,
     "seller" CITEXT NOT NULL,
     "quantityBought" DECIMAL(78,0) NOT NULL,
-    "totalPricePaid" DECIMAL(78,0) NOT NULL
+    "totalPricePaid" DECIMAL(78,0) NOT NULL,
+    "createdAt" INTEGER
 );
 
 -- CreateTable
@@ -335,7 +336,8 @@ CREATE TABLE "Bid" (
     "currency" CITEXT NOT NULL,
     "pricePerToken" DECIMAL(78,0) NOT NULL,
     "totalPrice" DECIMAL(78,0) NOT NULL,
-    "transactionHash" TEXT NOT NULL
+    "transactionHash" TEXT NOT NULL,
+    "createdAt" INTEGER
 );
 
 -- CreateTable
