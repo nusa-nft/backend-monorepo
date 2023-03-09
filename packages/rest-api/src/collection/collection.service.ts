@@ -739,9 +739,6 @@ export class CollectionService {
       }
     }
 
-    const uniqueLazyMintedOwnerAddresses = uniqueLazyMintedOwnerAddress
-      .toString()
-      .trim();
     const lazyMintedItemPricesString = lazyMintedItemPrices.toString();
 
     const collectionItems = await this.prisma.collection.findFirst({
@@ -776,15 +773,13 @@ export class CollectionService {
     }
 
     // get array of token id
-    const tokenIds = items.map(({ tokenId }) => tokenId);
-
-    const tokenIdsString = tokenIds.toString();
+    const tokenIds = items.map(({ tokenId }) => tokenId.toNumber());
 
     const volumeData = await this.getStatusData({
       // const volumeData = await this.indexerService.getStatusData(
-      tokenIds: tokenIdsString,
+      tokenIds: tokenIds,
       totalItems,
-      lazyMintedOwners: uniqueLazyMintedOwnerAddresses,
+      lazyMintedOwners: uniqueLazyMintedOwnerAddress,
       lazyMintedItemPrices: lazyMintedItemPricesString,
       soldLazyMintedItemPrices: soldListingPrice.toString(),
     });
@@ -799,8 +794,6 @@ export class CollectionService {
       lazyMintedItemPrices,
       soldLazyMintedItemPrices,
     } = collectionStatus;
-    const tokenIdsArray = tokenIds.split(',').map(Number);
-    const lazyMintedOwnersArray = lazyMintedOwners.split(',');
     const lazyMintedItemPricesArray = lazyMintedItemPrices
       .split(',')
       .map(Number);
@@ -817,7 +810,7 @@ export class CollectionService {
 
     const listingData = await this.prisma.marketplaceListing.findMany({
       where: {
-        tokenId: { in: tokenIdsArray },
+        tokenId: { in: tokenIds },
         AND: {
           MarketplaceSale: undefined,
           isCancelled: false,
@@ -831,7 +824,7 @@ export class CollectionService {
     const soldListingData = await this.prisma.marketplaceSale.findMany({
       where: {
         listing: {
-          tokenId: { in: tokenIdsArray },
+          tokenId: { in: tokenIds },
         },
       },
       include: {
@@ -977,7 +970,7 @@ export class CollectionService {
 
     // geting unique owner
     const mintedOwners = [];
-    for (const tokenId of tokenIdsArray) {
+    for (const tokenId of tokenIds) {
       const tokenOwnerships = await this.prisma.tokenOwnerships.findMany({
         where: {
           tokenId: tokenId,
@@ -992,8 +985,9 @@ export class CollectionService {
     }
 
     const uniqueMintedOwner = Object.keys(mintedOwners);
-    const ownerAddresses = [...uniqueMintedOwner, ...lazyMintedOwnersArray];
+    const ownerAddresses = [...uniqueMintedOwner, ...lazyMintedOwners];
     const uniqueOwnerAddresses = [...new Set(ownerAddresses)].filter(Boolean);
+    console.log('unique owners is', uniqueOwnerAddresses);
 
     let uniqueOwner;
     if (totalItems == 0) {
