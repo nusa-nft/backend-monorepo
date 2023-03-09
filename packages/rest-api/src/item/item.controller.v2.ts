@@ -15,6 +15,7 @@ import {
   UploadedFile,
   UseInterceptors,
   ValidationPipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -94,7 +95,7 @@ export class ItemControllerV2 {
   @Get('get-lazymint-listing-signature/:listingId')
   getLazyMintListingSignature(
     @Request() req: any,
-    @Param('listingId') listingId: number,
+    @Param('listingId', ParseIntPipe) listingId: number,
     @Query('quantity') quantity: number,
   ) {
     const { user } = req;

@@ -7,6 +7,8 @@ import { ethers } from "ethers";
 import { assert, fmtFailed, fmtSuccess } from "../lib/assertions";
 import { createItem, createLazyMintListing, login, getLazyMintListingSignature, createLazyMintSale } from "../lib/rest-api";
 import retry from 'async-retry';
+import request from 'supertest';
+import { ItemDetail, MintStatus } from "@nusa-nft/rest-api/src/item/item.interface";
 
 export async function testLazyMintItemSale({
   restApi,
@@ -32,7 +34,7 @@ export async function testLazyMintItemSale({
     name: 'Item 2',
     description: 'item ke 2',
     image: `${__dirname}/../test-data/image1.png`,
-    supply: 1,
+    supply: 10,
     external_link: 'external-link',
     explicit_sensitive: false,
     attributes: [
@@ -44,7 +46,7 @@ export async function testLazyMintItemSale({
     ],
     chainId: 1337,
   });
-  const lazyMintedItem: Item = resp.data;
+  let lazyMintedItem: ItemDetail = resp.data;
   assert(lazyMintedItem.quantity_minted == 0, 'assert lazyMintedItem.quantity_minted failed');
   assert(Number(lazyMintedItem.tokenId) < 0, 'assert lazyMintedItem.tokenId failed');
   assert(lazyMintedItem.name == 'Item 2', 'assert lazyMintedItem.name failed');
@@ -58,24 +60,28 @@ export async function testLazyMintItemSale({
       currency: NATIVE_CURRENCY,
       endTime: Number.MAX_SAFE_INTEGER,
       listingType: ListingType.Direct,
-      quantity: 1,
+      quantity: 10,
       reservePricePerToken: "0",
       startTime: Math.floor(Date.now() / 1000),
       tokenType: TokenType.ERC1155
     }
   })
   const listingId = resp.id;
+  console.log(fmtSuccess('Lazy Mint listing created'));
   
   const buyerCreds = await login(restApi, buyerWallet);
-  resp = await getLazyMintListingSignature(restApi, buyerCreds.jwt, { listingId });
+  const buyQuantity = 5;
+  resp = await getLazyMintListingSignature(restApi, buyerCreds.jwt, { listingId, quantity: buyQuantity });
   const { mintRequest, signature } = resp;
+  console.log(fmtSuccess('Lazy Mint listing signature received'))
 
   let tx = await nft.connect(buyerWallet).mintWithSignature(mintRequest, signature, {
-    value: ethers.utils.parseEther("1")
+    value: ethers.utils.parseEther("5")
   });
   let receipt = await tx.wait();
   let transferSingleEvent = await receipt.events.find(ev => ev.event == 'TransferSingle') as TransferSingleEvent;
   let { id } = transferSingleEvent.args;
+  console.log(fmtSuccess('Lazy Mint item minted'));
 
   // Wait for indexer to pickup
   await new Promise(res => setTimeout(res, 10000));  
@@ -89,7 +95,7 @@ export async function testLazyMintItemSale({
     })
   }, { forever: true, retries: 5 });
   assert(Number(lazyMintSoldItem.tokenId) == id.toNumber(), 'assert lazyMintSoldItem.tokenId failed');
-  assert(lazyMintSoldItem.quantity_minted == 1, 'assert lazyMintSoldItem.quantity_minted failed');
+  assert(lazyMintSoldItem.quantity_minted == buyQuantity, 'assert lazyMintSoldItem.quantity_minted failed');
 
   let tokenOwnership = await db.tokenOwnerships.findFirst({
     where: {
@@ -100,12 +106,13 @@ export async function testLazyMintItemSale({
   });
   assert(!!tokenOwnership, 'assert tokenOwnership exists failed');
   assert(tokenOwnership.ownerAddress.toLowerCase() == buyerWallet.address.toLowerCase(), 'assert tokenOwnership.ownerAddress failed');
-  assert(tokenOwnership.quantity == 1, 'assert tokenOwnership.quantity failed');
+  assert(tokenOwnership.quantity == buyQuantity, 'assert tokenOwnership.quantity failed');
+  console.log(fmtSuccess('Lazy Mint item ownership created'));
 
   let lazyMintSale: LazyMintSale
 
   if (tokenOwnership) {
-  lazyMintSale = await createLazyMintSale(restApi, buyerCreds.jwt, {
+    lazyMintSale = await createLazyMintSale(restApi, buyerCreds.jwt, {
       listingData: {
         listingId,
         quantity: 1
@@ -113,6 +120,20 @@ export async function testLazyMintItemSale({
     })
     console.log(lazyMintSale)
   }
+
+  resp = await request(restApi.getHttpServer())
+    .get(`/item/${lazyMintedItem.id}`)
+  lazyMintedItem = resp.body;
+  // console.log({ lazyMintedItem });
+  const { owners } = lazyMintedItem;
+  console.log({ owners });
+  const creatorOwnership = owners.find(o => o.wallet_address == sellerWallet.address)
+  const buyerOwnership = owners.find(o => o.wallet_address == buyerWallet.address)
+
+  assert(creatorOwnership.mintStatus == MintStatus.LAZY_MINT, 'assert creatorOwnership.mintStatus failed');
+  assert(buyerOwnership.mintStatus == MintStatus.MINTED, 'assert buyerOwnership.mintStatus failed');
+  console.log(fmtSuccess('item ownership status updated includes mint status'));
+
   // let notificationSaleData_inDb;
   // await retry(async () => {
   //   notificationSaleData_inDb = await db.notificationDetailSale.findFirst({
