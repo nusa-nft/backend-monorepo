@@ -10,6 +10,11 @@ import {
   User,
 } from '@prisma/client';
 
+export enum MintStatus {
+  LAZY_MINT = 'LAZY_MINT',
+  MINTED = 'NOT_MINTED',
+}
+
 export interface ItemOwnership {
   address: string; // 0xabcabcbacbadcbabacbacbacbacbab
   quantity: number; // 5
@@ -47,6 +52,7 @@ export interface ItemOwner {
   username?: string;
   profile_picture?: string;
   quantity: number;
+  mintStatus: MintStatus;
 }
 
 export interface ItemDetail extends Item {

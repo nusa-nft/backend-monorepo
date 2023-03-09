@@ -134,27 +134,27 @@ async function main() {
   /// =========================================
   /// Test Create Lazy Mint Item, Sell, and Buy
   /// =========================================
-  // await testLazyMintItemSale({
-  //   restApi,
-  //   db,
-  //   nft,
-  //   collectionId,
-  //   sellerWallet: acc1,
-  //   buyerWallet: acc2,
-  // });
+  await testLazyMintItemSale({
+    restApi,
+    db,
+    nft,
+    collectionId,
+    sellerWallet: acc1,
+    buyerWallet: acc2,
+  });
 
   /// =========================================
   /// Test Create Direct Listing and Buy
   /// =========================================
-  await testMarketplaceDirectListing({
-    restApi,
-    db,
-    nft,
-    marketplace,
-    collectionId,
-    sellerWallet: acc1,
-    buyerWallet: acc2,
-  })
+  // await testMarketplaceDirectListing({
+  //   restApi,
+  //   db,
+  //   nft,
+  //   marketplace,
+  //   collectionId,
+  //   sellerWallet: acc1,
+  //   buyerWallet: acc2,
+  // })
 
   /// =========================================
   /// Test Create Auction Listing and Buy

@@ -37,6 +37,8 @@ export async function deployContracts(
     nativeTokenWrapper: wmatic.address
   })
 
+  await nft.setNusaMarketplace(diamond.address);
+
   return {
     wmatic,
     nft,

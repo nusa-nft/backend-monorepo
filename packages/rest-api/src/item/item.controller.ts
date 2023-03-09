@@ -157,20 +157,6 @@ export class ItemController {
     return this.itemService.cancelLazyMintListing(listingId);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('jwt')
-  @Get('get-lazymint-listing-signature/:listingId')
-  getLazyMintListingSignature(
-    @Request() req: any,
-    @Param('listingId') listingId: number,
-  ) {
-    const { user } = req;
-    return this.itemService.getLazyMintListingSignature(
-      +listingId,
-      user.wallet_address,
-    );
-  }
-
   @Get('metadata/:itemId')
   getItemMetadata(@Param('itemId') itemId: number) {
     return this.itemService.getItemMetadata(itemId);
