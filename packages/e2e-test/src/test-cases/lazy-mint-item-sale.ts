@@ -5,7 +5,7 @@ import { NusaNFT } from "@nusa-nft/smart-contract/typechain-types";
 import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
 import { ethers } from "ethers";
 import { assert, fmtFailed, fmtSuccess } from "../lib/assertions";
-import { createItem, createLazyMintListing, login, getLazyMintListingSignature, createLazyMintSale } from "../lib/rest-api";
+import { createItem, createLazyMintListing, login, getLazyMintListingSignature, createLazyMintSale, getItemActivities } from "../lib/rest-api";
 import retry from 'async-retry';
 import request from 'supertest';
 import { ItemDetail, MintStatus } from "@nusa-nft/rest-api/src/item/item.interface";
@@ -134,17 +134,23 @@ export async function testLazyMintItemSale({
   assert(buyerOwnership.mintStatus == MintStatus.MINTED, 'assert buyerOwnership.mintStatus failed');
   console.log(fmtSuccess('item ownership status updated includes mint status'));
 
-  // let notificationSaleData_inDb;
-  // await retry(async () => {
-  //   notificationSaleData_inDb = await db.notificationDetailSale.findFirst({
-  //     where: {
-  //       listingId: lazyMintSale.lazyMintListingId,
-  //     }
-  //   })
-  // }, {forever: true, retries: 10})
+  let notificationSaleData_inDb;
+  await retry(async () => {
+    notificationSaleData_inDb = await db.notificationDetailSale.findFirst({
+      where: {
+        listingId: lazyMintSale.lazyMintListingId,
+      }
+    })
+  }, {forever: true, retries: 10})
 
-  // // console.log('data notifikasi', notificationSaleData_inDb)
-  // assert(notificationSaleData_inDb == null, fmtFailed("notification not created"))
+  const offerParam = {page: 1, event: 'mint'}
+  
+  let itemActivities;
+  itemActivities = await getItemActivities(restApi, lazyMintedItem.id, offerParam)
+  assert(itemActivities.records[0].to !== buyerWallet, fmtFailed("buyer in item activity different from buyer waller"))
+  console.log(fmtSuccess('sale item activity succesfully queried'));
+
+  assert(notificationSaleData_inDb, fmtFailed("notification not created"))
   console.log(fmtSuccess('notification offer data created'))
   console.log('Lazy Mint Item Sale test passed');
 
