@@ -76,10 +76,8 @@ export class NotificationService {
           offerData.createdAt_timestamp * 1000,
         )} ago`;
 
-        const item = await this.getItemData(
-          NotificationType.Offer,
-          offerData.tokenId,
-        );
+        const foreignKeyType = 'tokenId';
+        const item = await this.getItemData(foreignKeyType, offerData.tokenId);
         Object.assign(data.notification_detail_offer, {
           item,
           createdAt_description,
@@ -92,10 +90,20 @@ export class NotificationService {
           Date.now(),
           saleData.createdAt_timestamp * 1000,
         )} ago`;
-        const item = await this.getItemData(
-          NotificationType.Sale,
-          saleData.listingId,
-        );
+
+        let foreignKey;
+        let foreignKeyType;
+
+        if (saleData.listingId != null) {
+          foreignKey = saleData.listingId;
+          foreignKeyType = 'listingId';
+        }
+
+        if (saleData.tokenId != null) {
+          foreignKey = saleData.tokenId;
+          foreignKeyType = 'tokenId';
+        }
+        const item = await this.getItemData(foreignKeyType, foreignKey);
         Object.assign(data.notification_detail_sale, {
           item,
           createdAt_description,
@@ -180,13 +188,10 @@ export class NotificationService {
     };
   }
 
-  async getItemData(notificationType: NotificationType, foreignKey: any) {
+  async getItemData(foreignKeyType: string, foreignKey: any) {
     let item;
 
-    if (
-      notificationType == NotificationType.Sale ||
-      notificationType == NotificationType.Bid
-    ) {
+    if (foreignKeyType == 'listingId') {
       item = await this.prisma.item.findFirst({
         where: {
           OR: [

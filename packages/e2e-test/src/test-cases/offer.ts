@@ -17,7 +17,7 @@ import { AcceptedOfferEvent, NewOfferEvent } from "@nusa-nft/smart-contract/type
 /// - [x] The offer status should be COMPLETED after accepted
 /// - [x] OfferAccepted event should be recorded in Database
 /// - [x] RoyaltyPaid event should be recorded in Database
-/// - [ ] NotificationDetailSale should be created when offer is accepted
+/// - [x] NotificationDetailSale should be created when offer is accepted
 
 export async function offer({
   restApi,
@@ -130,6 +130,7 @@ export async function offer({
   assert(offerInDb.status == OfferStatus.CREATED, fmtFailed("offer not recorded by indexer"));
   console.log(fmtSuccess('Offer recorded by indexer'));
 
+  // check item activity for offer activity
   const offerParam = {page: 1, event: 'offer'}
   console.log(item)
   let itemActivities;
@@ -137,6 +138,19 @@ export async function offer({
 
   assert(itemActivities.records[0].from !== offeror, fmtFailed("offeror in item activity different from offeror"))
   console.log(fmtSuccess('offer item activity succesfully queried'));
+
+  // check notification offer data in DB
+  let notificationOfferDataLister_inDb;
+  await retry(async () => {
+    notificationOfferDataLister_inDb = await db.notificationDetailOffer.findFirst({
+      where: {
+        token_owner_wallet_address: minter.address
+      }
+    })
+  }, {retries: 3})
+
+  assert(notificationOfferDataLister_inDb, fmtFailed("notification offer data not created"))
+  console.log(fmtSuccess('notification offer data created'))
 
   resp = await request(restApi.getHttpServer())
     .get(`/item/offer-history/${item.id}`)
@@ -176,6 +190,26 @@ export async function offer({
   assert(offerInDb.status == OfferStatus.COMPLETED, fmtFailed("offer accepted not recorded by indexer"));
   console.log(fmtSuccess('Offer accepted recorded by indexer'));
 
+
+  // check item activity for sale activity
+  const saleParam = {page: 1, event: 'sale'}
+  const itemActivitySale = await getItemActivities(restApi, item.id, saleParam)
+  assert(itemActivitySale.records[0].from !== offeror, fmtFailed("offeror in item activity different from offeror"))
+  console.log(fmtSuccess('sale item activity succesfully queried'));
+
+  // check notification sale data in DB
+  let notificationSaleDataLister_inDb;
+  await retry(async () => {
+    notificationSaleDataLister_inDb = await db.notificationDetailSale.findFirst({
+      where: {
+        lister_wallet_address: minter.address
+      }
+    })
+  }, {retries: 3})
+
+  assert(notificationSaleDataLister_inDb, fmtFailed("notification sale data not created"))
+  console.log(fmtSuccess('notification sale data created'))
+
   resp = await request(restApi.getHttpServer())
     .get(`/item/offer-history/${item.id}`)
   itemOffers = resp.body.records;
@@ -212,29 +246,6 @@ export async function offer({
   assert(tokenOwnershipAcceptor.toNumber() == tokenOwnershipAcceptor_inDb.quantity, fmtFailed("tokenOwnership Acceptor incorrect"));
   console.log(fmtSuccess('Token ownership recorded correctly by indexer'));
 
-  let notificationOfferDataLister_inDb;
-  await retry(async () => {
-    notificationOfferDataLister_inDb = await db.notificationDetailOffer.findFirst({
-      where: {
-        token_owner_wallet_address: minter.address
-      }
-    })
-  }, {retries: 3})
-
-  const notificationData = await getNotificationData(restApi);
-  console.log(notificationData)
-  assert(notificationOfferDataLister_inDb, fmtFailed("notification offer data not created"))
-  console.log(fmtSuccess('notification offer data created'))
-
-  let notificationSaleDataLister_inDb;
-  await retry(async () => {
-    notificationOfferDataLister_inDb = await db.notificationDetailSale.findFirst({
-      where: {
-        lister_wallet_address: minter.address
-      }
-    })
-  }, {retries: 3})
-
   let royaltyPaid: RoyaltyPaid;
   await retry(async () => {
     royaltyPaid = await db.royaltyPaid.findFirstOrThrow({
@@ -249,20 +260,6 @@ export async function offer({
   assert(royaltyPaid.payer == offeror.address, fmtFailed("royalty paid payer not equal to db"));
   console.log(fmtSuccess("Royalty paid db check passed"));
 
-  const saleParam = {page: 1, event: 'sale'}
-  const itemActivitySale = await getItemActivities(restApi, item.id, saleParam)
-  console.log(itemActivitySale)
-  assert(itemActivitySale.records[0].from !== offeror, fmtFailed("offeror in item activity different from offeror"))
-  console.log(fmtSuccess('sale item activity succesfully queried'));
-
-  const notificationSaleData = await getNotificationData(restApi);
-  console.log(notificationSaleData)
-  assert(notificationSaleDataLister_inDb, fmtFailed("notification sale data not created"))
-  console.log(fmtSuccess('notification sale data created'))
-
-  
-  // TODO:
-  // Notification Detail Sale should be created
 
   await retry(async () => {
     const resp = await request(restApi.getHttpServer())
