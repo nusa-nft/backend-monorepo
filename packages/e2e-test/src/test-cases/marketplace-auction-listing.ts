@@ -4,7 +4,7 @@ import { Bid, Item, ListingStatus, MarketplaceListing, PrismaClient } from "@nus
 import { NusaNFT, MarketplaceFacet } from "@nusa-nft/smart-contract/typechain-types"
 import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
 import { ethers } from "ethers";
-import { login, uploadMetadataToIpfs } from "../lib/rest-api";
+import { getItemActivities, login, uploadMetadataToIpfs } from "../lib/rest-api";
 import retry from "async-retry";
 import { NATIVE_CURRENCY } from "@nusa-nft/rest-api/src/item/web3/constants";
 import { getTime, increaseTime, setTime } from "../lib/time";
@@ -165,7 +165,6 @@ export async function testMarketplacAuctionListing({
   assert(notificationBidDataBidder_inDb != bidder, fmtFailed("bidder wallet address not equal"))
   console.log(fmtSuccess('notification bid 1 data created'))
 
-
   assert(!!bid, fmtFailed("bid not recorded by indexer"))
   assert(bid.bidder.toLowerCase() == bidder.toLowerCase(), fmtFailed("bidder not equal"))
   assert(bid.quantityWanted.toString() == quantityWanted.toString(), fmtFailed("quantityWanted not equal"))
@@ -230,6 +229,17 @@ export async function testMarketplacAuctionListing({
   assert(bid.pricePerToken.toString() == pricePerToken.toString(), fmtFailed("pricePerToken not equal"));
   assert(bid.totalPrice.toString() == totalPrice.toString(), fmtFailed("totalPrice not equal"));
   console.log(fmtSuccess('Bid 2 recorded by indexer'));
+
+  // check item activity for offer activity
+  const offerParam = {page: 1, event: 'bid'}
+  console.log(item)
+  let itemActivities;
+  itemActivities = await getItemActivities(restApi, item.id, offerParam)
+
+  assert(itemActivities.records[0].from !== bidder, fmtFailed("bid 2 bidder in item activity different from offeror"))
+  assert(itemActivities.records[1].from !== bidder, fmtFailed("bid 1 bidder in item activity different from offeror"))
+
+  console.log(fmtSuccess('bid item activity succesfully queried'));
 
   // Check if item detail and item list APIs return listing and bids correctly
   // Should return highest bid

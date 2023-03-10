@@ -13,6 +13,7 @@ import {
   NotificationDetailBid,
   Notification,
   NotificationDetailOffer,
+  AcceptedOffer,
 } from '@prisma/client';
 import retry from 'async-retry';
 
@@ -93,6 +94,10 @@ export class NotificationService {
 
       if (eventData.notification == 'bid') {
         this.newBidNotification(data);
+      }
+
+      if (eventData.notification == 'acceptOffer') {
+        this.newAcceptOfferNotification(data);
       }
     });
   }
@@ -354,5 +359,68 @@ export class NotificationService {
     }
 
     return bidNotification;
+  }
+
+  async newAcceptOfferNotification(eventData: AcceptedOffer) {
+    const {
+      assetContract,
+      offeror,
+      seller,
+      quantityBought,
+      totalPricePaid,
+      createdAt,
+      tokenId,
+    } = eventData;
+
+    const notificationDataLister = await this.prisma.notification.create({
+      data: {
+        notification_type: NotificationType.Sale,
+        is_seen: false,
+        user: {
+          connectOrCreate: {
+            where: { wallet_address: seller },
+            create: { wallet_address: seller },
+          },
+        },
+      },
+    });
+
+    const notificationDataBuyer = await this.prisma.notification.create({
+      data: {
+        notification_type: NotificationType.Sale,
+        is_seen: false,
+        user: {
+          connectOrCreate: {
+            where: { wallet_address: offeror },
+            create: { wallet_address: offeror },
+          },
+        },
+      },
+    });
+
+    const saleNotification = await this.prisma.notificationDetailSale.create({
+      data: {
+        tokenId: +tokenId,
+        asset_contract: assetContract,
+        lister_wallet_address: seller,
+        buyer_wallet_address: offeror,
+        quantity_bought: quantityBought,
+        total_price_paid: totalPricePaid,
+        transaction_hash: '-',
+        Notification: {
+          connect: [
+            { id: notificationDataBuyer.id },
+            { id: notificationDataLister.id },
+          ],
+        },
+        createdAt_timestamp: createdAt,
+      },
+    });
+
+    if (saleNotification) {
+      Logger.log('notification sale data created');
+    }
+
+    return saleNotification;
   }
 }

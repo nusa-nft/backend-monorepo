@@ -30,6 +30,10 @@ export function NotificationMiddleware<
         events.emit('notification', { notification: 'bid', data });
       }
 
+      if (params.model == 'AcceptedOffer') {
+        events.emit('notification', { notification: 'acceptOffer', data });
+      }
+
       return await next(params);
     } else {
       return await next(params);
