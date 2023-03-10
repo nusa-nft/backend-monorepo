@@ -1,7 +1,13 @@
 import { Prisma } from '@nusa-nft/database';
 import { events } from '../../lib/newEventEmitter';
 
-const models = ['MarketplaceSale', 'MarketplaceOffer', 'Bid', 'MarketplaceListing'];
+const models = [
+  'MarketplaceSale',
+  'MarketplaceOffer',
+  'Bid',
+  'MarketplaceListing',
+  'AcceptedOffer',
+];
 
 export function NotificationMiddleware<
   T extends Prisma.BatchPayload = Prisma.BatchPayload,

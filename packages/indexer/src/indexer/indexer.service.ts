@@ -662,8 +662,9 @@ export class IndexerService implements OnModuleInit {
         tokenId: offer.tokenId.toString(),
         seller: seller,
         quantityBought: quantityBought.toString(),
-        totalPricePaid: totalPricePaid.toString()
-      }
+        totalPricePaid: totalPricePaid.toString(),
+        createdAt: timestamp,
+      },
     });
   }
 
@@ -712,7 +713,7 @@ export class IndexerService implements OnModuleInit {
   async indexNewBid(eventArgs: NewBidEventObject, log: TypedEvent<any, any>) {
     const { blockNumber, transactionHash } = log;
     const { listingId, bidder, quantityWanted, currency, pricePerToken, totalPrice } = eventArgs;
-    
+    const timestamp = (await this.provider.getBlock(blockNumber)).timestamp;
     const existingBid = await this.prisma.bid.findFirst({
       where: { transactionHash }
     })
@@ -739,6 +740,7 @@ export class IndexerService implements OnModuleInit {
         pricePerToken: pricePerToken.toString(),
         totalPrice: totalPrice.toString(),
         transactionHash,
+        createdAt: timestamp,
       }
     });
   }

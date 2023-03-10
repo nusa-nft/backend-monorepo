@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ethers } from "ethers";
-import { LazyMintListingDto, LazyMintSale } from '@nusa-nft/rest-api/src/item/dto/item.dto';
+import { ActivitiesParams, LazyMintListingDto, LazyMintSale } from '@nusa-nft/rest-api/src/item/dto/item.dto';
 
 export async function login(restApi: INestApplication, user: ethers.Wallet) {
   const date = new Date().toUTCString();
@@ -206,6 +206,17 @@ export async function getNotificationData(restApi: INestApplication) {
     const resp = await request(restApi.getHttpServer())
     .get(`/notification/1?page=1&take=Take_10`)
 
+    return resp.body
+  } catch (err) {
+    throw err
+  }
+}
+
+export async function getItemActivities(restApi: INestApplication, itemId: number, param: ActivitiesParams ) {
+  const {page, event} = param
+  try {
+    const resp = await request(restApi.getHttpServer())
+    .get(`/item/activities/${itemId}?page=${page}&event=${event}`)
     return resp.body
   } catch (err) {
     throw err
