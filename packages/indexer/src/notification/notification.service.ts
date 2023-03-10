@@ -28,79 +28,79 @@ export class NotificationService {
   async handleMarketplaceNotification() {
     events.on('notification', async (eventData) => {
       Logger.log('notification event received');
-      let data;
-      setTimeout(function () {
-        data = eventData.data;
+      const data = eventData.data;
+
+      setTimeout(async function () {
+        let marketplaceOffer;
+        // const dataOfListing = listingData;
+        if (eventData.notification == 'offer') {
+          const {
+            id,
+            offeror,
+            quantity,
+            totalPrice,
+            transactionHash,
+            currency,
+            createdAt,
+            expirationTimestamp,
+            assetContract,
+            royaltyInfoId,
+            tokenId,
+            status,
+          } = data;
+
+          marketplaceOffer = {
+            id,
+            offeror,
+            assetContract,
+            tokenId,
+            quantity,
+            currency,
+            totalPrice,
+            expirationTimestamp,
+            transactionHash,
+            status,
+            royaltyInfoId,
+            createdAt,
+          };
+
+          this.newOfferNotification(marketplaceOffer);
+        }
+
+        if (eventData.notification == 'sale') {
+          const listingData = await this.prisma.marketplaceListing.findFirst({
+            where: {
+              id: +data.listingId,
+            },
+          });
+
+          let marketplaceSale;
+          await retry(
+            async () => {
+              marketplaceSale =
+                await this.prisma.marketplaceSale.findFirstOrThrow({
+                  where: {
+                    listingId: +listingData.id,
+                  },
+                });
+              return marketplaceSale;
+            },
+            {
+              forever: true,
+            },
+          );
+
+          this.newSaleNotification(marketplaceSale);
+        }
+
+        if (eventData.notification == 'bid') {
+          this.newBidNotification(data);
+        }
+
+        if (eventData.notification == 'acceptOffer') {
+          this.newAcceptOfferNotification(data);
+        }
       }, 30000);
-      let marketplaceOffer;
-      // const dataOfListing = listingData;
-      if (eventData.notification == 'offer') {
-        const {
-          id,
-          offeror,
-          quantity,
-          totalPrice,
-          transactionHash,
-          currency,
-          createdAt,
-          expirationTimestamp,
-          assetContract,
-          royaltyInfoId,
-          tokenId,
-          status,
-        } = data;
-
-        marketplaceOffer = {
-          id,
-          offeror,
-          assetContract,
-          tokenId,
-          quantity,
-          currency,
-          totalPrice,
-          expirationTimestamp,
-          transactionHash,
-          status,
-          royaltyInfoId,
-          createdAt,
-        };
-
-        this.newOfferNotification(marketplaceOffer);
-      }
-
-      if (eventData.notification == 'sale') {
-        const listingData = await this.prisma.marketplaceListing.findFirst({
-          where: {
-            id: +data.listingId,
-          },
-        });
-
-        let marketplaceSale;
-        await retry(
-          async () => {
-            marketplaceSale =
-              await this.prisma.marketplaceSale.findFirstOrThrow({
-                where: {
-                  listingId: +listingData.id,
-                },
-              });
-            return marketplaceSale;
-          },
-          {
-            forever: true,
-          },
-        );
-
-        this.newSaleNotification(marketplaceSale);
-      }
-
-      if (eventData.notification == 'bid') {
-        this.newBidNotification(data);
-      }
-
-      if (eventData.notification == 'acceptOffer') {
-        this.newAcceptOfferNotification(data);
-      }
     });
   }
 
