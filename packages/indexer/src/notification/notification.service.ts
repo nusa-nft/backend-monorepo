@@ -28,8 +28,10 @@ export class NotificationService {
   async handleMarketplaceNotification() {
     events.on('notification', async (eventData) => {
       Logger.log('notification event received');
-      const data = eventData.data;
-
+      let data;
+      setTimeout(function () {
+        data = eventData.data;
+      }, 30000);
       let marketplaceOffer;
       // const dataOfListing = listingData;
       if (eventData.notification == 'offer') {
