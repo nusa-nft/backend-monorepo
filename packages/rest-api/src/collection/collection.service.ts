@@ -1249,7 +1249,7 @@ export class CollectionService {
     const { page, event } = params;
 
     const collection = await this.prisma.collection.findFirstOrThrow({
-      where: { id: collectionId },
+      where: { id: +collectionId },
       select: {
         items: {
           select: {
@@ -1428,25 +1428,33 @@ export class CollectionService {
             'offer' AS event,
             offer."createdAt",
             "totalPrice" as price,
-            "offeror" as from,
-            accepted."seller" as to,
-            "tokenId"
+            offer."offeror" as from,
+            '-' as to,
+            offer."tokenId"
           FROM
             public."MarketplaceOffer" offer
-            JOIN public."AcceptedOffer" accepted
-            ON offer."id" = accepted."offerId" 
+        UNION
+          SELECT
+            'sale' AS event,
+            "createdAt",
+            "totalPricePaid" as price,
+            "offeror" as from,
+            "seller" as to,
+            "tokenId"
+          FROM
+            public."AcceptedOffer"
         UNION
           SELECT
             'sale' AS event,
             sale."createdAt",
             "totalPricePaid" as price,
             "buyer" as from,
-            listing."lister" as to,
+            'listing."lister"' as to,
             listing."tokenId"
           FROM
             public."MarketplaceSale" sale
             JOIN public."MarketplaceListing" listing
-            ON sale."listingId" = listing."listingId"
+            ON sale."listingId" = listing."id"
         ) X
         WHERE X."tokenId" IN (${Prisma.join(tokenIdsArrayOfNumber)})
         ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}
@@ -1499,13 +1507,21 @@ export class CollectionService {
           'offer' AS event,
           offer."createdAt",
           "totalPrice" as price,
-          "offeror" as from,
-          accepted."seller" as to,
-          "tokenId"
+          offer."offeror" as from,
+          '-' as to,
+          offer."tokenId"
         FROM
           public."MarketplaceOffer" offer
-          JOIN public."AcceptedOffer" accepted
-          ON offer."id" = accepted."offerId" 
+      UNION
+        SELECT
+          'sale' AS event,
+          "createdAt",
+          "totalPricePaid" as price,
+          "offeror" as from,
+          "seller" as to,
+          "tokenId"
+        FROM
+          public."AcceptedOffer"
       UNION
         SELECT
           'sale' AS event,
@@ -1517,7 +1533,7 @@ export class CollectionService {
         FROM
           public."MarketplaceSale" sale
           JOIN public."MarketplaceListing" listing
-          ON sale."listingId" = listing."listingId"
+          ON sale."listingId" = listing."id"
       ) X
     WHERE X."tokenId" IN (${Prisma.join(tokenIdsArrayOfNumber)})
     ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}

@@ -222,3 +222,14 @@ export async function getItemActivities(restApi: INestApplication, itemId: numbe
     throw err
   }
 }
+
+export async function getCollectionActivities(restApi: INestApplication, collectionId: number, param: ActivitiesParams ) {
+  const {page, event} = param
+  try {
+    const resp = await request(restApi.getHttpServer())
+    .get(`/collection/activities/${collectionId}?page=${page}&event=${event}`)
+    return resp.body
+  } catch (err) {
+    throw err
+  }
+}

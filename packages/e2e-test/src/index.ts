@@ -133,7 +133,7 @@ async function main() {
 
   /// =========================================
   /// Test Create Lazy Mint Item, Sell, and Buy
-  /// =========================================
+  // /// =========================================
   // await testLazyMintItemSale({
   //   restApi,
   //   db,
@@ -159,33 +159,33 @@ async function main() {
   /// =========================================
   /// Test Create Auction Listing and Buy
   /// =========================================
-  await testMarketplacAuctionListing({
-    restApi,
-    db,
-    web3Provider,
-    nft,
-    marketplace,
-    collectionId,
-    sellerWallet: acc1,
-    bidderWallet1: acc2,
-    bidderWallet2: acc3
-  });
-
-  /// =========================================
-  /// Test Create Offer and Accept
-  /// =========================================
-  // await offer({
+  // await testMarketplacAuctionListing({
   //   restApi,
   //   db,
   //   web3Provider,
   //   nft,
-  //   offers,
-  //   collectionId,
-  //   minter: acc1,
-  //   offeror: acc2,
   //   marketplace,
-  //   wmatic
+  //   collectionId,
+  //   sellerWallet: acc1,
+  //   bidderWallet1: acc2,
+  //   bidderWallet2: acc3
   // });
+
+  /// =========================================
+  /// Test Create Offer and Accept
+  /// =========================================
+  await offer({
+    restApi,
+    db,
+    web3Provider,
+    nft,
+    offers,
+    collectionId,
+    minter: acc1,
+    offeror: acc2,
+    marketplace,
+    wmatic
+  });
 
   /// ====================================
   /// Test Import ERC1155 Mint

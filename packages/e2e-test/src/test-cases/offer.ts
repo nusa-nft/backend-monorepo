@@ -5,7 +5,7 @@ import { ethers } from "ethers";
 import { Item, MarketplaceOffer, OfferStatus, PrismaClient, RoyaltyPaid } from "@nusa-nft/database";
 import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
 import { assert, fmtFailed, fmtSuccess } from "../lib/assertions";
-import { login, uploadMetadataToIpfs, getNotificationData, getItemActivities } from "../lib/rest-api";
+import { login, uploadMetadataToIpfs, getNotificationData, getItemActivities, getCollectionActivities } from "../lib/rest-api";
 import retry from "async-retry";
 import { AcceptedOfferEvent, NewOfferEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/facets/OffersFacet";
 
@@ -260,7 +260,14 @@ export async function offer({
   assert(royaltyPaid.payer == offeror.address, fmtFailed("royalty paid payer not equal to db"));
   console.log(fmtSuccess("Royalty paid db check passed"));
 
-
+  const collectionActivitiesParam = {
+    page: 1,
+    event: ''
+  }
+  const collectionActivities = await getCollectionActivities(restApi, collectionId, collectionActivitiesParam)
+  assert(collectionActivities, fmtFailed("failed to get collection activity"))
+  console.log(fmtSuccess, "succesfully queried collection activities")
+  
   await retry(async () => {
     const resp = await request(restApi.getHttpServer())
       .get('/royalty')
