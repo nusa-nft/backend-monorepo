@@ -5,7 +5,7 @@ import { ethers } from "ethers";
 import { Item, MarketplaceOffer, OfferStatus, PrismaClient, RoyaltyPaid } from "@nusa-nft/database";
 import { TransferSingleEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/NusaNFT";
 import { assert, fmtFailed, fmtSuccess } from "../lib/assertions";
-import { login, uploadMetadataToIpfs, getNotificationData } from "../lib/rest-api";
+import { login, uploadMetadataToIpfs, getNotificationData, getItemActivities } from "../lib/rest-api";
 import retry from "async-retry";
 import { AcceptedOfferEvent, NewOfferEvent } from "@nusa-nft/smart-contract/typechain-types/contracts/facets/OffersFacet";
 
@@ -119,6 +119,7 @@ export async function offer({
       }
     })
   }, { retries: 3 });
+  
   assert(!!offerInDb, fmtFailed("offer not recorded by indexer"));
   assert(offerInDb.assetContract == assetContract, fmtFailed("offer not recorded by indexer"));
   assert(offerInDb.tokenId.toString() == id.toString(), fmtFailed("offer not recorded by indexer"));
@@ -128,6 +129,14 @@ export async function offer({
   assert(offerInDb.totalPrice.toString() == offer.totalPrice.toString(), fmtFailed("offer not recorded by indexer"));
   assert(offerInDb.status == OfferStatus.CREATED, fmtFailed("offer not recorded by indexer"));
   console.log(fmtSuccess('Offer recorded by indexer'));
+
+  const offerParam = {page: 1, event: 'offer'}
+  console.log(item)
+  let itemActivities;
+  itemActivities = await getItemActivities(restApi, item.id, offerParam)
+
+  assert(itemActivities.records[0].from !== offeror, fmtFailed("offeror in item activity different from offeror"))
+  console.log(fmtSuccess('offer item activity succesfully queried'));
 
   resp = await request(restApi.getHttpServer())
     .get(`/item/offer-history/${item.id}`)
@@ -214,11 +223,17 @@ export async function offer({
 
   const notificationData = await getNotificationData(restApi);
   console.log(notificationData)
-  assert(notificationOfferDataLister_inDb, fmtFailed("notification not created"))
+  assert(notificationOfferDataLister_inDb, fmtFailed("notification offer data not created"))
   console.log(fmtSuccess('notification offer data created'))
 
-  // TODO:
-  // Notification Detail Sale should be created
+  let notificationSaleDataLister_inDb;
+  await retry(async () => {
+    notificationOfferDataLister_inDb = await db.notificationDetailSale.findFirst({
+      where: {
+        lister_wallet_address: minter.address
+      }
+    })
+  }, {retries: 3})
 
   let royaltyPaid: RoyaltyPaid;
   await retry(async () => {
@@ -233,6 +248,21 @@ export async function offer({
   assert(royaltyPaid.currency == wmatic.address, fmtFailed("royalty paid currency not equal to db"));
   assert(royaltyPaid.payer == offeror.address, fmtFailed("royalty paid payer not equal to db"));
   console.log(fmtSuccess("Royalty paid db check passed"));
+
+  const saleParam = {page: 1, event: 'sale'}
+  const itemActivitySale = await getItemActivities(restApi, item.id, saleParam)
+  console.log(itemActivitySale)
+  assert(itemActivitySale.records[0].from !== offeror, fmtFailed("offeror in item activity different from offeror"))
+  console.log(fmtSuccess('sale item activity succesfully queried'));
+
+  const notificationSaleData = await getNotificationData(restApi);
+  console.log(notificationSaleData)
+  assert(notificationSaleDataLister_inDb, fmtFailed("notification sale data not created"))
+  console.log(fmtSuccess('notification sale data created'))
+
+  
+  // TODO:
+  // Notification Detail Sale should be created
 
   await retry(async () => {
     const resp = await request(restApi.getHttpServer())

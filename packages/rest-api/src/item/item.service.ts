@@ -829,7 +829,6 @@ export class ItemService {
       where: { id: itemId },
     });
     const result = await this.getActivities(item.tokenId, page, event);
-    console.log('result get item activity', result);
 
     const records = [];
     for (const r of result.records) {
@@ -939,25 +938,33 @@ export class ItemService {
             'offer' AS event,
             offer."createdAt",
             "totalPrice" as price,
-            "offeror" as from,
-            accepted."seller" as to,
-            "tokenId"
+            offer."offeror" as from,
+            '-' as to,
+            offer."tokenId"
           FROM
             public."MarketplaceOffer" offer
-            JOIN public."AcceptedOffer" accepted
-            ON offer."id" = accepted."offerId"      
+        UNION
+          SELECT
+            'sale' AS event,
+            "createdAt",
+            "totalPricePaid" as price,
+            "offeror" as from,
+            "seller" as to,
+            "tokenId"
+          FROM
+            public."AcceptedOffer"
         UNION
           SELECT
             'sale' AS event,
             sale."createdAt",
             "totalPricePaid" as price,
             "buyer" as from,
-            listing."lister" as to,
+            'listing."lister"' as to,
             listing."tokenId"
           FROM
             public."MarketplaceSale" sale
             JOIN public."MarketplaceListing" listing
-            ON sale."listingId" = listing."listingId"
+            ON sale."listingId" = listing."id"
         ) X
       WHERE X."tokenId" = CAST(${tokenId} AS int)
       ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}
@@ -1010,13 +1017,21 @@ export class ItemService {
           'offer' AS event,
           offer."createdAt",
           "totalPrice" as price,
-          "offeror" as from,
-          accepted."seller" as to,
-          "tokenId"
+          offer."offeror" as from,
+          '-' as to,
+          offer."tokenId"
         FROM
           public."MarketplaceOffer" offer
-          JOIN public."AcceptedOffer" accepted
-          ON offer."id" = accepted."offerId" 
+      UNION
+        SELECT
+          'sale' AS event,
+          "createdAt",
+          "totalPricePaid" as price,
+          "offeror" as from,
+          "seller" as to,
+          "tokenId"
+        FROM
+          public."AcceptedOffer"
       UNION
         SELECT
           'sale' AS event,
@@ -1028,7 +1043,7 @@ export class ItemService {
         FROM
           public."MarketplaceSale" sale
           JOIN public."MarketplaceListing" listing
-          ON sale."listingId" = listing."listingId"
+          ON sale."listingId" = listing."id"
       ) X
     WHERE X."tokenId" = CAST(${tokenId} AS int)
     ${event ? Prisma.sql`AND X."event" = ${event}` : Prisma.empty}
