@@ -1,13 +1,7 @@
 import { Prisma } from '@nusa-nft/database';
 import { events } from '../../lib/newEventEmitter';
 
-const models = [
-  'MarketplaceSale',
-  'MarketplaceOffer',
-  'Bid',
-  'MarketplaceListing',
-  'AcceptedOffer',
-];
+const models = ['MarketplaceSale', 'MarketplaceOffer', 'Bid', 'AcceptedOffer'];
 
 export function NotificationMiddleware<
   T extends Prisma.BatchPayload = Prisma.BatchPayload,
@@ -16,7 +10,6 @@ export function NotificationMiddleware<
     params: Prisma.MiddlewareParams,
     next: (params: Prisma.MiddlewareParams) => Promise<T>,
   ): Promise<T> => {
-    console.log(params.model)
     if (models.includes(params.model) && params.action == 'create') {
       const data = params.args.data;
       if (params.model == 'MarketplaceOffer') {
