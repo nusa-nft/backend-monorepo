@@ -131,8 +131,13 @@ export class NotificationService {
       const notificationData = await this.prisma.notification.create({
         data: {
           user: {
-            connect: {
-              wallet_address,
+            connectOrCreate: {
+              create: {
+                wallet_address,
+              },
+              where: {
+                wallet_address,
+              },
             },
           },
           notification_type: NotificationType.Offer,
