@@ -139,6 +139,8 @@ export async function offer({
   assert(itemActivities.records[0].from !== offeror, fmtFailed("offeror in item activity different from offeror"))
   console.log(fmtSuccess('offer item activity succesfully queried'));
 
+  await new Promise(resolve => setTimeout(resolve, 30000));
+
   // check notification offer data in DB
   let notificationOfferDataLister_inDb;
   await retry(async () => {
@@ -147,7 +149,7 @@ export async function offer({
         token_owner_wallet_address: minter.address
       }
     })
-  }, {retries: 3})
+  }, {retries: 3, minTimeout: 3000})
 
   assert(notificationOfferDataLister_inDb, fmtFailed("notification offer data not created"))
   console.log(fmtSuccess('notification offer data created'))
