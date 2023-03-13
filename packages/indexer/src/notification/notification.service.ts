@@ -67,7 +67,7 @@ export class NotificationService {
         createdAt,
       };
 
-      this.newOfferNotification(marketplaceOffer);
+      await this.newOfferNotification(marketplaceOffer);
     }
 
     if (eventData.notification == 'sale') {
@@ -92,15 +92,15 @@ export class NotificationService {
         },
       );
 
-      this.newSaleNotification(marketplaceSale);
+      await this.newSaleNotification(marketplaceSale);
     }
 
     if (eventData.notification == 'bid') {
-      this.newBidNotification(data);
+      await this.newBidNotification(data);
     }
 
     if (eventData.notification == 'acceptOffer') {
-      this.newAcceptOfferNotification(data);
+      await this.newAcceptOfferNotification(data);
     }
   }
   async newOfferNotification(eventData: MarketplaceOffer) {
