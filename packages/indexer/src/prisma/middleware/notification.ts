@@ -16,6 +16,7 @@ export function NotificationMiddleware<
     params: Prisma.MiddlewareParams,
     next: (params: Prisma.MiddlewareParams) => Promise<T>,
   ): Promise<T> => {
+    console.log(params.model)
     if (models.includes(params.model) && params.action == 'create') {
       const data = params.args.data;
       if (params.model == 'MarketplaceOffer') {
